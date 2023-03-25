@@ -6,9 +6,45 @@ pub struct Ownership {
     project: Project,
 }
 
+pub struct Entry {
+    pub category: Category,
+    pub path: String,
+    pub owner: String,
+}
+
+pub struct Entries {
+    pub team_file_entries: Vec<Entry>,
+    pub team_glob_entries: Vec<Entry>,
+    pub ruby_package_entries: Vec<Entry>,
+    pub javascript_package_entries: Vec<Entry>,
+    pub team_yml_entries: Vec<Entry>,
+    pub team_gem_entries: Vec<Entry>,
+}
+
+impl Entry {
+    fn to_row(&self) -> String {
+        format!("/{} {}", self.path, self.owner)
+    }
+}
+
+pub enum Category {
+    File,
+    TeamOwnedGlob,
+    PackageYml,
+    PackageJson,
+    TeamYml,
+    TeamGem,
+}
+
 impl Ownership {
     pub fn build(project: Project) -> Self {
         Self { project }
+    }
+
+    pub fn validate(self) -> bool {
+        let entries = self.entries();
+
+        true
     }
 
     pub fn write_to_file(&self, path: &Path) -> Result<(), Box<dyn Error>> {
@@ -17,33 +53,33 @@ impl Ownership {
     }
 
     pub fn generate_file(&self) -> String {
-        let team_by_name = self.project.team_by_name();
+        let entries = self.entries();
         let mut lines: Vec<String> = Vec::new();
 
         lines.append(&mut Self::disclaimer());
 
         lines.push("# Annotations at the top of file".to_owned());
-        lines.append(&mut self.annotations_at_top_of_file(&team_by_name));
+        lines.append(&mut Self::to_sorted_lines(&entries.team_file_entries));
         lines.push("".to_owned());
 
         lines.push("# Team-specific owned globs".to_owned());
-        lines.append(&mut self.team_specific_owned_globs());
+        lines.append(&mut Self::to_sorted_lines(&entries.team_glob_entries));
         lines.push("".to_owned());
 
         lines.push("# Owner metadata key in package.yml".to_owned());
-        lines.append(&mut self.owner_metadata_in_package(&PackageType::Ruby, &team_by_name));
+        lines.append(&mut Self::to_sorted_lines(&entries.ruby_package_entries));
         lines.push("".to_owned());
 
         lines.push("# Owner metadata key in package.json".to_owned());
-        lines.append(&mut self.owner_metadata_in_package(&PackageType::Javascript, &team_by_name));
+        lines.append(&mut Self::to_sorted_lines(&entries.javascript_package_entries));
         lines.push("".to_owned());
 
         lines.push("# Team YML ownership".to_owned());
-        lines.append(&mut self.team_yml_ownership());
+        lines.append(&mut Self::to_sorted_lines(&entries.team_yml_entries));
         lines.push("".to_owned());
 
         lines.push("# Team owned gems".to_owned());
-        lines.append(&mut self.team_owned_gems());
+        lines.append(&mut Self::to_sorted_lines(&entries.team_gem_entries));
         lines.push("".to_owned());
 
         lines.join("\n")
@@ -66,8 +102,33 @@ impl Ownership {
         .collect()
     }
 
-    fn annotations_at_top_of_file(&self, team_by_name: &HashMap<String, crate::project::Team>) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::new();
+    fn to_sorted_lines(entries: &[Entry]) -> Vec<String> {
+        let mut lines: Vec<String> = entries.iter().map(|entry| entry.to_row()).collect();
+        lines.sort();
+        lines
+    }
+
+    fn entries(&self) -> Entries {
+        let team_by_name = self.project.team_by_name();
+        let team_file_entries = self.team_file_entries(&team_by_name);
+        let team_glob_entries = self.team_glob_entries();
+        let ruby_package_entries = self.package_entries(&PackageType::Ruby, &team_by_name);
+        let javascript_package_entries = self.package_entries(&PackageType::Javascript, &team_by_name);
+        let team_yml_entries = self.team_yml_entries();
+        let team_gem_entries = self.team_gem_entries();
+
+        Entries {
+            team_file_entries,
+            team_glob_entries,
+            ruby_package_entries,
+            javascript_package_entries,
+            team_yml_entries,
+            team_gem_entries,
+        }
+    }
+
+    fn team_file_entries(&self, team_by_name: &HashMap<String, crate::project::Team>) -> Vec<Entry> {
+        let mut entries: Vec<Entry> = Vec::new();
 
         for owned_file in &self.project.owned_files {
             if let Some(ref owner) = owned_file.owner {
@@ -77,16 +138,20 @@ impl Ownership {
                 }
 
                 let relative_path = self.project.relative_path(&owned_file.path);
-                lines.push(format!("/{} {}", relative_path.to_string_lossy(), team.github_team,));
+
+                entries.push(Entry {
+                    category: Category::File,
+                    path: relative_path.to_string_lossy().to_string(),
+                    owner: team.github_team.to_owned(),
+                });
             }
         }
 
-        lines.sort();
-        lines
+        entries
     }
 
-    fn team_specific_owned_globs(&self) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::new();
+    fn team_glob_entries(&self) -> Vec<Entry> {
+        let mut entries: Vec<Entry> = Vec::new();
 
         for team in &self.project.teams {
             if team.avoid_ownership {
@@ -94,16 +159,19 @@ impl Ownership {
             }
 
             for owned_glob in &team.owned_globs {
-                lines.push(format!("/{} {}", owned_glob, team.github_team));
+                entries.push(Entry {
+                    category: Category::TeamOwnedGlob,
+                    path: owned_glob.to_owned(),
+                    owner: team.github_team.to_owned(),
+                });
             }
         }
 
-        lines.sort();
-        lines
+        entries
     }
 
-    fn owner_metadata_in_package(&self, package_type: &PackageType, team_by_name: &HashMap<String, crate::project::Team>) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::new();
+    fn package_entries(&self, package_type: &PackageType, team_by_name: &HashMap<String, crate::project::Team>) -> Vec<Entry> {
+        let mut entries: Vec<Entry> = Vec::new();
 
         for package in self.project.packages.iter().filter(|package| &package.package_type == package_type) {
             let package_root = package
@@ -118,34 +186,41 @@ impl Ownership {
                 continue;
             }
 
-            lines.push(format!("/{}/**/** {}", package_root.to_string_lossy(), team.github_team));
+            let category = match package_type {
+                PackageType::Ruby => Category::PackageYml,
+                PackageType::Javascript => Category::PackageJson,
+            };
+
+            entries.push(Entry {
+                category,
+                path: format!("{}/**/**", package_root.to_string_lossy()),
+                owner: team.github_team.to_owned(),
+            });
         }
 
-        lines.sort();
-        lines
+        entries
     }
 
-    fn team_yml_ownership(&self) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::new();
+    fn team_yml_entries(&self) -> Vec<Entry> {
+        let mut entries: Vec<Entry> = Vec::new();
 
         for team in &self.project.teams {
             if team.avoid_ownership {
                 continue;
             }
 
-            lines.push(format!(
-                "/{} {}",
-                self.project.relative_path(&team.path).to_string_lossy(),
-                team.github_team
-            ));
+            entries.push(Entry {
+                category: Category::TeamYml,
+                path: self.project.relative_path(&team.path).to_string_lossy().to_string(),
+                owner: team.github_team.to_owned(),
+            });
         }
 
-        lines.sort();
-        lines
+        entries
     }
 
-    fn team_owned_gems(&self) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::new();
+    fn team_gem_entries(&self) -> Vec<Entry> {
+        let mut entries: Vec<Entry> = Vec::new();
 
         let vendored_gem_by_name = self.project.vendored_gem_by_name();
 
@@ -158,17 +233,16 @@ impl Ownership {
                 let vendored_gem = vendored_gem_by_name.get(owned_gem);
 
                 if let Some(vendored_gem) = vendored_gem {
-                    lines.push(format!(
-                        "/{} {}",
-                        self.project.relative_path(&vendored_gem.path).to_string_lossy(),
-                        team.github_team
-                    ))
+                    entries.push(Entry {
+                        category: Category::TeamGem,
+                        path: self.project.relative_path(&vendored_gem.path).to_string_lossy().to_string(),
+                        owner: team.github_team.to_owned(),
+                    });
                 }
             }
         }
 
-        lines.sort();
-        lines
+        entries
     }
 }
 
@@ -286,7 +360,7 @@ mod tests {
         let ownership = Ownership::build(build_project_with_annotated_file());
 
         assert_eq!(
-            ownership.generate_file().lines().collect::<Vec<&str>>(),
+            ownership.generate_file(),
             with_disclaimer(vec![
                 "# Annotations at the top of file",
                 "/packs/payroll/services/runner.rb @Payroll-Eng",
@@ -300,8 +374,10 @@ mod tests {
                 "# Team YML ownership",
                 "/config/teams/payroll.yml @Payroll-Eng",
                 "",
-                "# Team owned gems"
+                "# Team owned gems",
+                "",
             ])
+            .join("\n")
         )
     }
 
@@ -310,7 +386,7 @@ mod tests {
         let ownership = Ownership::build(build_project_with_team_specific_owned_globs());
 
         assert_eq!(
-            ownership.generate_file().lines().collect::<Vec<&str>>(),
+            ownership.generate_file(),
             with_disclaimer(vec![
                 "# Annotations at the top of file",
                 "",
@@ -324,8 +400,10 @@ mod tests {
                 "# Team YML ownership",
                 "/config/teams/payroll.yml @Payroll-Eng",
                 "",
-                "# Team owned gems"
+                "# Team owned gems",
+                "",
             ])
+            .join("\n")
         )
     }
 
@@ -334,7 +412,7 @@ mod tests {
         let ownership = Ownership::build(build_project_with_packages());
 
         assert_eq!(
-            ownership.generate_file().lines().collect::<Vec<&str>>(),
+            ownership.generate_file(),
             with_disclaimer(vec![
                 "# Annotations at the top of file",
                 "",
@@ -349,8 +427,10 @@ mod tests {
                 "# Team YML ownership",
                 "/config/teams/payroll.yml @Payroll-Eng",
                 "",
-                "# Team owned gems"
+                "# Team owned gems",
+                "",
             ])
+            .join("\n")
         )
     }
 
@@ -359,7 +439,7 @@ mod tests {
         let ownership = Ownership::build(build_project_with_team_owned_gems());
 
         assert_eq!(
-            ownership.generate_file().lines().collect::<Vec<&str>>(),
+            ownership.generate_file(),
             with_disclaimer(vec![
                 "# Annotations at the top of file",
                 "",
@@ -373,8 +453,10 @@ mod tests {
                 "/config/teams/payroll.yml @Payroll-Eng",
                 "",
                 "# Team owned gems",
-                "/components/payroll_calculator @Payroll-Eng"
+                "/components/payroll_calculator @Payroll-Eng",
+                "",
             ])
+            .join("\n")
         )
     }
 
