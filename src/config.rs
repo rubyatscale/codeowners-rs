@@ -1,7 +1,4 @@
-use std::path::Path;
-
 use serde::Deserialize;
-use wax::Glob;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -22,32 +19,6 @@ pub struct Config {
 
     #[serde(default = "vendored_dependencies")]
     pub vendored_gems_path: String,
-}
-
-impl<'a> Config {
-    pub fn compile(&'a self) -> CompiledConfig<'a> {
-        CompiledConfig {
-            owned_file_globs: Self::compile_glob(&self.owned_globs),
-            ruby_package_paths: Self::compile_glob(&self.ruby_package_paths),
-            javascript_package_paths: Self::compile_glob(&self.javascript_package_paths),
-            team_file_glob: Self::compile_glob(&self.team_file_glob),
-            unowned_globs: Self::compile_glob(&self.unowned_globs),
-            vendored_gems_path: Path::new(&self.vendored_gems_path),
-        }
-    }
-
-    fn compile_glob(globs: &[String]) -> Vec<Glob> {
-        globs.iter().map(|g| Glob::new(g).unwrap()).collect()
-    }
-}
-
-pub struct CompiledConfig<'a> {
-    pub owned_file_globs: Vec<Glob<'a>>,
-    pub ruby_package_paths: Vec<Glob<'a>>,
-    pub javascript_package_paths: Vec<Glob<'a>>,
-    pub team_file_glob: Vec<Glob<'a>>,
-    pub unowned_globs: Vec<Glob<'a>>,
-    pub vendored_gems_path: &'a Path,
 }
 
 fn ruby_package_paths() -> Vec<String> {
@@ -71,7 +42,13 @@ fn team_file_glob() -> Vec<String> {
 }
 
 fn unowned_globs() -> Vec<String> {
-    vec![]
+    vec![
+        "frontend/javascripts/**/__generated__/**/*".to_owned(),
+        "frontend/javascripts/packages/graphql-subgraph-mock-server/**/*".to_owned(),
+        "frontend/javascripts/vendor/**/*".to_owned(),
+        "frontend/javascripts/lib/extensions/jquery/**/*".to_owned(),
+        "config/environments/development_overrides.rb".to_owned(),
+    ]
 }
 
 fn vendored_dependencies() -> String {

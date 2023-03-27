@@ -9,17 +9,19 @@ use std::{
 use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
+use tracing::{debug, instrument};
 
-use wax::{Glob, Pattern};
-
-use crate::config::CompiledConfig;
+use crate::config::Config;
+use glob_match::glob_match;
 
 pub struct Project {
     pub base_path: PathBuf,
-    pub owned_files: Vec<OwnedFile>,
+    pub files: Vec<ProjectFile>,
     pub packages: Vec<Package>,
     pub vendored_gems: Vec<VendoredGem>,
     pub teams: Vec<Team>,
+    pub unowned_globs: Vec<String>,
+    pub codeowners_file: String,
 }
 
 #[derive(Clone)]
@@ -28,7 +30,8 @@ pub struct VendoredGem {
     pub name: String,
 }
 
-pub struct OwnedFile {
+#[derive(Debug)]
+pub struct ProjectFile {
     pub owner: Option<String>,
     pub path: PathBuf,
 }
@@ -49,7 +52,13 @@ pub struct Package {
     pub owner: String,
 }
 
-#[derive(PartialEq, Eq)]
+impl Package {
+    pub fn package_root(&self) -> &Path {
+        self.path.parent().unwrap()
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
 pub enum PackageType {
     Ruby,
     Javascript,
@@ -101,7 +110,10 @@ mod deserializers {
 }
 
 impl Project {
-    pub fn build(base_path: &Path, config: &CompiledConfig) -> Result<Self, Box<dyn Error>> {
+    #[instrument(level = "debug", skip_all)]
+    pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Box<dyn Error>> {
+        debug!("building project");
+
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
         let mut packages: Vec<Package> = Vec::new();
         let mut teams: Vec<Team> = Vec::new();
@@ -114,7 +126,7 @@ impl Project {
             let relative_path = absolute_path.strip_prefix(base_path)?.to_owned();
 
             if entry.file_type().is_dir() {
-                if relative_path.parent() == Some(config.vendored_gems_path) {
+                if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
                     let file_name = relative_path.file_name().expect("expected a file_name");
                     vendored_gems.push(VendoredGem {
                         path: absolute_path,
@@ -160,17 +172,25 @@ impl Project {
                 })
             }
 
-            if matches_globs(&relative_path, &config.owned_file_globs) && !matches_globs(&relative_path, &config.unowned_globs) {
+            if matches_globs(&relative_path, &config.owned_globs) {
                 owned_file_paths.push(absolute_path)
             }
         }
 
+        let codeowners_file: String = if codeowners_file_path.exists() {
+            std::fs::read_to_string(codeowners_file_path)?
+        } else {
+            "".to_owned()
+        };
+
         Ok(Project {
             base_path: base_path.to_owned(),
-            owned_files: owned_files(owned_file_paths),
+            files: owned_files(owned_file_paths),
             vendored_gems,
             teams,
             packages,
+            unowned_globs: config.unowned_globs.clone(),
+            codeowners_file,
         })
     }
 
@@ -199,9 +219,13 @@ impl Project {
 
         result
     }
+
+    pub fn skip_file(&self, file: &ProjectFile) -> bool {
+        matches_globs(self.relative_path(&file.path), &self.unowned_globs)
+    }
 }
 
-fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<OwnedFile> {
+fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
     let regexp = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
 
     owned_file_paths
@@ -212,7 +236,7 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<OwnedFile> {
             let first_line = first_line.expect("error reading first line");
 
             if first_line.is_none() {
-                return OwnedFile { path, owner: None };
+                return ProjectFile { path, owner: None };
             }
 
             if let Some(first_line) = first_line {
@@ -222,7 +246,7 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<OwnedFile> {
                     let first_capture = capture.get(1);
 
                     if let Some(first_capture) = first_capture {
-                        return OwnedFile {
+                        return ProjectFile {
                             path,
                             owner: Some(first_capture.as_str().to_string()),
                         };
@@ -230,7 +254,7 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<OwnedFile> {
                 }
             }
 
-            OwnedFile { path, owner: None }
+            ProjectFile { path, owner: None }
         })
         .collect()
 }
@@ -245,6 +269,6 @@ fn package_owner(path: &Path) -> Result<Option<String>, Box<dyn Error>> {
     }
 }
 
-fn matches_globs(path: &Path, globs: &[Glob]) -> bool {
-    globs.iter().any(|glob| glob.is_match(path))
+fn matches_globs(path: &Path, globs: &[String]) -> bool {
+    globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
 }
