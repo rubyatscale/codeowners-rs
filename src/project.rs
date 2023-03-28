@@ -112,7 +112,7 @@ mod deserializers {
 impl Project {
     #[instrument(level = "debug", skip_all)]
     pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Box<dyn Error>> {
-        debug!("building project");
+        debug!("scanning project ({})", base_path.to_string_lossy());
 
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
         let mut packages: Vec<Package> = Vec::new();
@@ -177,15 +177,25 @@ impl Project {
             }
         }
 
+        debug!(
+            owned_file_paths = owned_file_paths.len(),
+            packages = packages.len(),
+            teams = teams.len(),
+            vendored_gems = vendored_gems.len(),
+            "finished scanning project",
+        );
+
         let codeowners_file: String = if codeowners_file_path.exists() {
             std::fs::read_to_string(codeowners_file_path)?
         } else {
             "".to_owned()
         };
 
+        let owned_files = owned_files(owned_file_paths);
+
         Ok(Project {
             base_path: base_path.to_owned(),
-            files: owned_files(owned_file_paths),
+            files: owned_files,
             vendored_gems,
             teams,
             packages,
@@ -225,8 +235,11 @@ impl Project {
     }
 }
 
+#[instrument(level = "debug", skip_all)]
 fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
     let regexp = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
+
+    debug!("opening files to read ownership annotation");
 
     owned_file_paths
         .into_par_iter()

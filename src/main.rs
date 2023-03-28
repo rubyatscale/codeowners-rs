@@ -1,40 +1,23 @@
-use ownership::Ownership;
+use ownership::{Ownership, ValidationErrors};
 
 use crate::{config::Config, project::Project};
 use clap::{Parser, Subcommand};
-use std::{error::Error, fs::File, path::PathBuf};
+use std::{error::Error, fs::File, path::PathBuf, process};
 
 mod config;
 mod ownership;
 mod project;
 
-use std::fmt;
-
-#[derive(Debug)]
-struct ValidationError(String);
-
-impl fmt::Display for ValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for ValidationError {
-    fn description(&self) -> &str {
-        &self.0
-    }
-}
-
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Verify the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
-    Verify,
-
     /// Generate the CODEOWNERS file and save it to '--codeowners-file-path'.
     Generate,
 
-    /// Chains the 'verify' and 'generate' commands, 'generate' will only be invoked if 'verify' succeeds.
-    VerifyAndGenerate,
+    /// Verify the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
+    Verify,
+
+    /// Chains both 'generate' and 'verify' commands
+    GenerateAndVerify,
 }
 
 /// A CLI to validate and generate Github's CODEOWNERS file.
@@ -47,9 +30,7 @@ struct Args {
     /// Path for the CODEOWNERS file.
     #[arg(long, default_value = "./.github/CODEOWNERS")]
     codeowners_file_path: PathBuf,
-
     /// Path for the configuration file
-
     #[arg(long, default_value = "./config/codeowners-rs.yml")]
     config_path: PathBuf,
 
@@ -60,7 +41,8 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     install_logger();
-    cli()?;
+    print_validation_errors_to_stdout(cli())?;
+
     Ok(())
 }
 
@@ -68,7 +50,7 @@ fn cli() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     let config: Config = if args.config_path.exists() {
-        serde_yaml::from_reader(File::open("./.config.yml")?)?
+        serde_yaml::from_reader(File::open(args.config_path)?)?
     } else {
         serde_yaml::from_str("")?
     };
@@ -77,33 +59,33 @@ fn cli() -> Result<(), Box<dyn Error>> {
     let project_root = args.project_root;
 
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config)?);
-    let validation_errors = ownership.validate();
-
     let command = args.command;
 
     match command {
-        Command::Verify => {
-            let validation_errors = ownership.validate();
-            if validation_errors.is_empty() {
-                Ok(())
-            } else {
-                Err(ValidationError(format!("{:?}", validation_errors)))?
-            }
-        }
+        Command::Verify => ownership.validate()?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file())?;
-            Ok(())
         }
-        Command::VerifyAndGenerate => {
-            if validation_errors.is_empty() {
-                std::fs::write(codeowners_file_path, ownership.generate_file())?;
-                Ok(())
-            } else {
-                println!("{:?}", validation_errors);
-                Err(ValidationError(format!("{:?}", validation_errors)))?
-            }
+        Command::GenerateAndVerify => {
+            std::fs::write(codeowners_file_path, ownership.generate_file())?;
+            ownership.validate()?
         }
     }
+
+    Ok(())
+}
+
+fn print_validation_errors_to_stdout(result: Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
+    if let Err(error) = result {
+        if let Some(validation_errors) = error.downcast_ref::<ValidationErrors>() {
+            println!("{}", validation_errors.to_string());
+            process::exit(-1);
+        } else {
+            Err(error)?
+        }
+    }
+
+    Ok(())
 }
 
 fn install_logger() {

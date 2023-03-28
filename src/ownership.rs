@@ -10,10 +10,12 @@ mod tests;
 
 use crate::project::Project;
 
+pub use validator::ValidationErrors;
+
 use self::{
     file_generator::FileGenerator,
     mapper::{JavascriptPackageMapper, Mapper, RubyPackageMapper, TeamFileMapper, TeamGemMapper, TeamGlobMapper, TeamYmlMapper},
-    validator::{ValidationError, Validator},
+    validator::Validator,
 };
 
 pub struct Ownership {
@@ -38,7 +40,7 @@ impl Ownership {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self) -> Vec<ValidationError> {
+    pub fn validate(&self) -> Result<(), ValidationErrors> {
         debug!("validating file ownership");
         let validator = Validator {
             project: self.project.clone(),
