@@ -1,2 +1,4 @@
 /target
 /.config.yml
+.DS_Store
+/tmp
