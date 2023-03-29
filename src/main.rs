@@ -20,11 +20,11 @@ enum Command {
     /// Generate the CODEOWNERS file and save it to '--codeowners-file-path'.
     Generate,
 
-    /// Verify the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
-    Verify,
+    /// Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
+    Validate,
 
     /// Chains both 'generate' and 'verify' commands
-    GenerateAndVerify,
+    GenerateAndValidate,
 }
 
 /// A CLI to validate and generate Github's CODEOWNERS file.
@@ -89,11 +89,11 @@ fn cli() -> Result<(), Box<dyn Error>> {
     let command = args.command;
 
     match command {
-        Command::Verify => ownership.validate()?,
+        Command::Validate => ownership.validate()?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file())?;
         }
-        Command::GenerateAndVerify => {
+        Command::GenerateAndValidate => {
             std::fs::write(codeowners_file_path, ownership.generate_file())?;
             ownership.validate()?
         }
