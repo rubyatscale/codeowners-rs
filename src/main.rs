@@ -38,7 +38,7 @@ struct Args {
     #[arg(long, default_value = "./.github/CODEOWNERS")]
     codeowners_file_path: PathBuf,
     /// Path for the configuration file
-    #[arg(long, default_value = "./config/codeowners-rs.yml")]
+    #[arg(long, default_value = "./config/code_ownership.yml")]
     config_path: PathBuf,
 
     /// Path for the root of the project
