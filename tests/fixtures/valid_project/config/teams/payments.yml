@@ -1,0 +1,5 @@
+name: Payroll
+github:
+  team: '@PayrollTeam'
+owned_globs:
+  - ruby/app/payments/**/*

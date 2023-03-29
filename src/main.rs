@@ -1,8 +1,15 @@
 use ownership::{Ownership, ValidationErrors};
+use tracing::debug;
 
-use crate::{config::Config, project::Project};
+use crate::project::Project;
 use clap::{Parser, Subcommand};
-use std::{error::Error, fs::File, path::PathBuf, process};
+use path_clean::PathClean;
+use std::{
+    error::Error,
+    fs::File,
+    path::{Path, PathBuf},
+    process,
+};
 
 mod config;
 mod ownership;
@@ -39,6 +46,24 @@ struct Args {
     project_root: PathBuf,
 }
 
+impl Args {
+    fn absolute_project_root(&self) -> Result<PathBuf, std::io::Error> {
+        self.project_root.canonicalize()
+    }
+
+    fn absolute_config_path(&self) -> Result<PathBuf, std::io::Error> {
+        Ok(self.absolute_path(&self.config_path)?.clean())
+    }
+
+    fn absolute_codeowners_path(&self) -> Result<PathBuf, std::io::Error> {
+        Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
+    }
+
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        Ok(self.absolute_project_root()?.join(path))
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     install_logger();
     print_validation_errors_to_stdout(cli())?;
@@ -49,15 +74,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn cli() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let config: Config = if args.config_path.exists() {
-        serde_yaml::from_reader(File::open(args.config_path)?)?
-    } else {
-        serde_yaml::from_str("")?
-    };
+    let config_path = args.absolute_config_path()?;
+    let codeowners_file_path = args.absolute_codeowners_path()?;
+    let project_root = args.absolute_project_root()?;
 
-    let codeowners_file_path = args.codeowners_file_path;
-    let project_root = args.project_root;
+    debug!(
+        config_path = &config_path.to_str(),
+        codeowners_file_path = &codeowners_file_path.to_str(),
+        project_root = &project_root.to_str(),
+    );
 
+    let config = serde_yaml::from_reader(File::open(config_path)?)?;
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config)?);
     let command = args.command;
 
@@ -78,7 +105,7 @@ fn cli() -> Result<(), Box<dyn Error>> {
 fn print_validation_errors_to_stdout(result: Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
     if let Err(error) = result {
         if let Some(validation_errors) = error.downcast_ref::<ValidationErrors>() {
-            println!("{}", validation_errors.to_string());
+            println!("{}", validation_errors);
             process::exit(-1);
         } else {
             Err(error)?
