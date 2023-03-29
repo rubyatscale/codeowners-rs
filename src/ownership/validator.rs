@@ -159,13 +159,15 @@ impl Display for ValidationErrors {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let grouped_errors = self.0.iter().into_group_map_by(|error| error.error_category_message());
         for (error_category_message, errors) in grouped_errors {
-            write!(f, "{}", error_category_message)?;
+            write!(f, "\n{}", error_category_message)?;
 
             let error_messages = errors.iter().map(|error| error.error_message()).join("\n");
             if !error_messages.is_empty() {
                 writeln!(f)?;
                 write!(f, "{}", error_messages)?;
             }
+
+            write!(f, "\n")?;
         }
 
         Ok(())

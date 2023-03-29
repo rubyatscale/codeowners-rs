@@ -23,7 +23,7 @@ enum Command {
     /// Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
     Validate,
 
-    /// Chains both 'generate' and 'verify' commands
+    /// Chains both 'generate' and 'validate' commands
     GenerateAndValidate,
 }
 
