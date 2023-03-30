@@ -1,5 +1,9 @@
 # Codeowners
-Codeowners is a CLI tool written in Rust that can generate Github's `CODEOWNERS`. It's a re-implementation of the CLI tool from https://github.com/rubyatscale/code_ownership with a focus on speed.
+Codeowners is a CLI tool written in Rust that can generate Github's `CODEOWNERS` file. It's a re-implementation of an existing [tool](https://github.com/rubyatscale/code_ownership).
+
+Codeowners assumes certain conventions around Ruby/Javascript packages. These can probably be abstracted away to be language agnostic but are currently not.
+
+The sole purpose of this tool existing is speed. `CODEOWNERS` generation happens as part of our git commit hooks and has on Gusto's main repo takes 18s to run. The Rust implementation which is a drop in replacement cuts that down to <= 2s. (Tested on a Mackbook M1)
 
 ```
 A CLI to validate and generate Github's CODEOWNERS file
@@ -27,3 +31,7 @@ Options:
 
 ### Development
 The CLI is written in Rust. Rust provides strong type gurantees and an great ecosystem of CLI libraries. To be able to compile the code locally, you'll need to setup a rust compiler (See https://rustup.rs/):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
