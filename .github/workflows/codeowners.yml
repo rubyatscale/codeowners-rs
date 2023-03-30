@@ -10,7 +10,7 @@ on:
 
 defaults:
   run:
-    working-directory: codeowners-src
+    working-directory: .
 
 jobs:
   codeowners_test:
