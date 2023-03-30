@@ -28,6 +28,23 @@ Options:
           Print version
 ```
 
+### Adoption
+This is an experimental tool and not currently supported by Gusto engineering foundational teams. It might stop working at any time. If you still wish to adopt it locally and get faster git commit hooks, do the following:
+```bash
+# sets up a Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Compile and install locall
+gh repo clone rubyatscale/codeowners-rs
+cd codeowners-rs
+cargo install --path .
+
+# Set an environment variable that switches ZP's commit hook to use the globally installed binary
+echo USE_CODEOWNERS_RS=true >> ~/.zshrc
+```
+
+
+
 ### Development
 The CLI is written in Rust. Rust provides strong type gurantees and an great ecosystem of CLI libraries. To be able to compile the code locally, you'll need to setup a rust compiler (See https://rustup.rs/):
 
