@@ -1,5 +1,5 @@
 # Codeowners
-The oxidation of an (existing CLI)[https://github.com/rubyatscale/code_ownership] written in Ruby.
+The oxidation of an [existing CLI](https://github.com/rubyatscale/code_ownership) written in Ruby.
 This tool generates Github's `CODEOWNERS` file, assuming certain conventions around Ruby/Javascript packages.
 
 `CODEOWNERS` generation happens as part of our git commit hooks and on Gusto's main repo takes ~18s to run. The Rust implementation which is a drop in replacement cuts that down to <= 2s. (Tested on a Mackbook M1)
@@ -29,7 +29,8 @@ Options:
 ```
 
 ### Adoption
-This is an experimental tool and not currently supported by Gusto engineering foundational teams. It might stop working at any time. If you still wish to adopt it locally and get faster git commit hooks, do the following:
+This is an experimental port and might not ever be supported, use at your own risk and be preprare to fallback to the Ruby implementation if it stops working. if you still wish to adopt it, here are the instructions:
+
 ```bash
 # sets up a Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -42,8 +43,6 @@ cargo install --path .
 # Set an environment variable that switches ZP's commit hook to use the globally installed binary
 echo USE_CODEOWNERS_RS=true >> ~/.zshrc
 ```
-
-
 
 ### Development
 The CLI is written in Rust. Rust provides strong type gurantees and an great ecosystem of CLI libraries. To be able to compile the code locally, you'll need to setup a rust compiler (See https://rustup.rs/):
