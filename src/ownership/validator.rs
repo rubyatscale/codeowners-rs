@@ -167,7 +167,7 @@ impl Display for ValidationErrors {
                 write!(f, "{}", error_messages)?;
             }
 
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
         Ok(())
