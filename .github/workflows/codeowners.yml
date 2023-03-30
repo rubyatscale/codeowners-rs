@@ -3,14 +3,12 @@ name: codeowners
 on:
   push:
     paths:
-      - 'codeowners-src/**'
-      - '.github/workflows/codeowners.yml'
+      - '**/*'
     branches:
       - '*'
 
-defaults:
-  run:
-    working-directory: .
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   codeowners_test:

@@ -21,3 +21,4 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
+rusty-hook = "^0.11.2"
