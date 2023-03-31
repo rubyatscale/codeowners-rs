@@ -1,5 +1,5 @@
 # Codeowners
-The oxidation of an [existing CLI](https://github.com/rubyatscale/code_ownership) written in Ruby.
+The [oxidation](https://wiki.mozilla.org/Oxidation) of an [existing CLI](https://github.com/rubyatscale/code_ownership) written in Ruby.
 This tool generates Github's `CODEOWNERS` file, assuming certain conventions around Ruby/Javascript packages.
 
 `CODEOWNERS` generation happens as part of our git commit hooks and on Gusto's main repo takes ~18s to run. The Rust implementation which is a drop in replacement cuts that down to <= 2s. (Tested on a Mackbook M1)
