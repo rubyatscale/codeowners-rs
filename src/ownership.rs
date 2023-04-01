@@ -10,7 +10,7 @@ mod tests;
 
 use crate::project::Project;
 
-pub use validator::ValidationErrors;
+pub use validator::Errors as ValidatorErrors;
 
 use self::{
     file_generator::FileGenerator,
@@ -40,7 +40,7 @@ impl Ownership {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self) -> Result<(), ValidationErrors> {
+    pub fn validate(&self) -> Result<(), ValidatorErrors> {
         debug!("validating file ownership");
         let validator = Validator {
             project: self.project.clone(),

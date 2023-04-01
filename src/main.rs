@@ -65,8 +65,7 @@ impl Args {
 }
 
 #[derive(Debug)]
-enum Error {
-    CannotBuildProject,
+pub enum Error {
     Io,
     ValidationFailed,
 }
@@ -74,7 +73,6 @@ enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::CannotBuildProject => fmt.write_str("Error::CannotBuildProject"),
             Error::Io => fmt.write_str("Error::Io"),
             Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
         }
@@ -101,10 +99,10 @@ fn cli() -> Result<(), Error> {
         .into_report()
         .change_context(Error::Io)
         .attach_printable(format!("{}", config_path.to_string_lossy()))?;
+
     let config = serde_yaml::from_reader(config_file).into_report().change_context(Error::Io)?;
 
-    let ownership =
-        Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::CannotBuildProject)?);
+    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
     let command = args.command;
 
     match command {
@@ -127,7 +125,7 @@ fn cli() -> Result<(), Error> {
 
 fn print_validation_errors_to_stdout(result: Result<(), Error>) -> Result<(), Error> {
     if let Err(error) = result {
-        if let Some(validation_errors) = error.downcast_ref::<ownership::ValidationErrors>() {
+        if let Some(validation_errors) = error.downcast_ref::<ownership::ValidatorErrors>() {
             println!("{}", validation_errors);
             process::exit(-1);
         } else {
