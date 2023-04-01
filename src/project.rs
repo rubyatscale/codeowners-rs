@@ -1,11 +1,11 @@
 use std::{
     collections::HashMap,
-    error::Error,
     fs::File,
     io::BufRead,
     path::{Path, PathBuf},
 };
 
+use color_eyre::Result;
 use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
@@ -111,7 +111,7 @@ mod deserializers {
 
 impl Project {
     #[instrument(level = "debug", skip_all)]
-    pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Box<dyn Error>> {
+    pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self> {
         debug!("scanning project ({})", base_path.to_string_lossy());
 
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
@@ -272,7 +272,7 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
         .collect()
 }
 
-fn package_owner(path: &Path) -> Result<Option<String>, Box<dyn Error>> {
+fn package_owner(path: &Path) -> Result<Option<String>> {
     let deserializer: deserializers::Package = serde_yaml::from_reader(File::open(path)?)?;
 
     if let Some(metadata) = deserializer.metadata {

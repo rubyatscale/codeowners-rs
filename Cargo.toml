@@ -3,9 +3,14 @@ name = "codeowners"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+debug = true
+
 [dependencies]
 clap = { version = "4.2.1", features = ["derive"] }
 clap_derive = "4.2.0"
+color-eyre = "0.6.2"
+
 glob-match = "0.2.1"
 itertools = "0.10.5"
 jwalk = "0.8.1"
