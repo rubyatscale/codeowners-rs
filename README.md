@@ -29,7 +29,7 @@ Options:
 ```
 
 ### Adoption
-This is an experimental port that might never be supported, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working. if you still wish to adopt it, here are the instructions:
+This is an experimental port that might never be supported, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working, if you still wish to adopt it, here are the instructions:
 
 ```bash
 # sets up a Rust toolchain
