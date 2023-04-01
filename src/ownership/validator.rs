@@ -23,6 +23,8 @@ pub struct Validator {
     pub file_generator: FileGenerator,
 }
 
+use error_stack::{Context, Report, Result};
+
 #[derive(Debug)]
 struct Owner {
     pub sources: Vec<String>,
@@ -53,7 +55,7 @@ impl Validator {
         if validation_errors.is_empty() {
             Ok(())
         } else {
-            Err(Errors(validation_errors))
+            Err(Report::new(Errors(validation_errors)))
         }
     }
 
@@ -190,8 +192,4 @@ impl Display for Errors {
     }
 }
 
-impl std::error::Error for Errors {
-    fn description(&self) -> &str {
-        "Error"
-    }
-}
+impl Context for Errors {}

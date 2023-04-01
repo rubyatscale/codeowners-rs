@@ -10,6 +10,7 @@ mod tests;
 
 use crate::project::Project;
 
+use error_stack::Result;
 pub use validator::Errors as ValidationErrors;
 
 use self::{

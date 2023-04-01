@@ -1,10 +1,12 @@
+use core::fmt;
 use std::{
     collections::HashMap,
-    error::Error,
     fs::File,
     io::BufRead,
     path::{Path, PathBuf},
 };
+
+use error_stack::{Context, IntoReport, Result, ResultExt};
 
 use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -109,9 +111,26 @@ mod deserializers {
     }
 }
 
+#[derive(Debug)]
+pub enum Error {
+    Io,
+    SerdeYaml,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Io => fmt.write_str("Error::Io"),
+            Error::SerdeYaml => fmt.write_str("Error::SerdeYaml"),
+        }
+    }
+}
+
+impl Context for Error {}
+
 impl Project {
     #[instrument(level = "debug", skip_all)]
-    pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Box<dyn Error>> {
+    pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Error> {
         debug!("scanning project ({})", base_path.to_string_lossy());
 
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
@@ -120,10 +139,14 @@ impl Project {
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
 
         for entry in WalkDir::new(base_path) {
-            let entry = entry?;
+            let entry = entry.into_report().change_context(Error::Io)?;
 
             let absolute_path = entry.path();
-            let relative_path = absolute_path.strip_prefix(base_path)?.to_owned();
+            let relative_path = absolute_path
+                .strip_prefix(base_path)
+                .into_report()
+                .change_context(Error::Io)?
+                .to_owned();
 
             if entry.file_type().is_dir() {
                 if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
@@ -160,7 +183,8 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
-                let deserializer: deserializers::Team = serde_yaml::from_reader(File::open(&absolute_path)?)?;
+                let file = File::open(&absolute_path).into_report().change_context(Error::Io)?;
+                let deserializer: deserializers::Team = serde_yaml::from_reader(file).into_report().change_context(Error::SerdeYaml)?;
 
                 teams.push(Team {
                     path: absolute_path.clone(),
@@ -186,7 +210,9 @@ impl Project {
         );
 
         let codeowners_file: String = if codeowners_file_path.exists() {
-            std::fs::read_to_string(codeowners_file_path)?
+            std::fs::read_to_string(codeowners_file_path)
+                .into_report()
+                .change_context(Error::Io)?
         } else {
             "".to_owned()
         };
@@ -245,7 +271,7 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
         .into_par_iter()
         .map(|path| {
             let file = File::open(&path).unwrap_or_else(|_| panic!("Couldn't open {}", path.to_string_lossy()));
-            let first_line: Result<Option<String>, std::io::Error> = std::io::BufReader::new(file).lines().next().transpose();
+            let first_line = std::io::BufReader::new(file).lines().next().transpose();
             let first_line = first_line.expect("error reading first line");
 
             if first_line.is_none() {
@@ -272,8 +298,9 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
         .collect()
 }
 
-fn package_owner(path: &Path) -> Result<Option<String>, Box<dyn Error>> {
-    let deserializer: deserializers::Package = serde_yaml::from_reader(File::open(path)?)?;
+fn package_owner(path: &Path) -> Result<Option<String>, Error> {
+    let file = File::open(path).into_report().change_context(Error::Io)?;
+    let deserializer: deserializers::Package = serde_yaml::from_reader(file).into_report().change_context(Error::SerdeYaml)?;
 
     if let Some(metadata) = deserializer.metadata {
         Ok(metadata.owner)

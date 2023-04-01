@@ -1,11 +1,11 @@
-use ownership::{Ownership, ValidationErrors};
-use tracing::debug;
+use ownership::Ownership;
 
 use crate::project::Project;
 use clap::{Parser, Subcommand};
+use core::fmt;
+use error_stack::{Context, IntoReport, Result, ResultExt};
 use path_clean::PathClean;
 use std::{
-    error::Error,
     fs::File,
     path::{Path, PathBuf},
     process,
@@ -47,64 +47,87 @@ struct Args {
 }
 
 impl Args {
-    fn absolute_project_root(&self) -> Result<PathBuf, std::io::Error> {
-        self.project_root.canonicalize()
+    fn absolute_project_root(&self) -> Result<PathBuf, Error> {
+        self.project_root.canonicalize().into_report().change_context(Error::Io)
     }
 
-    fn absolute_config_path(&self) -> Result<PathBuf, std::io::Error> {
+    fn absolute_config_path(&self) -> Result<PathBuf, Error> {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<PathBuf, std::io::Error> {
+    fn absolute_codeowners_path(&self) -> Result<PathBuf, Error> {
         Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
     }
 
-    fn absolute_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf, Error> {
         Ok(self.absolute_project_root()?.join(path))
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[derive(Debug)]
+enum Error {
+    CannotBuildProject,
+    Io,
+    ValidationErrors,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::CannotBuildProject => fmt.write_str("Error::CannotBuildProject"),
+            Error::Io => fmt.write_str("Error::Io"),
+            Error::ValidationErrors => fmt.write_str("Error::ValidationErrors"),
+        }
+    }
+}
+
+impl Context for Error {}
+
+fn main() -> Result<(), Error> {
     install_logger();
     print_validation_errors_to_stdout(cli())?;
 
     Ok(())
 }
 
-fn cli() -> Result<(), Box<dyn Error>> {
+fn cli() -> Result<(), Error> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
     let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
-    debug!(
-        config_path = &config_path.to_str(),
-        codeowners_file_path = &codeowners_file_path.to_str(),
-        project_root = &project_root.to_str(),
-    );
+    let config_file = File::open(&config_path)
+        .into_report()
+        .change_context(Error::Io)
+        .attach_printable(format!("{}", config_path.to_string_lossy()))?;
+    let config = serde_yaml::from_reader(config_file).into_report().change_context(Error::Io)?;
 
-    let config = serde_yaml::from_reader(File::open(config_path)?)?;
-    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config)?);
+    let ownership =
+        Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::CannotBuildProject)?);
     let command = args.command;
 
     match command {
-        Command::Validate => ownership.validate()?,
+        Command::Validate => ownership.validate().change_context(Error::ValidationErrors)?,
         Command::Generate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())?;
+            std::fs::write(codeowners_file_path, ownership.generate_file())
+                .into_report()
+                .change_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())?;
-            ownership.validate()?
+            std::fs::write(codeowners_file_path, ownership.generate_file())
+                .into_report()
+                .change_context(Error::Io)?;
+            ownership.validate().change_context(Error::ValidationErrors)?
         }
     }
 
     Ok(())
 }
 
-fn print_validation_errors_to_stdout(result: Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
+fn print_validation_errors_to_stdout(result: Result<(), Error>) -> Result<(), Error> {
     if let Err(error) = result {
-        if let Some(validation_errors) = error.downcast_ref::<ValidationErrors>() {
+        if let Some(validation_errors) = error.downcast_ref::<ownership::ValidationErrors>() {
             println!("{}", validation_errors);
             process::exit(-1);
         } else {

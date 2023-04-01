@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.2.1", features = ["derive"] }
 clap_derive = "4.2.0"
+error-stack = "0.3.1"
 glob-match = "0.2.1"
 itertools = "0.10.5"
 jwalk = "0.8.1"
@@ -14,6 +15,7 @@ rayon = "1.7.0"
 regex = "1.7.3"
 serde = { version = "1.0.159", features = ["derive"] }
 serde_yaml = "0.9.19"
+thiserror = "1.0.40"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
