@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use color_eyre::{eyre::Context, Result};
 use ownership::{Ownership, ValidationErrors};
 
 use crate::project::Project;
@@ -66,6 +66,7 @@ impl Args {
 }
 
 fn main() -> Result<()> {
+    color_eyre::install()?;
     install_logger();
     print_validation_errors_to_stdout(cli())?;
 
