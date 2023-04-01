@@ -1,11 +1,10 @@
+use anyhow::{Context, Result};
 use ownership::{Ownership, ValidationErrors};
-use tracing::debug;
 
 use crate::project::Project;
 use clap::{Parser, Subcommand};
 use path_clean::PathClean;
 use std::{
-    error::Error,
     fs::File,
     path::{Path, PathBuf},
     process,
@@ -47,44 +46,41 @@ struct Args {
 }
 
 impl Args {
-    fn absolute_project_root(&self) -> Result<PathBuf, std::io::Error> {
-        self.project_root.canonicalize()
+    fn absolute_project_root(&self) -> Result<PathBuf> {
+        self.project_root
+            .canonicalize()
+            .with_context(|| format!("Can't canonizalize {}", self.project_root.to_string_lossy()))
     }
 
-    fn absolute_config_path(&self) -> Result<PathBuf, std::io::Error> {
+    fn absolute_config_path(&self) -> Result<PathBuf> {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<PathBuf, std::io::Error> {
+    fn absolute_codeowners_path(&self) -> Result<PathBuf> {
         Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
     }
 
-    fn absolute_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf> {
         Ok(self.absolute_project_root()?.join(path))
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     install_logger();
     print_validation_errors_to_stdout(cli())?;
 
     Ok(())
 }
 
-fn cli() -> Result<(), Box<dyn Error>> {
+fn cli() -> Result<()> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
     let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
-    debug!(
-        config_path = &config_path.to_str(),
-        codeowners_file_path = &codeowners_file_path.to_str(),
-        project_root = &project_root.to_str(),
-    );
-
-    let config = serde_yaml::from_reader(File::open(config_path)?)?;
+    let config =
+        serde_yaml::from_reader(File::open(&config_path).with_context(|| format!("Can't open {}", config_path.to_string_lossy()))?)?;
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config)?);
     let command = args.command;
 
@@ -102,7 +98,7 @@ fn cli() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn print_validation_errors_to_stdout(result: Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
+fn print_validation_errors_to_stdout(result: Result<()>) -> Result<()> {
     if let Err(error) = result {
         if let Some(validation_errors) = error.downcast_ref::<ValidationErrors>() {
             println!("{}", validation_errors);

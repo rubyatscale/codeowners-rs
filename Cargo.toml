@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.70"
 clap = { version = "4.2.1", features = ["derive"] }
 clap_derive = "4.2.0"
 glob-match = "0.2.1"
