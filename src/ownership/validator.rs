@@ -1,6 +1,5 @@
 use core::fmt;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
 
@@ -31,18 +30,18 @@ struct Owner {
 }
 
 #[derive(Debug)]
-enum ValidationError {
+enum Error {
     FileWithoutOwner { path: PathBuf },
     FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
     CodeownershipFileIsStale,
 }
 
 #[derive(Debug)]
-pub struct ValidationErrors(Vec<ValidationError>);
+pub struct Errors(Vec<Error>);
 
 impl Validator {
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self) -> Result<(), ValidationErrors> {
+    pub fn validate(&self) -> Result<(), Errors> {
         let mut validation_errors = Vec::new();
 
         debug!("validate_file_ownership");
@@ -54,20 +53,20 @@ impl Validator {
         if validation_errors.is_empty() {
             Ok(())
         } else {
-            Err(ValidationErrors(validation_errors))
+            Err(Errors(validation_errors))
         }
     }
 
-    fn validate_file_ownership(&self) -> Vec<ValidationError> {
+    fn validate_file_ownership(&self) -> Vec<Error> {
         let mut validation_errors = Vec::new();
 
         for (file, owners) in self.file_to_owners() {
             let relative_path = self.project.relative_path(&file.path).to_owned();
 
             if owners.is_empty() {
-                validation_errors.push(ValidationError::FileWithoutOwner { path: relative_path })
+                validation_errors.push(Error::FileWithoutOwner { path: relative_path })
             } else if owners.len() > 1 {
-                validation_errors.push(ValidationError::FileWithMultipleOwners {
+                validation_errors.push(Error::FileWithMultipleOwners {
                     path: relative_path,
                     owners,
                 })
@@ -77,11 +76,11 @@ impl Validator {
         validation_errors
     }
 
-    fn validate_codeowners_file(&self) -> Vec<ValidationError> {
+    fn validate_codeowners_file(&self) -> Vec<Error> {
         let generated_file = self.file_generator.generate_file();
 
         if generated_file != self.project.codeowners_file {
-            vec![ValidationError::CodeownershipFileIsStale]
+            vec![Error::CodeownershipFileIsStale]
         } else {
             vec![]
         }
@@ -127,12 +126,12 @@ impl Validator {
     }
 }
 
-impl ValidationError {
+impl Error {
     pub fn error_category_message(&self) -> String {
         match self {
-            ValidationError::FileWithoutOwner { path: _ } => "Some files are missing ownership:".to_owned(),
-            ValidationError::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways.".to_owned(),
-            ValidationError::CodeownershipFileIsStale => {
+            Error::FileWithoutOwner { path: _ } => "Some files are missing ownership:".to_owned(),
+            Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways.".to_owned(),
+            Error::CodeownershipFileIsStale => {
                 "CODEOWNERS out of date. Run `codeownership generate` to update the CODEOWNERS file".to_owned()
             }
         }
@@ -140,8 +139,8 @@ impl ValidationError {
 
     pub fn error_message(&self) -> String {
         match self {
-            ValidationError::FileWithoutOwner { path } => format!("- {}", path.to_string_lossy()),
-            ValidationError::FileWithMultipleOwners { path, owners } => owners
+            Error::FileWithoutOwner { path } => format!("- {}", path.to_string_lossy()),
+            Error::FileWithMultipleOwners { path, owners } => owners
                 .iter()
                 .flat_map(|owner| {
                     owner
@@ -150,12 +149,29 @@ impl ValidationError {
                         .map(|source| format!("- {} (owner: {}, source: {})", path.to_string_lossy(), owner.team_name, &source))
                 })
                 .join("\n"),
-            ValidationError::CodeownershipFileIsStale => "".to_owned(),
+            Error::CodeownershipFileIsStale => "".to_owned(),
         }
     }
 }
 
-impl Display for ValidationErrors {
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.error_message())?;
+        Ok(())
+    }
+}
+
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        match self {
+            Error::FileWithoutOwner { path: _ } => "FileWithoutOwner",
+            Error::FileWithMultipleOwners { path: _, owners: _ } => "FileWithMultipleOwners",
+            Error::CodeownershipFileIsStale => "FileWithMultipleOwners",
+        }
+    }
+}
+
+impl Display for Errors {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let grouped_errors = self.0.iter().into_group_map_by(|error| error.error_category_message());
         for (error_category_message, errors) in grouped_errors {
@@ -174,8 +190,8 @@ impl Display for ValidationErrors {
     }
 }
 
-impl Error for ValidationErrors {
+impl std::error::Error for Errors {
     fn description(&self) -> &str {
-        "ValidationError"
+        "Error"
     }
 }

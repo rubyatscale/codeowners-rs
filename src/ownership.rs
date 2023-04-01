@@ -10,7 +10,7 @@ mod tests;
 
 use crate::project::Project;
 
-pub use validator::ValidationErrors;
+pub use validator::Errors as ValidationErrors;
 
 use self::{
     file_generator::FileGenerator,
