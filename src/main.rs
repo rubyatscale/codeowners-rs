@@ -83,6 +83,13 @@ impl fmt::Display for Error {
 
 impl Context for Error {}
 
+fn main() -> Result<(), Error> {
+    install_logger();
+    print_validation_errors_to_stdout(cli())?;
+
+    Ok(())
+}
+
 fn cli() -> Result<(), Error> {
     let args = Args::parse();
 
@@ -90,7 +97,10 @@ fn cli() -> Result<(), Error> {
     let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
-    let config_file = File::open(&config_path).into_report().change_context(Error::Io).attach_printable(format!("{}", config_path.to_string_lossy()))?;
+    let config_file = File::open(&config_path)
+        .into_report()
+        .change_context(Error::Io)
+        .attach_printable(format!("{}", config_path.to_string_lossy()))?;
     let config = serde_yaml::from_reader(config_file).into_report().change_context(Error::Io)?;
 
     let ownership =
