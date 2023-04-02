@@ -1,5 +1,5 @@
 name: Payments
 github:
-  team: '@PaymentsTeam'
+  team: '@PaymentTeam'
 owned_globs:
   - ruby/app/payments/**/*
