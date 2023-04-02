@@ -127,7 +127,7 @@ impl Validator {
 }
 
 impl Error {
-    pub fn error_category_message(&self) -> String {
+    pub fn title(&self) -> String {
         match self {
             Error::FileWithoutOwner { path: _ } => "Some files are missing ownership:".to_owned(),
             Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways.".to_owned(),
@@ -137,9 +137,9 @@ impl Error {
         }
     }
 
-    pub fn error_message(&self) -> String {
+    pub fn messages(&self) -> Vec<String> {
         match self {
-            Error::FileWithoutOwner { path } => format!("- {}", path.to_string_lossy()),
+            Error::FileWithoutOwner { path } => vec![format!("- {}", path.to_string_lossy())],
             Error::FileWithMultipleOwners { path, owners } => owners
                 .iter()
                 .flat_map(|owner| {
@@ -147,25 +147,27 @@ impl Error {
                         .sources
                         .iter()
                         .map(|source| format!("- {} (owner: {}, source: {})", path.to_string_lossy(), owner.team_name, &source))
+                        .collect_vec()
                 })
-                .join("\n"),
-            Error::CodeownershipFileIsStale => "".to_owned(),
+                .collect_vec(),
+            Error::CodeownershipFileIsStale => vec![],
         }
     }
 }
 
 impl Display for Errors {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let grouped_errors = self.0.iter().into_group_map_by(|error| error.error_category_message());
+        let grouped_errors = self.0.iter().into_group_map_by(|error| error.title());
         let grouped_errors = Vec::from_iter(grouped_errors.iter());
+        let grouped_errors = grouped_errors.iter().sorted_by_key(|(title, _)| title);
 
-        for (error_category_message, errors) in grouped_errors {
-            write!(f, "\n{}", error_category_message)?;
+        for (title, errors) in grouped_errors {
+            write!(f, "\n{}", title)?;
 
-            let error_messages = errors.iter().map(|error| error.error_message()).join("\n");
-            if !error_messages.is_empty() {
+            let messages = errors.iter().flat_map(|error| error.messages()).sorted().join("\n");
+            if !messages.is_empty() {
                 writeln!(f)?;
-                write!(f, "{}", error_messages)?;
+                write!(f, "{}", &messages)?;
             }
 
             writeln!(f)?;
