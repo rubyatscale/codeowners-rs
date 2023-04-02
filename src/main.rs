@@ -1,4 +1,4 @@
-use ext::IntoContext;
+use error_stack_ext::IntoContext;
 use ownership::Ownership;
 
 use crate::project::Project;
@@ -13,7 +13,7 @@ use std::{
 };
 
 mod config;
-mod ext;
+mod error_stack_ext;
 mod ownership;
 mod project;
 

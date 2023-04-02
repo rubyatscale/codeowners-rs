@@ -13,7 +13,7 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{debug, instrument};
 
-use crate::{config::Config, ext::IntoContext};
+use crate::{config::Config, error_stack_ext::IntoContext};
 use glob_match::glob_match;
 
 pub struct Project {
