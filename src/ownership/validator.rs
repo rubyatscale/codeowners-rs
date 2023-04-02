@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::project::{Project, ProjectFile};
 
+use error_stack::Context;
 use itertools::Itertools;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
@@ -127,9 +128,9 @@ impl Validator {
 }
 
 impl Error {
-    pub fn title(&self) -> String {
+    pub fn category(&self) -> String {
         match self {
-            Error::FileWithoutOwner { path: _ } => "Some files are missing ownership:".to_owned(),
+            Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
             Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways.".to_owned(),
             Error::CodeownershipFileIsStale => {
                 "CODEOWNERS out of date. Run `codeownership generate` to update the CODEOWNERS file".to_owned()
@@ -157,12 +158,12 @@ impl Error {
 
 impl Display for Errors {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let grouped_errors = self.0.iter().into_group_map_by(|error| error.title());
+        let grouped_errors = self.0.iter().into_group_map_by(|error| error.category());
         let grouped_errors = Vec::from_iter(grouped_errors.iter());
-        let grouped_errors = grouped_errors.iter().sorted_by_key(|(title, _)| title);
+        let grouped_errors = grouped_errors.iter().sorted_by_key(|(category, _)| category);
 
-        for (title, errors) in grouped_errors {
-            write!(f, "\n{}", title)?;
+        for (category, errors) in grouped_errors {
+            write!(f, "\n{}", category)?;
 
             let messages = errors.iter().flat_map(|error| error.messages()).sorted().join("\n");
             if !messages.is_empty() {
@@ -177,8 +178,4 @@ impl Display for Errors {
     }
 }
 
-impl std::error::Error for Errors {
-    fn description(&self) -> &str {
-        "Error"
-    }
-}
+impl Context for Errors {}
