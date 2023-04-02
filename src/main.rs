@@ -85,7 +85,7 @@ impl Context for Error {}
 
 fn main() -> Result<(), Error> {
     install_logger();
-    print_validation_errors_to_stdout(cli())?;
+    maybe_print_errors(cli())?;
 
     Ok(())
 }
@@ -120,7 +120,7 @@ fn cli() -> Result<(), Error> {
     Ok(())
 }
 
-fn print_validation_errors_to_stdout(result: Result<(), Error>) -> Result<(), Error> {
+fn maybe_print_errors(result: Result<(), Error>) -> Result<(), Error> {
     if let Err(error) = result {
         if let Some(validation_errors) = error.downcast_ref::<ownership::ValidatorErrors>() {
             println!("{}", validation_errors);
