@@ -1,8 +1,10 @@
-use color_eyre::{eyre::Context, Result};
-use ownership::{Ownership, ValidationErrors};
+use ext::IntoContext;
+use ownership::Ownership;
 
 use crate::project::Project;
 use clap::{Parser, Subcommand};
+use core::fmt;
+use error_stack::{Context, Result, ResultExt};
 use path_clean::PathClean;
 use std::{
     fs::File,
@@ -11,6 +13,7 @@ use std::{
 };
 
 mod config;
+mod ext;
 mod ownership;
 mod project;
 
@@ -46,62 +49,80 @@ struct Args {
 }
 
 impl Args {
-    fn absolute_project_root(&self) -> Result<PathBuf> {
-        self.project_root
-            .canonicalize()
-            .with_context(|| format!("Can't canonizalize {}", self.project_root.to_string_lossy()))
+    fn absolute_project_root(&self) -> Result<PathBuf, Error> {
+        self.project_root.canonicalize().into_context(Error::Io)
     }
 
-    fn absolute_config_path(&self) -> Result<PathBuf> {
+    fn absolute_config_path(&self) -> Result<PathBuf, Error> {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<PathBuf> {
+    fn absolute_codeowners_path(&self) -> Result<PathBuf, Error> {
         Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
     }
 
-    fn absolute_path(&self, path: &Path) -> Result<PathBuf> {
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf, Error> {
         Ok(self.absolute_project_root()?.join(path))
     }
 }
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
+#[derive(Debug)]
+pub enum Error {
+    Io,
+    ValidationFailed,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Io => fmt.write_str("Error::Io"),
+            Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
+        }
+    }
+}
+
+impl Context for Error {}
+
+fn main() -> Result<(), Error> {
     install_logger();
     print_validation_errors_to_stdout(cli())?;
 
     Ok(())
 }
 
-fn cli() -> Result<()> {
+fn cli() -> Result<(), Error> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
     let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
-    let config =
-        serde_yaml::from_reader(File::open(&config_path).with_context(|| format!("Can't open {}", config_path.to_string_lossy()))?)?;
-    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config)?);
+    let config_file = File::open(&config_path)
+        .into_context(Error::Io)
+        .attach_printable(format!("{}", config_path.to_string_lossy()))?;
+
+    let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
+
+    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
     let command = args.command;
 
     match command {
-        Command::Validate => ownership.validate()?,
+        Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
         Command::Generate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())?;
+            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())?;
-            ownership.validate()?
+            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
+            ownership.validate().into_context(Error::ValidationFailed)?
         }
     }
 
     Ok(())
 }
 
-fn print_validation_errors_to_stdout(result: Result<()>) -> Result<()> {
+fn print_validation_errors_to_stdout(result: Result<(), Error>) -> Result<(), Error> {
     if let Err(error) = result {
-        if let Some(validation_errors) = error.downcast_ref::<ValidationErrors>() {
+        if let Some(validation_errors) = error.downcast_ref::<ownership::ValidatorErrors>() {
             println!("{}", validation_errors);
             process::exit(-1);
         } else {
