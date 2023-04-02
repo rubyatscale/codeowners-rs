@@ -99,7 +99,7 @@ fn cli() -> Result<(), Error> {
 
     let config_file = File::open(&config_path)
         .into_context(Error::Io)
-        .attach_printable(format!("{}", config_path.to_string_lossy()))?;
+        .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
 
     let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
 

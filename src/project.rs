@@ -131,7 +131,7 @@ impl Context for Error {}
 impl Project {
     #[instrument(level = "debug", skip_all)]
     pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Error> {
-        debug!("scanning project ({})", base_path.to_string_lossy());
+        debug!(base_path = base_path.to_str(), "scanning project");
 
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
         let mut packages: Vec<Package> = Vec::new();
