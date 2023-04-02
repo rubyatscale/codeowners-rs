@@ -1,9 +1,10 @@
+use ext::IntoContext;
 use ownership::Ownership;
 
 use crate::project::Project;
 use clap::{Parser, Subcommand};
 use core::fmt;
-use error_stack::{Context, IntoReport, Result, ResultExt};
+use error_stack::{Context, Result, ResultExt};
 use path_clean::PathClean;
 use std::{
     fs::File,
@@ -12,6 +13,7 @@ use std::{
 };
 
 mod config;
+mod ext;
 mod ownership;
 mod project;
 
@@ -48,7 +50,7 @@ struct Args {
 
 impl Args {
     fn absolute_project_root(&self) -> Result<PathBuf, Error> {
-        self.project_root.canonicalize().into_report().change_context(Error::Io)
+        self.project_root.canonicalize().into_context(Error::Io)
     }
 
     fn absolute_config_path(&self) -> Result<PathBuf, Error> {
@@ -96,27 +98,22 @@ fn cli() -> Result<(), Error> {
     let project_root = args.absolute_project_root()?;
 
     let config_file = File::open(&config_path)
-        .into_report()
-        .change_context(Error::Io)
+        .into_context(Error::Io)
         .attach_printable(format!("{}", config_path.to_string_lossy()))?;
 
-    let config = serde_yaml::from_reader(config_file).into_report().change_context(Error::Io)?;
+    let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
 
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
     let command = args.command;
 
     match command {
-        Command::Validate => ownership.validate().into_report().change_context(Error::ValidationFailed)?,
+        Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
         Command::Generate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())
-                .into_report()
-                .change_context(Error::Io)?;
+            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file())
-                .into_report()
-                .change_context(Error::Io)?;
-            ownership.validate().into_report().change_context(Error::ValidationFailed)?
+            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
+            ownership.validate().into_context(Error::ValidationFailed)?
         }
     }
 

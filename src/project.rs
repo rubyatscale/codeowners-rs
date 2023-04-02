@@ -6,14 +6,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Context, IntoReport, Result, ResultExt};
+use error_stack::{Context, Result};
 
 use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{debug, instrument};
 
-use crate::config::Config;
+use crate::{config::Config, ext::IntoContext};
 use glob_match::glob_match;
 
 pub struct Project {
@@ -139,14 +139,10 @@ impl Project {
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
 
         for entry in WalkDir::new(base_path) {
-            let entry = entry.into_report().change_context(Error::Io)?;
+            let entry = entry.into_context(Error::Io)?;
 
             let absolute_path = entry.path();
-            let relative_path = absolute_path
-                .strip_prefix(base_path)
-                .into_report()
-                .change_context(Error::Io)?
-                .to_owned();
+            let relative_path = absolute_path.strip_prefix(base_path).into_context(Error::Io)?.to_owned();
 
             if entry.file_type().is_dir() {
                 if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
@@ -183,8 +179,8 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
-                let file = File::open(&absolute_path).into_report().change_context(Error::Io)?;
-                let deserializer: deserializers::Team = serde_yaml::from_reader(file).into_report().change_context(Error::SerdeYaml)?;
+                let file = File::open(&absolute_path).into_context(Error::Io)?;
+                let deserializer: deserializers::Team = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
 
                 teams.push(Team {
                     path: absolute_path.clone(),
@@ -210,9 +206,7 @@ impl Project {
         );
 
         let codeowners_file: String = if codeowners_file_path.exists() {
-            std::fs::read_to_string(codeowners_file_path)
-                .into_report()
-                .change_context(Error::Io)?
+            std::fs::read_to_string(codeowners_file_path).into_context(Error::Io)?
         } else {
             "".to_owned()
         };
@@ -299,8 +293,8 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
 }
 
 fn package_owner(path: &Path) -> Result<Option<String>, Error> {
-    let file = File::open(path).into_report().change_context(Error::Io)?;
-    let deserializer: deserializers::Package = serde_yaml::from_reader(file).into_report().change_context(Error::SerdeYaml)?;
+    let file = File::open(path).into_context(Error::Io)?;
+    let deserializer: deserializers::Package = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
 
     if let Some(metadata) = deserializer.metadata {
         Ok(metadata.owner)
