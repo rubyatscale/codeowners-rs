@@ -157,6 +157,8 @@ impl Error {
 impl Display for Errors {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let grouped_errors = self.0.iter().into_group_map_by(|error| error.error_category_message());
+        let grouped_errors = Vec::from_iter(grouped_errors.iter());
+
         for (error_category_message, errors) in grouped_errors {
             write!(f, "\n{}", error_category_message)?;
 
