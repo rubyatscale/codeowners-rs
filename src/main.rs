@@ -104,9 +104,8 @@ fn cli() -> Result<(), Error> {
     let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
 
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
-    let command = args.command;
 
-    match command {
+    match args.command {
         Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
