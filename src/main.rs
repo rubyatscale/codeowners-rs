@@ -1,4 +1,4 @@
-use ext::IntoContext;
+use error_stack_ext::IntoContext;
 use ownership::Ownership;
 
 use crate::project::Project;
@@ -13,7 +13,7 @@ use std::{
 };
 
 mod config;
-mod ext;
+mod error_stack_ext;
 mod ownership;
 mod project;
 
@@ -85,7 +85,7 @@ impl Context for Error {}
 
 fn main() -> Result<(), Error> {
     install_logger();
-    print_validation_errors_to_stdout(cli())?;
+    maybe_print_errors(cli())?;
 
     Ok(())
 }
@@ -99,14 +99,13 @@ fn cli() -> Result<(), Error> {
 
     let config_file = File::open(&config_path)
         .into_context(Error::Io)
-        .attach_printable(format!("{}", config_path.to_string_lossy()))?;
+        .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
 
     let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
 
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
-    let command = args.command;
 
-    match command {
+    match args.command {
         Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
@@ -120,7 +119,7 @@ fn cli() -> Result<(), Error> {
     Ok(())
 }
 
-fn print_validation_errors_to_stdout(result: Result<(), Error>) -> Result<(), Error> {
+fn maybe_print_errors(result: Result<(), Error>) -> Result<(), Error> {
     if let Err(error) = result {
         if let Some(validation_errors) = error.downcast_ref::<ownership::ValidatorErrors>() {
             println!("{}", validation_errors);
