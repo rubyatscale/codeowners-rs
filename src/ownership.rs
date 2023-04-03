@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 use tracing::{debug, instrument};
 
 mod file_generator;
@@ -19,7 +19,7 @@ use self::{
 };
 
 pub struct Ownership {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 pub struct Entry {
@@ -36,7 +36,9 @@ impl Entry {
 
 impl Ownership {
     pub fn build(project: Project) -> Self {
-        Self { project: Rc::new(project) }
+        Self {
+            project: Arc::new(project),
+        }
     }
 
     #[instrument(level = "debug", skip_all)]

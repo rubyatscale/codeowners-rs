@@ -1,15 +1,15 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::Entry;
 use super::{Mapper, OwnerMatcher};
 use crate::project::Project;
 
 pub struct TeamGlobMapper {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 impl TeamGlobMapper {
-    pub fn build(project: Rc<Project>) -> Self {
+    pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
 }

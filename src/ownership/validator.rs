@@ -1,13 +1,10 @@
+use crate::project::{Project, ProjectFile};
 use core::fmt;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-use std::path::Path;
-
 use std::path::PathBuf;
-use std::rc::Rc;
-
-use crate::project::{Project, ProjectFile};
+use std::sync::Arc;
 
 use error_stack::Context;
 use itertools::Itertools;
@@ -20,7 +17,7 @@ use super::file_generator::FileGenerator;
 use super::mapper::{Mapper, OwnerMatcher};
 
 pub struct Validator {
-    pub project: Rc<Project>,
+    pub project: Arc<Project>,
     pub mappers: Vec<Box<dyn Mapper>>,
     pub file_generator: FileGenerator,
 }
@@ -76,6 +73,8 @@ impl Validator {
     }
 
     fn invalid_team_annotation(&self, team_names: &HashSet<&String>) -> Vec<Error> {
+        let project = self.project.clone();
+
         self.project
             .files
             .par_iter()
@@ -84,7 +83,7 @@ impl Validator {
                     if !team_names.contains(owner) {
                         return Some(Error::InvalidTeam {
                             name: owner.clone(),
-                            path: file.path.clone(),
+                            path: project.relative_path(&file.path).to_owned(),
                         });
                     }
                 }
@@ -102,7 +101,7 @@ impl Validator {
                 if !team_names.contains(&package.owner) {
                     Some(Error::InvalidTeam {
                         name: package.owner.clone(),
-                        path: package.path.clone(),
+                        path: self.project.relative_path(&package.path).to_owned(),
                     })
                 } else {
                     None
@@ -142,19 +141,19 @@ impl Validator {
 
     fn file_to_owners(&self) -> Vec<(&ProjectFile, Vec<Owner>)> {
         let owner_matchers: Vec<OwnerMatcher> = self.mappers.iter().flat_map(|mapper| mapper.owner_matchers()).collect();
+        let project = self.project.clone();
 
-        let files: Vec<(&ProjectFile, &Path)> = self
-            .project
+        self.project
             .files
-            .iter()
-            .filter(|file| !self.project.skip_file(file))
-            .map(|file| (file, self.project.relative_path(&file.path)))
-            .collect();
-
-        files
             .par_iter()
-            .map(|(project_file, relative_path)| {
+            .filter_map(|project_file| {
                 let mut owners_and_source: HashMap<&String, Vec<String>> = HashMap::new();
+
+                if project.skip_file(project_file) {
+                    return None;
+                }
+
+                let relative_path = project.relative_path(&project_file.path);
 
                 for owner_matcher in &owner_matchers {
                     let owner = owner_matcher.owner_for(relative_path);
@@ -174,7 +173,7 @@ impl Validator {
                     })
                     .collect_vec();
 
-                (*project_file, owners)
+                Some((project_file, owners))
             })
             .collect()
     }

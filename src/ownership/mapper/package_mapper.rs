@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::Entry;
 use super::{Mapper, OwnerMatcher};
@@ -6,19 +6,19 @@ use crate::project::{Package, PackageType, Project};
 use itertools::Itertools;
 
 pub struct RubyPackageMapper {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 pub struct JavascriptPackageMapper {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 struct PackageMapper {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 impl RubyPackageMapper {
-    pub fn build(project: Rc<Project>) -> Self {
+    pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
 }
@@ -38,7 +38,7 @@ impl Mapper for RubyPackageMapper {
 }
 
 impl JavascriptPackageMapper {
-    pub fn build(project: Rc<Project>) -> Self {
+    pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
 }
@@ -58,7 +58,7 @@ impl Mapper for JavascriptPackageMapper {
 }
 
 impl PackageMapper {
-    pub fn build(project: Rc<Project>) -> Self {
+    pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
 }

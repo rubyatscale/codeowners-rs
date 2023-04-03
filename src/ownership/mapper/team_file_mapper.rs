@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::Entry;
 use super::{Mapper, OwnerMatcher};
 use crate::project::Project;
 
 pub struct TeamFileMapper {
-    project: Rc<Project>,
+    project: Arc<Project>,
 }
 
 impl TeamFileMapper {
-    pub fn build(project: Rc<Project>) -> Self {
+    pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
 }
