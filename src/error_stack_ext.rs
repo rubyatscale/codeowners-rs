@@ -21,6 +21,7 @@ where
     type Err = E;
     type Ok = T;
 
+    #[track_caller]
     fn into_context<C>(self, context: C) -> Result<T, C>
     where
         C: Context,
