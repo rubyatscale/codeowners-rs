@@ -23,18 +23,21 @@ impl Mapper for TeamFileMapper {
 
         for owned_file in &self.project.files {
             if let Some(ref owner) = owned_file.owner {
-                let team = team_by_name.get(owner).unwrap_or_else(|| panic!("Couldn't find team {}", owner));
-                if team.avoid_ownership {
-                    continue;
+                let team = team_by_name.get(owner);
+
+                if let Some(team) = team {
+                    if team.avoid_ownership {
+                        continue;
+                    }
+
+                    let relative_path = self.project.relative_path(&owned_file.path);
+
+                    entries.push(Entry {
+                        path: relative_path.to_string_lossy().to_string(),
+                        github_team: team.github_team.to_owned(),
+                        team_name: team.name.to_owned(),
+                    });
                 }
-
-                let relative_path = self.project.relative_path(&owned_file.path);
-
-                entries.push(Entry {
-                    path: relative_path.to_string_lossy().to_string(),
-                    github_team: team.github_team.to_owned(),
-                    team_name: team.name.to_owned(),
-                });
             }
         }
 
@@ -48,10 +51,12 @@ impl Mapper for TeamFileMapper {
 
         for owned_file in &self.project.files {
             if let Some(ref owner) = owned_file.owner {
-                let team = team_by_name.get(owner).unwrap_or_else(|| panic!("Couldn't find team {}", owner));
-                let relative_path = self.project.relative_path(&owned_file.path);
+                let team = team_by_name.get(owner);
 
-                path_to_team.insert(relative_path.to_owned(), team.name.clone());
+                if let Some(team) = team {
+                    let relative_path = self.project.relative_path(&owned_file.path);
+                    path_to_team.insert(relative_path.to_owned(), team.name.clone());
+                }
             }
         }
 

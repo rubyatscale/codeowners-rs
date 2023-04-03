@@ -1,5 +1,6 @@
 use core::fmt;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::Path;
 
@@ -32,6 +33,7 @@ struct Owner {
 
 #[derive(Debug)]
 enum Error {
+    InvalidTeam { name: String, path: PathBuf },
     FileWithoutOwner { path: PathBuf },
     FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
     CodeownershipFileIsStale,
@@ -45,6 +47,9 @@ impl Validator {
     pub fn validate(&self) -> Result<(), Errors> {
         let mut validation_errors = Vec::new();
 
+        debug!("validate_invalid_team");
+        validation_errors.append(&mut self.validate_invalid_team());
+
         debug!("validate_file_ownership");
         validation_errors.append(&mut self.validate_file_ownership());
 
@@ -56,6 +61,54 @@ impl Validator {
         } else {
             Err(Errors(validation_errors))
         }
+    }
+
+    fn validate_invalid_team(&self) -> Vec<Error> {
+        debug!("validating project");
+        let mut errors: Vec<Error> = Vec::new();
+
+        let team_names: HashSet<&String> = self.project.teams.iter().map(|team| &team.name).collect();
+
+        errors.append(&mut self.invalid_team_annotation(&team_names));
+        errors.append(&mut self.invalid_package_ownership(&team_names));
+
+        errors
+    }
+
+    fn invalid_team_annotation(&self, team_names: &HashSet<&String>) -> Vec<Error> {
+        self.project
+            .files
+            .par_iter()
+            .flat_map(|file| {
+                if let Some(owner) = &file.owner {
+                    if !team_names.contains(owner) {
+                        return Some(Error::InvalidTeam {
+                            name: owner.clone(),
+                            path: file.path.clone(),
+                        });
+                    }
+                }
+
+                None
+            })
+            .collect()
+    }
+
+    fn invalid_package_ownership(&self, team_names: &HashSet<&String>) -> Vec<Error> {
+        self.project
+            .packages
+            .iter()
+            .flat_map(|package| {
+                if !team_names.contains(&package.owner) {
+                    Some(Error::InvalidTeam {
+                        name: package.owner.clone(),
+                        path: package.path.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn validate_file_ownership(&self) -> Vec<Error> {
@@ -135,6 +188,7 @@ impl Error {
             Error::CodeownershipFileIsStale => {
                 "CODEOWNERS out of date. Run `codeownership generate` to update the CODEOWNERS file".to_owned()
             }
+            Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotaitons.".to_owned(),
         }
     }
 
@@ -152,6 +206,7 @@ impl Error {
                 })
                 .collect_vec(),
             Error::CodeownershipFileIsStale => vec![],
+            Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }
     }
 }

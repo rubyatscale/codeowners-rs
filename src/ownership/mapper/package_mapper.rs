@@ -70,19 +70,19 @@ impl PackageMapper {
 
         for package in self.project.packages.iter().filter(|package| &package.package_type == package_type) {
             let package_root = package.package_root().to_string_lossy();
-            let team = team_by_name
-                .get(&package.owner)
-                .unwrap_or_else(|| panic!("Couldn't find team {}", package.owner));
+            let team = team_by_name.get(&package.owner);
 
-            if team.avoid_ownership {
-                continue;
+            if let Some(team) = team {
+                if team.avoid_ownership {
+                    continue;
+                }
+
+                entries.push(Entry {
+                    path: format!("{}/**/**", package_root),
+                    github_team: team.github_team.to_owned(),
+                    team_name: team.name.to_owned(),
+                });
             }
-
-            entries.push(Entry {
-                path: format!("{}/**/**", package_root),
-                github_team: team.github_team.to_owned(),
-                team_name: team.name.to_owned(),
-            });
         }
 
         entries
@@ -101,16 +101,15 @@ impl PackageMapper {
 
         for package in packages {
             let package_root = package.package_root().to_string_lossy();
+            let team = team_by_name.get(&package.owner);
 
-            let team = team_by_name
-                .get(&package.owner)
-                .unwrap_or_else(|| panic!("Couldn't find team {}", package.owner));
-
-            owner_matchers.push(OwnerMatcher::Glob {
-                glob: format!("{}/**/**", package_root),
-                team_name: team.name.to_owned(),
-                source: format!("package_mapper ({:?} glob: {}/**/**)", &package_type, package_root),
-            });
+            if let Some(team) = team {
+                owner_matchers.push(OwnerMatcher::Glob {
+                    glob: format!("{}/**/**", package_root),
+                    team_name: team.name.to_owned(),
+                    source: format!("package_mapper ({:?} glob: {}/**/**)", &package_type, package_root),
+                });
+            }
         }
 
         owner_matchers
