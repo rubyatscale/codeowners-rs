@@ -68,6 +68,7 @@ impl Args {
 
 #[derive(Debug)]
 pub enum Error {
+    FailedBuildingProject,
     Io,
     ValidationFailed,
 }
@@ -75,6 +76,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::FailedBuildingProject => fmt.write_str("Error::FailedBuildingProject"),
             Error::Io => fmt.write_str("Error::Io"),
             Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
         }
@@ -103,7 +105,8 @@ fn cli() -> Result<(), Error> {
 
     let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
 
-    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
+    let ownership =
+        Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::FailedBuildingProject)?);
 
     match args.command {
         Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
