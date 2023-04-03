@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Context, Result};
+use error_stack::{Context, Result, ResultExt};
 
 use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -15,6 +15,9 @@ use tracing::{debug, instrument};
 
 use crate::{config::Config, error_stack_ext::IntoContext};
 use glob_match::glob_match;
+mod validator;
+
+pub use validator::Errors as ValidatorErrors;
 
 pub struct Project {
     pub base_path: PathBuf,
@@ -115,6 +118,7 @@ mod deserializers {
 pub enum Error {
     Io,
     SerdeYaml,
+    ProjectInvalid,
 }
 
 impl fmt::Display for Error {
@@ -122,6 +126,7 @@ impl fmt::Display for Error {
         match self {
             Error::Io => fmt.write_str("Error::Io"),
             Error::SerdeYaml => fmt.write_str("Error::SerdeYaml"),
+            Error::ProjectInvalid => fmt.write_str("Error::ProjectInvalid"),
         }
     }
 }
@@ -212,6 +217,10 @@ impl Project {
         };
 
         let owned_files = owned_files(owned_file_paths);
+
+        validator::Validator::new(&owned_files, &teams, &packages)
+            .validate()
+            .change_context(Error::ProjectInvalid)?;
 
         Ok(Project {
             base_path: base_path.to_owned(),
