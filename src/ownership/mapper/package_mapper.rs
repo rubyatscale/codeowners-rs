@@ -117,21 +117,20 @@ impl PackageMapper {
 }
 
 fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
-    packages
-        .iter()
-        .filter(|package| {
-            let package_root = package.package_root();
-            !packages.iter().any(|another_package| {
-                let another_package_root = another_package.package_root();
-                if package_root == another_package_root {
-                    false
-                } else {
-                    package_root.starts_with(another_package_root)
-                }
-            })
-        })
-        .copied()
-        .collect_vec()
+    let mut top_level_packages: Vec<&Package> = Vec::new();
+
+    for package in packages.iter().sorted_by_key(|package| package.package_root()) {
+        if let Some(last_package) = top_level_packages.last() {
+            let last_package_root = last_package.package_root();
+            if !package.package_root().starts_with(last_package_root) {
+                top_level_packages.push(package);
+            }
+        } else {
+            top_level_packages.push(package);
+        }
+    }
+
+    top_level_packages
 }
 
 #[cfg(test)]
@@ -149,7 +148,12 @@ mod tests {
                 owner: "owner_a".to_owned(),
             },
             Package {
-                path: Path::new("packs/a/b/package.yml").to_owned(),
+                path: Path::new("packs/a/b/e/package.yml").to_owned(),
+                package_type: PackageType::Ruby,
+                owner: "owner_b".to_owned(),
+            },
+            Package {
+                path: Path::new("packs/a/b/c/e/d/f/package.yml").to_owned(),
                 package_type: PackageType::Ruby,
                 owner: "owner_b".to_owned(),
             },
