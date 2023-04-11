@@ -26,16 +26,13 @@ impl Mapper for TeamFileMapper {
                 let team = team_by_name.get(owner);
 
                 if let Some(team) = team {
-                    if team.avoid_ownership {
-                        continue;
-                    }
-
                     let relative_path = self.project.relative_path(&owned_file.path);
 
                     entries.push(Entry {
                         path: relative_path.to_string_lossy().to_string(),
                         github_team: team.github_team.to_owned(),
                         team_name: team.name.to_owned(),
+                        disabled: team.avoid_ownership,
                     });
                 }
             }

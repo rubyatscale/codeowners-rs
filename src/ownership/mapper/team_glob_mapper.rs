@@ -18,12 +18,13 @@ impl Mapper for TeamGlobMapper {
     fn entries(&self) -> Vec<Entry> {
         let mut entries: Vec<Entry> = Vec::new();
 
-        for team in self.project.teams.iter().filter(|team| !team.avoid_ownership) {
+        for team in &self.project.teams {
             for owned_glob in &team.owned_globs {
                 entries.push(Entry {
                     path: owned_glob.to_owned(),
                     github_team: team.github_team.to_owned(),
                     team_name: team.name.to_owned(),
+                    disabled: team.avoid_ownership,
                 });
             }
         }

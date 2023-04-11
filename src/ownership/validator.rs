@@ -148,11 +148,6 @@ impl Validator {
             .par_iter()
             .filter_map(|project_file| {
                 let mut owners_and_source: HashMap<&String, Vec<String>> = HashMap::new();
-
-                if project.skip_file(project_file) {
-                    return None;
-                }
-
                 let relative_path = project.relative_path(&project_file.path);
 
                 for owner_matcher in &owner_matchers {

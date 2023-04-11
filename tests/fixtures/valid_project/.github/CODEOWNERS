@@ -26,4 +26,4 @@
 /config/teams/payroll.yml @PayrollTeam
 
 # Team owned gems
-/gems/payroll_calculator @PayrollTeam
+/gems/payroll_calculator/**/** @PayrollTeam

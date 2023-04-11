@@ -26,11 +26,17 @@ pub struct Entry {
     pub path: String,
     pub github_team: String,
     pub team_name: String,
+    pub disabled: bool,
 }
 
 impl Entry {
     fn to_row(&self) -> String {
-        format!("/{} {}", self.path, self.github_team)
+        let line = format!("/{} {}", self.path, self.github_team);
+        if self.disabled {
+            format!("# {}", line)
+        } else {
+            line
+        }
     }
 }
 

@@ -73,14 +73,11 @@ impl PackageMapper {
             let team = team_by_name.get(&package.owner);
 
             if let Some(team) = team {
-                if team.avoid_ownership {
-                    continue;
-                }
-
                 entries.push(Entry {
                     path: format!("{}/**/**", package_root),
                     github_team: team.github_team.to_owned(),
                     team_name: team.name.to_owned(),
+                    disabled: team.avoid_ownership,
                 });
             }
         }
