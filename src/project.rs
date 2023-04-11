@@ -22,7 +22,6 @@ pub struct Project {
     pub packages: Vec<Package>,
     pub vendored_gems: Vec<VendoredGem>,
     pub teams: Vec<Team>,
-    pub unowned_globs: Vec<String>,
     pub codeowners_file: String,
 }
 
@@ -192,7 +191,7 @@ impl Project {
                 })
             }
 
-            if matches_globs(&relative_path, &config.owned_globs) {
+            if matches_globs(&relative_path, &config.owned_globs) && !matches_globs(&relative_path, &config.unowned_globs) {
                 owned_file_paths.push(absolute_path)
             }
         }
@@ -219,7 +218,6 @@ impl Project {
             vendored_gems,
             teams,
             packages,
-            unowned_globs: config.unowned_globs.clone(),
             codeowners_file,
         })
     }
@@ -248,10 +246,6 @@ impl Project {
         }
 
         result
-    }
-
-    pub fn skip_file(&self, file: &ProjectFile) -> bool {
-        matches_globs(self.relative_path(&file.path), &self.unowned_globs)
     }
 }
 
