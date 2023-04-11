@@ -19,15 +19,16 @@ impl Mapper for TeamGemMapper {
         let vendored_gem_by_name = self.project.vendored_gem_by_name();
         let mut entries: Vec<Entry> = Vec::new();
 
-        for team in self.project.teams.iter().filter(|team| !team.avoid_ownership) {
+        for team in &self.project.teams {
             for owned_gem in &team.owned_gems {
                 let vendored_gem = vendored_gem_by_name.get(owned_gem);
 
                 if let Some(vendored_gem) = vendored_gem {
                     entries.push(Entry {
-                        path: self.project.relative_path(&vendored_gem.path).to_string_lossy().to_string(),
+                        path: format!("{}/**/**", self.project.relative_path(&vendored_gem.path).to_string_lossy()),
                         github_team: team.github_team.to_owned(),
                         team_name: team.name.to_owned(),
+                        disabled: team.avoid_ownership,
                     });
                 }
             }

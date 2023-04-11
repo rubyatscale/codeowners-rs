@@ -211,7 +211,7 @@ fn test_team_owned_gems() {
             "/config/teams/payroll.yml @Payroll-Eng",
             "",
             "# Team owned gems",
-            "/components/payroll_calculator @Payroll-Eng",
+            "/components/payroll_calculator/**/** @Payroll-Eng",
             "",
         ])
         .join("\n")
