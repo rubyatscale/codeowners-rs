@@ -47,7 +47,6 @@ fn build_project_with_annotated_file() -> Project {
         packages: vec![],
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
-        unowned_globs: vec![],
         codeowners_file: "".to_owned(),
     }
 }
@@ -70,7 +69,6 @@ fn build_project_with_team_specific_owned_globs() -> Project {
         packages: vec![],
         teams: vec![build_payroll_team_with_owned_glob()],
         vendored_gems: vec![],
-        unowned_globs: vec![],
         codeowners_file: "".to_owned(),
     }
 }
@@ -93,7 +91,6 @@ fn build_project_with_packages() -> Project {
         ],
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
-        unowned_globs: vec![],
         codeowners_file: "".to_owned(),
     }
 }
@@ -108,7 +105,6 @@ fn build_project_with_team_owned_gems() -> Project {
             path: Path::new("components/payroll_calculator").to_owned(),
             name: "payroll_calculator".to_owned(),
         }],
-        unowned_globs: vec![],
         codeowners_file: "".to_owned(),
     }
 }
