@@ -157,7 +157,7 @@ impl Project {
 
             let file_name = relative_path.file_name().expect("expected a file_name");
 
-            if file_name.eq_ignore_ascii_case("package.yml") && matches_globs(&relative_path, &config.ruby_package_paths) {
+            if file_name.eq_ignore_ascii_case("package.yml") && matches_globs(relative_path.parent().unwrap(), &config.ruby_package_paths) {
                 if let Some(owner) = package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
@@ -167,7 +167,9 @@ impl Project {
                 }
             }
 
-            if file_name.eq_ignore_ascii_case("package.json") && matches_globs(&relative_path, &config.javascript_package_paths) {
+            if file_name.eq_ignore_ascii_case("package.json")
+                && matches_globs(relative_path.parent().unwrap(), &config.javascript_package_paths)
+            {
                 if let Some(owner) = package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
