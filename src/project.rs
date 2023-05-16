@@ -74,8 +74,13 @@ mod deserializers {
     }
 
     #[derive(Deserialize)]
-    pub struct Package {
+    pub struct JavascriptPackage {
         pub metadata: Option<Metadata>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct RubyPackage {
+        pub owner: Option<String>,
     }
 
     #[derive(Deserialize)]
@@ -114,6 +119,7 @@ mod deserializers {
 pub enum Error {
     Io,
     SerdeYaml,
+    SerdeJson,
 }
 
 impl fmt::Display for Error {
@@ -121,6 +127,7 @@ impl fmt::Display for Error {
         match self {
             Error::Io => fmt.write_str("Error::Io"),
             Error::SerdeYaml => fmt.write_str("Error::SerdeYaml"),
+            Error::SerdeJson => fmt.write_str("Error::SerdeJson"),
         }
     }
 }
@@ -158,7 +165,7 @@ impl Project {
             let file_name = relative_path.file_name().expect("expected a file_name");
 
             if file_name.eq_ignore_ascii_case("package.yml") && matches_globs(relative_path.parent().unwrap(), &config.ruby_package_paths) {
-                if let Some(owner) = package_owner(&absolute_path)? {
+                if let Some(owner) = ruby_package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -170,7 +177,7 @@ impl Project {
             if file_name.eq_ignore_ascii_case("package.json")
                 && matches_globs(relative_path.parent().unwrap(), &config.javascript_package_paths)
             {
-                if let Some(owner) = package_owner(&absolute_path)? {
+                if let Some(owner) = javascript_package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -288,15 +295,18 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
         .collect()
 }
 
-fn package_owner(path: &Path) -> Result<Option<String>, Error> {
+fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
     let file = File::open(path).into_context(Error::Io)?;
-    let deserializer: deserializers::Package = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
+    let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
 
-    if let Some(metadata) = deserializer.metadata {
-        Ok(metadata.owner)
-    } else {
-        Ok(None)
-    }
+    Ok(deserializer.owner)
+}
+
+fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
+    let file = File::open(path).into_context(Error::Io)?;
+    let deserializer: deserializers::JavascriptPackage = serde_json::from_reader(file).into_context(Error::SerdeJson)?;
+
+    Ok(deserializer.metadata.and_then(|metadata| metadata.owner))
 }
 
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
