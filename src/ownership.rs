@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::{debug, instrument};
+use tracing::{info, instrument};
 
 mod file_generator;
 mod mapper;
@@ -49,7 +49,7 @@ impl Ownership {
 
     #[instrument(level = "debug", skip_all)]
     pub fn validate(&self) -> Result<(), ValidatorErrors> {
-        debug!("validating file ownership");
+        info!("validating file ownership");
         let validator = Validator {
             project: self.project.clone(),
             mappers: self.mappers(),
@@ -61,7 +61,7 @@ impl Ownership {
 
     #[instrument(level = "debug", skip_all)]
     pub fn generate_file(&self) -> String {
-        debug!("generating codeowners file");
+        info!("generating codeowners file");
         let file_generator = FileGenerator { mappers: self.mappers() };
         file_generator.generate_file()
     }
