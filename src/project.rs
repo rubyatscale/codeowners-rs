@@ -8,7 +8,7 @@ use std::{
 
 use error_stack::{Context, Result};
 
-use jwalk::WalkDir;
+use ignore::Walk;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{debug, instrument};
@@ -144,17 +144,17 @@ impl Project {
         let mut teams: Vec<Team> = Vec::new();
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
 
-        for entry in WalkDir::new(base_path) {
+        for entry in Walk::new(base_path) {
             let entry = entry.into_context(Error::Io)?;
 
             let absolute_path = entry.path();
             let relative_path = absolute_path.strip_prefix(base_path).into_context(Error::Io)?.to_owned();
 
-            if entry.file_type().is_dir() {
+            if entry.file_type().unwrap().is_dir() {
                 if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
                     let file_name = relative_path.file_name().expect("expected a file_name");
                     vendored_gems.push(VendoredGem {
-                        path: absolute_path,
+                        path: absolute_path.to_owned(),
                         name: file_name.to_string_lossy().to_string(),
                     })
                 }
@@ -165,7 +165,7 @@ impl Project {
             let file_name = relative_path.file_name().expect("expected a file_name");
 
             if file_name.eq_ignore_ascii_case("package.yml") && matches_globs(relative_path.parent().unwrap(), &config.ruby_package_paths) {
-                if let Some(owner) = ruby_package_owner(&absolute_path)? {
+                if let Some(owner) = ruby_package_owner(absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -177,7 +177,7 @@ impl Project {
             if file_name.eq_ignore_ascii_case("package.json")
                 && matches_globs(relative_path.parent().unwrap(), &config.javascript_package_paths)
             {
-                if let Some(owner) = javascript_package_owner(&absolute_path)? {
+                if let Some(owner) = javascript_package_owner(absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -187,11 +187,11 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
-                let file = File::open(&absolute_path).into_context(Error::Io)?;
+                let file = File::open(absolute_path).into_context(Error::Io)?;
                 let deserializer: deserializers::Team = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
 
                 teams.push(Team {
-                    path: absolute_path.clone(),
+                    path: absolute_path.to_owned(),
                     name: deserializer.name,
                     github_team: deserializer.github.team,
                     owned_globs: deserializer.owned_globs,
@@ -201,7 +201,7 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.owned_globs) && !matches_globs(&relative_path, &config.unowned_globs) {
-                owned_file_paths.push(absolute_path)
+                owned_file_paths.push(absolute_path.to_owned())
             }
         }
 
