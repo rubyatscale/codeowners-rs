@@ -11,7 +11,7 @@ use error_stack::{Context, Result};
 use ignore::Walk;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
-use tracing::{debug, instrument};
+use tracing::{info, instrument};
 
 use crate::{config::Config, error_stack_ext::IntoContext};
 use glob_match::glob_match;
@@ -137,7 +137,7 @@ impl Context for Error {}
 impl Project {
     #[instrument(level = "debug", skip_all)]
     pub fn build(base_path: &Path, codeowners_file_path: &Path, config: &Config) -> Result<Self, Error> {
-        debug!(base_path = base_path.to_str(), "scanning project");
+        info!(base_path = base_path.to_str(), "scanning project");
 
         let mut owned_file_paths: Vec<PathBuf> = Vec::new();
         let mut packages: Vec<Package> = Vec::new();
@@ -205,7 +205,7 @@ impl Project {
             }
         }
 
-        debug!(
+        info!(
             owned_file_paths = owned_file_paths.len(),
             packages = packages.len(),
             teams = teams.len(),
@@ -262,7 +262,7 @@ impl Project {
 fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
     let regexp = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
 
-    debug!("opening files to read ownership annotation");
+    info!("opening files to read ownership annotation");
 
     owned_file_paths
         .into_par_iter()
