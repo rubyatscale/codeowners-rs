@@ -23,6 +23,7 @@ pub struct Project {
     pub vendored_gems: Vec<VendoredGem>,
     pub teams: Vec<Team>,
     pub codeowners_file: String,
+    pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
 }
 
 #[derive(Clone)]
@@ -55,6 +56,17 @@ pub struct Package {
 
 impl Package {
     pub fn package_root(&self) -> &Path {
+        self.path.parent().unwrap()
+    }
+}
+
+pub struct DirectoryCodeownersFile {
+    pub path: PathBuf,
+    pub owner: String,
+}
+
+impl DirectoryCodeownersFile {
+    pub fn directory_root(&self) -> &Path {
         self.path.parent().unwrap()
     }
 }
@@ -143,6 +155,7 @@ impl Project {
         let mut packages: Vec<Package> = Vec::new();
         let mut teams: Vec<Team> = Vec::new();
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
+        let mut directory_codeowner_files: Vec<DirectoryCodeownersFile> = Vec::new();
 
         for entry in Walk::new(base_path) {
             let entry = entry.into_context(Error::Io)?;
@@ -184,6 +197,15 @@ impl Project {
                         package_type: PackageType::Javascript,
                     })
                 }
+            }
+
+            if file_name.eq_ignore_ascii_case(".codeowner") {
+                let owner = std::fs::read_to_string(&absolute_path).into_context(Error::Io)?;
+                let relative_path = relative_path.parent().unwrap().to_owned();
+                directory_codeowner_files.push(DirectoryCodeownersFile {
+                    path: relative_path,
+                    owner,
+                })
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
@@ -228,6 +250,7 @@ impl Project {
             teams,
             packages,
             codeowners_file,
+            directory_codeowner_files,
         })
     }
 

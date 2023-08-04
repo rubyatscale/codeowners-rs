@@ -48,6 +48,7 @@ fn build_project_with_annotated_file() -> Project {
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -70,6 +71,7 @@ fn build_project_with_team_specific_owned_globs() -> Project {
         teams: vec![build_payroll_team_with_owned_glob()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -92,6 +94,7 @@ fn build_project_with_packages() -> Project {
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -106,6 +109,7 @@ fn build_project_with_team_owned_gems() -> Project {
             name: "payroll_calculator".to_owned(),
         }],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 

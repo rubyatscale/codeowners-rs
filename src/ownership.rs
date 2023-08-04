@@ -8,7 +8,7 @@ mod validator;
 #[cfg(test)]
 mod tests;
 
-use crate::project::Project;
+use crate::{ownership::mapper::DirectoryMapper, project::Project};
 
 pub use validator::Errors as ValidatorErrors;
 
@@ -74,6 +74,7 @@ impl Ownership {
             Box::new(JavascriptPackageMapper::build(self.project.clone())),
             Box::new(TeamYmlMapper::build(self.project.clone())),
             Box::new(TeamGemMapper::build(self.project.clone())),
+            Box::new(DirectoryMapper::build(self.project.clone())),
         ]
     }
 }
