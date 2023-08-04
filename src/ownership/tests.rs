@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::project::{Package, PackageType, Project, ProjectFile, Team, VendoredGem};
 
 use super::Ownership;
+use pretty_assertions::assert_eq;
 
 fn build_payroll_team() -> Team {
     Team {
