@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::Entry;
@@ -24,7 +22,6 @@ impl Mapper for DirectoryMapper {
         for directory_codeowner_file in &self.project.directory_codeowner_files {
             let dir_root = directory_codeowner_file.directory_root().to_string_lossy();
             let team = team_by_name.get(&directory_codeowner_file.owner);
-
             if let Some(team) = team {
                 entries.push(Entry {
                     path: format!("{}/**/**", dir_root),
@@ -39,16 +36,20 @@ impl Mapper for DirectoryMapper {
     }
 
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
-        let mut path_to_team: HashMap<PathBuf, String> = HashMap::new();
+        let mut owner_matchers = Vec::new();
 
-        for team in &self.project.teams {
-            path_to_team.insert(self.project.relative_path(&team.path).to_owned(), team.name.to_owned());
+        for file in &self.project.directory_codeowner_files {
+            owner_matchers.push(OwnerMatcher::Glob {
+                glob: format!("{}/**/**", file.directory_root().to_string_lossy()),
+                team_name: file.owner.to_owned(),
+                source: format!("directory_mapper ({:?})", &file.directory_root()),
+            });
         }
 
-        vec![OwnerMatcher::ExactMatches(path_to_team, "team_yml_mapper".to_owned())]
+        owner_matchers
     }
 
     fn name(&self) -> String {
-        "Team YML ownership".to_owned()
+        "Owner in .codeowner".to_owned()
     }
 }

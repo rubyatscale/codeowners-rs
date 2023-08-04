@@ -38,7 +38,7 @@ pub struct ProjectFile {
     pub path: PathBuf,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Team {
     pub path: PathBuf,
     pub name: String,
@@ -60,6 +60,7 @@ impl Package {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DirectoryCodeownersFile {
     pub path: PathBuf,
     pub owner: String,
@@ -157,7 +158,9 @@ impl Project {
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
         let mut directory_codeowner_files: Vec<DirectoryCodeownersFile> = Vec::new();
 
-        for entry in Walk::new(base_path) {
+        let walkdir = Walk::new(base_path);
+
+        for entry in walkdir {
             let entry = entry.into_context(Error::Io)?;
 
             let absolute_path = entry.path();
@@ -201,7 +204,9 @@ impl Project {
 
             if file_name.eq_ignore_ascii_case(".codeowner") {
                 let owner = std::fs::read_to_string(&absolute_path).into_context(Error::Io)?;
-                let relative_path = relative_path.parent().unwrap().to_owned();
+                let owner = owner.trim().to_owned();
+
+                let relative_path = relative_path.to_owned();
                 directory_codeowner_files.push(DirectoryCodeownersFile {
                     path: relative_path,
                     owner,

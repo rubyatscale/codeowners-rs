@@ -16,8 +16,8 @@
 /ruby/app/payments/**/* @PaymentsTeam
 
 # Owner in .codeowner
-/ruby/app/payroll/**/* @PayrollTeam
-              
+/ruby/app/payroll/**/** @PayrollTeam
+
 # Owner metadata key in package.yml
 /ruby/packages/payroll_flow/**/** @PayrollTeam
 
