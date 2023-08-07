@@ -4,12 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod directory_mapper;
 mod package_mapper;
 mod team_file_mapper;
 mod team_gem_mapper;
 mod team_glob_mapper;
 mod team_yml_mapper;
 
+pub use directory_mapper::DirectoryMapper;
 pub use package_mapper::JavascriptPackageMapper;
 pub use package_mapper::RubyPackageMapper;
 pub use team_file_mapper::TeamFileMapper;

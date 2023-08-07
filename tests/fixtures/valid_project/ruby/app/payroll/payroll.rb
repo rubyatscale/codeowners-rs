@@ -1,0 +1,1 @@
+class Payroll; end

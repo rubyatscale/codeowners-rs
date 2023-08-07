@@ -8,7 +8,7 @@ mod validator;
 #[cfg(test)]
 mod tests;
 
-use crate::project::Project;
+use crate::{ownership::mapper::DirectoryMapper, project::Project};
 
 pub use validator::Errors as ValidatorErrors;
 
@@ -70,6 +70,7 @@ impl Ownership {
         vec![
             Box::new(TeamFileMapper::build(self.project.clone())),
             Box::new(TeamGlobMapper::build(self.project.clone())),
+            Box::new(DirectoryMapper::build(self.project.clone())),
             Box::new(RubyPackageMapper::build(self.project.clone())),
             Box::new(JavascriptPackageMapper::build(self.project.clone())),
             Box::new(TeamYmlMapper::build(self.project.clone())),

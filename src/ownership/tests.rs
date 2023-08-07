@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::project::{Package, PackageType, Project, ProjectFile, Team, VendoredGem};
 
 use super::Ownership;
+use pretty_assertions::assert_eq;
 
 fn build_payroll_team() -> Team {
     Team {
@@ -48,6 +49,7 @@ fn build_project_with_annotated_file() -> Project {
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -70,6 +72,7 @@ fn build_project_with_team_specific_owned_globs() -> Project {
         teams: vec![build_payroll_team_with_owned_glob()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -92,6 +95,7 @@ fn build_project_with_packages() -> Project {
         teams: vec![build_payroll_team()],
         vendored_gems: vec![],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -106,6 +110,7 @@ fn build_project_with_team_owned_gems() -> Project {
             name: "payroll_calculator".to_owned(),
         }],
         codeowners_file: "".to_owned(),
+        directory_codeowner_files: vec![],
     }
 }
 
@@ -120,6 +125,8 @@ fn test_annotations_at_the_top_of_file() {
             "/packs/payroll/services/runner.rb @Payroll-Eng",
             "",
             "# Team-specific owned globs",
+            "",
+            "# Owner in .codeowner",
             "",
             "# Owner metadata key in package.yml",
             "",
@@ -147,6 +154,8 @@ fn test_team_specific_owned_globs() {
             "# Team-specific owned globs",
             "/packs/payroll/** @Payroll-Eng",
             "",
+            "# Owner in .codeowner",
+            "",
             "# Owner metadata key in package.yml",
             "",
             "# Owner metadata key in package.json",
@@ -171,6 +180,8 @@ fn test_owner_metadata_in_package() {
             "# Annotations at the top of file",
             "",
             "# Team-specific owned globs",
+            "",
+            "# Owner in .codeowner",
             "",
             "# Owner metadata key in package.yml",
             "/packs/payroll_package/**/** @Payroll-Eng",
@@ -198,6 +209,8 @@ fn test_team_owned_gems() {
             "# Annotations at the top of file",
             "",
             "# Team-specific owned globs",
+            "",
+            "# Owner in .codeowner",
             "",
             "# Owner metadata key in package.yml",
             "",
