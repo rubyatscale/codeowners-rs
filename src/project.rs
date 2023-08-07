@@ -8,7 +8,7 @@ use std::{
 
 use error_stack::{Context, Result};
 
-use ignore::Walk;
+use ignore::WalkBuilder;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{info, instrument};
@@ -158,7 +158,9 @@ impl Project {
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
         let mut directory_codeowner_files: Vec<DirectoryCodeownersFile> = Vec::new();
 
-        let walkdir = Walk::new(base_path);
+        let mut builder = WalkBuilder::new(base_path);
+        builder.hidden(false);
+        let walkdir = builder.build();
 
         for entry in walkdir {
             let entry = entry.into_context(Error::Io)?;
