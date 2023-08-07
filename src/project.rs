@@ -205,7 +205,7 @@ impl Project {
             }
 
             if file_name.eq_ignore_ascii_case(".codeowner") {
-                let owner = std::fs::read_to_string(&absolute_path).into_context(Error::Io)?;
+                let owner = std::fs::read_to_string(absolute_path).into_context(Error::Io)?;
                 let owner = owner.trim().to_owned();
 
                 let relative_path = relative_path.to_owned();
