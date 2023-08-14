@@ -126,8 +126,6 @@ fn test_annotations_at_the_top_of_file() {
             "",
             "# Team-specific owned globs",
             "",
-            "# Owner in .codeowner",
-            "",
             "# Owner metadata key in package.yml",
             "",
             "# Owner metadata key in package.json",
@@ -136,6 +134,8 @@ fn test_annotations_at_the_top_of_file() {
             "/config/teams/payroll.yml @Payroll-Eng",
             "",
             "# Team owned gems",
+            "",
+            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -154,8 +154,6 @@ fn test_team_specific_owned_globs() {
             "# Team-specific owned globs",
             "/packs/payroll/** @Payroll-Eng",
             "",
-            "# Owner in .codeowner",
-            "",
             "# Owner metadata key in package.yml",
             "",
             "# Owner metadata key in package.json",
@@ -164,6 +162,8 @@ fn test_team_specific_owned_globs() {
             "/config/teams/payroll.yml @Payroll-Eng",
             "",
             "# Team owned gems",
+            "",
+            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -181,8 +181,6 @@ fn test_owner_metadata_in_package() {
             "",
             "# Team-specific owned globs",
             "",
-            "# Owner in .codeowner",
-            "",
             "# Owner metadata key in package.yml",
             "/packs/payroll_package/**/** @Payroll-Eng",
             "",
@@ -193,6 +191,8 @@ fn test_owner_metadata_in_package() {
             "/config/teams/payroll.yml @Payroll-Eng",
             "",
             "# Team owned gems",
+            "",
+            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -210,8 +210,6 @@ fn test_team_owned_gems() {
             "",
             "# Team-specific owned globs",
             "",
-            "# Owner in .codeowner",
-            "",
             "# Owner metadata key in package.yml",
             "",
             "# Owner metadata key in package.json",
@@ -221,6 +219,8 @@ fn test_team_owned_gems() {
             "",
             "# Team owned gems",
             "/components/payroll_calculator/**/** @Payroll-Eng",
+            "",
+            "# Owner in .codeowner",
             "",
         ])
         .join("\n")

@@ -15,9 +15,6 @@
 # Team-specific owned globs
 /ruby/app/payments/**/* @PaymentsTeam
 
-# Owner in .codeowner
-/ruby/app/payroll/**/** @PayrollTeam
-
 # Owner metadata key in package.yml
 /ruby/packages/payroll_flow/**/** @PayrollTeam
 
@@ -30,3 +27,6 @@
 
 # Team owned gems
 /gems/payroll_calculator/**/** @PayrollTeam
+
+# Owner in .codeowner
+/ruby/app/payroll/**/** @PayrollTeam
