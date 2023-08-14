@@ -10,6 +10,10 @@ impl FileGenerator {
         lines.append(&mut Self::disclaimer());
 
         for mapper in &self.mappers {
+            if mapper.entries().is_empty() {
+                continue;
+            }
+
             lines.push(format!("# {}", mapper.name()));
             lines.append(&mut Self::to_sorted_lines(&mapper.entries()));
             lines.push("".to_owned());

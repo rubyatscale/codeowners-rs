@@ -124,18 +124,8 @@ fn test_annotations_at_the_top_of_file() {
             "# Annotations at the top of file",
             "/packs/payroll/services/runner.rb @Payroll-Eng",
             "",
-            "# Team-specific owned globs",
-            "",
-            "# Owner metadata key in package.yml",
-            "",
-            "# Owner metadata key in package.json",
-            "",
             "# Team YML ownership",
             "/config/teams/payroll.yml @Payroll-Eng",
-            "",
-            "# Team owned gems",
-            "",
-            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -149,21 +139,11 @@ fn test_team_specific_owned_globs() {
     assert_eq!(
         ownership.generate_file(),
         with_disclaimer(vec![
-            "# Annotations at the top of file",
-            "",
             "# Team-specific owned globs",
             "/packs/payroll/** @Payroll-Eng",
             "",
-            "# Owner metadata key in package.yml",
-            "",
-            "# Owner metadata key in package.json",
-            "",
             "# Team YML ownership",
             "/config/teams/payroll.yml @Payroll-Eng",
-            "",
-            "# Team owned gems",
-            "",
-            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -177,10 +157,6 @@ fn test_owner_metadata_in_package() {
     assert_eq!(
         ownership.generate_file(),
         with_disclaimer(vec![
-            "# Annotations at the top of file",
-            "",
-            "# Team-specific owned globs",
-            "",
             "# Owner metadata key in package.yml",
             "/packs/payroll_package/**/** @Payroll-Eng",
             "",
@@ -189,10 +165,6 @@ fn test_owner_metadata_in_package() {
             "",
             "# Team YML ownership",
             "/config/teams/payroll.yml @Payroll-Eng",
-            "",
-            "# Team owned gems",
-            "",
-            "# Owner in .codeowner",
             "",
         ])
         .join("\n")
@@ -206,22 +178,12 @@ fn test_team_owned_gems() {
     assert_eq!(
         ownership.generate_file(),
         with_disclaimer(vec![
-            "# Annotations at the top of file",
-            "",
-            "# Team-specific owned globs",
-            "",
-            "# Owner metadata key in package.yml",
-            "",
-            "# Owner metadata key in package.json",
-            "",
             "# Team YML ownership",
             "/config/teams/payroll.yml @Payroll-Eng",
             "",
             "# Team owned gems",
             "/components/payroll_calculator/**/** @Payroll-Eng",
-            "",
-            "# Owner in .codeowner",
-            "",
+            ""
         ])
         .join("\n")
     )
