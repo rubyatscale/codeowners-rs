@@ -155,7 +155,7 @@ impl Validator {
 
                     if let (Some(owner), source) = owner {
                         let entry = owners_and_source.entry(owner);
-                        let sources = entry.or_insert(Vec::new());
+                        let sources = entry.or_default();
                         sources.push(source.to_owned())
                     }
                 }
