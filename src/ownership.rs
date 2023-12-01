@@ -70,11 +70,11 @@ impl Ownership {
         vec![
             Box::new(TeamFileMapper::build(self.project.clone())),
             Box::new(TeamGlobMapper::build(self.project.clone())),
+            Box::new(DirectoryMapper::build(self.project.clone())),
             Box::new(RubyPackageMapper::build(self.project.clone())),
             Box::new(JavascriptPackageMapper::build(self.project.clone())),
             Box::new(TeamYmlMapper::build(self.project.clone())),
             Box::new(TeamGemMapper::build(self.project.clone())),
-            Box::new(DirectoryMapper::build(self.project.clone())),
         ]
     }
 }
