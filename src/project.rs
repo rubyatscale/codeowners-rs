@@ -224,7 +224,7 @@ impl Project {
                     name: deserializer.name,
                     github_team: deserializer.github.team,
                     owned_globs: deserializer.owned_globs,
-                    owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or(Vec::new()),
+                    owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or_default(),
                     avoid_ownership: deserializer.github.do_not_add_to_codeowners_file,
                 })
             }
