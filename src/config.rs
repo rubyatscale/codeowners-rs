@@ -18,6 +18,7 @@ pub struct Config {
     pub vendored_gems_path: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct RubyPackageConfig {
     #[serde(alias = "pack_paths")]

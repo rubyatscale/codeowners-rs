@@ -22,6 +22,7 @@ pub struct Ownership {
     project: Arc<Project>,
 }
 
+#[allow(dead_code)]
 pub struct Entry {
     pub path: String,
     pub github_team: String,
