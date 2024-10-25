@@ -5,7 +5,8 @@ It's also the [oxidation](https://wiki.mozilla.org/Oxidation) of an existing [CL
 `CODEOWNERS` generation happens as part of our git commit hooks and on Gusto's main repo takes ~18s to run. The Rust implementation which is a drop in replacement cuts that down to <= 2s. (Tested on a Mackbook M1)
 
 ### Documentation
-```bash
+
+```text
 A CLI to validate and generate Github's CODEOWNERS file
 
 Usage: codeowners [OPTIONS] <COMMAND>
