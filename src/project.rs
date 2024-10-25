@@ -26,7 +26,7 @@ pub struct Project {
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VendoredGem {
     pub path: PathBuf,
     pub name: String,

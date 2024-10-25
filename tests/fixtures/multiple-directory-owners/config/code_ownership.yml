@@ -1,0 +1,10 @@
+---
+owned_globs:
+  - "{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}"
+unowned_globs:
+  - config/code_ownership.yml
+javascript_package_paths:
+  - javascript/packages/**
+vendored_gems_path: gems
+team_file_glob:
+  - config/teams/**/*.yml

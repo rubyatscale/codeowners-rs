@@ -62,3 +62,46 @@ impl Mapper for TeamGemMapper {
         "Team owned gems".to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_gem_codeowners};
+
+    use super::*;
+    #[test]
+    fn test_entries() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_all_mappers()?;
+        let mapper = TeamGemMapper::build(ownership.project.clone());
+        let entries = mapper.entries();
+        assert_eq!(
+            entries,
+            vec![Entry {
+                path: "gems/taco/**/**".to_owned(),
+                github_team: "@Bam".to_owned(),
+                team_name: "Bam".to_owned(),
+                disabled: false
+            }]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_team_gem_codeowners()?;
+        let mapper = TeamGemMapper::build(ownership.project.clone());
+        let mut owner_matchers = mapper.owner_matchers();
+        owner_matchers.sort_by_key(|e| match e {
+            OwnerMatcher::Glob { glob, .. } => glob.clone(),
+            OwnerMatcher::ExactMatches(_, source) => source.clone(),
+        });
+        let expected_owner_matchers = vec![OwnerMatcher::Glob {
+            glob: "gems/globbing/**/*".to_owned(),
+            team_name: "Bam".to_owned(),
+            source: "team_gem_mapper".to_owned(),
+        }];
+        assert_eq!(owner_matchers, expected_owner_matchers);
+        Ok(())
+    }
+}

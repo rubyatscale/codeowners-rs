@@ -1,3 +1,4 @@
+use mapper::TeamName;
 use std::sync::Arc;
 use tracing::{info, instrument};
 
@@ -23,10 +24,11 @@ pub struct Ownership {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, PartialEq)]
 pub struct Entry {
     pub path: String,
     pub github_team: String,
-    pub team_name: String,
+    pub team_name: TeamName,
     pub disabled: bool,
 }
 

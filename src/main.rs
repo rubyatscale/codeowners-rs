@@ -11,6 +11,7 @@ use std::{
     process,
 };
 
+mod common_test;
 mod config;
 mod ownership;
 mod project;

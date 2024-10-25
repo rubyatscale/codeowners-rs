@@ -52,3 +52,46 @@ impl Mapper for TeamGlobMapper {
         "Team-specific owned globs".to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_glob_codeowners};
+
+    use super::*;
+    #[test]
+    fn test_entries() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_all_mappers()?;
+        let mapper = TeamGlobMapper::build(ownership.project.clone());
+        let entries = mapper.entries();
+        assert_eq!(
+            entries,
+            vec![Entry {
+                path: "packs/bar/**".to_owned(),
+                github_team: "@Baz".to_owned(),
+                team_name: "Baz".to_owned(),
+                disabled: false
+            }]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_team_glob_codeowners()?;
+        let mapper = TeamGlobMapper::build(ownership.project.clone());
+        let mut owner_matchers = mapper.owner_matchers();
+        owner_matchers.sort_by_key(|e| match e {
+            OwnerMatcher::Glob { glob, .. } => glob.clone(),
+            OwnerMatcher::ExactMatches(_, source) => source.clone(),
+        });
+        let expected_owner_matchers = vec![OwnerMatcher::Glob {
+            glob: "packs/bar/**".to_owned(),
+            team_name: "@Baz".to_owned(),
+            source: "team_glob_mapper".to_owned(),
+        }];
+        assert_eq!(owner_matchers, expected_owner_matchers);
+        Ok(())
+    }
+}
