@@ -25,6 +25,7 @@ pub struct Ownership {
 pub struct Entry {
     pub path: String,
     pub github_team: String,
+    #[allow(dead_code)]
     pub team_name: String,
     pub disabled: bool,
 }
