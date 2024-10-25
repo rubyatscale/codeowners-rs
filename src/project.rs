@@ -6,14 +6,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Context, Result};
+use error_stack::{Context, Result, ResultExt};
 
 use ignore::WalkBuilder;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{info, instrument};
 
-use crate::{config::Config, error_stack_ext::IntoContext};
+use crate::config::Config;
 use glob_match::glob_match;
 
 pub struct Project {
@@ -163,10 +163,10 @@ impl Project {
         let walkdir = builder.build();
 
         for entry in walkdir {
-            let entry = entry.into_context(Error::Io)?;
+            let entry = entry.change_context(Error::Io)?;
 
             let absolute_path = entry.path();
-            let relative_path = absolute_path.strip_prefix(base_path).into_context(Error::Io)?.to_owned();
+            let relative_path = absolute_path.strip_prefix(base_path).change_context(Error::Io)?.to_owned();
 
             if entry.file_type().unwrap().is_dir() {
                 if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
@@ -205,7 +205,7 @@ impl Project {
             }
 
             if file_name.eq_ignore_ascii_case(".codeowner") {
-                let owner = std::fs::read_to_string(absolute_path).into_context(Error::Io)?;
+                let owner = std::fs::read_to_string(absolute_path).change_context(Error::Io)?;
                 let owner = owner.trim().to_owned();
 
                 let relative_path = relative_path.to_owned();
@@ -216,8 +216,8 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
-                let file = File::open(absolute_path).into_context(Error::Io)?;
-                let deserializer: deserializers::Team = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
+                let file = File::open(absolute_path).change_context(Error::Io)?;
+                let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 
                 teams.push(Team {
                     path: absolute_path.to_owned(),
@@ -243,7 +243,7 @@ impl Project {
         );
 
         let codeowners_file: String = if codeowners_file_path.exists() {
-            std::fs::read_to_string(codeowners_file_path).into_context(Error::Io)?
+            std::fs::read_to_string(codeowners_file_path).change_context(Error::Io)?
         } else {
             "".to_owned()
         };
@@ -326,15 +326,15 @@ fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
-    let file = File::open(path).into_context(Error::Io)?;
-    let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).into_context(Error::SerdeYaml)?;
+    let file = File::open(path).change_context(Error::Io)?;
+    let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 
     Ok(deserializer.owner)
 }
 
 fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
-    let file = File::open(path).into_context(Error::Io)?;
-    let deserializer: deserializers::JavascriptPackage = serde_json::from_reader(file).into_context(Error::SerdeJson)?;
+    let file = File::open(path).change_context(Error::Io)?;
+    let deserializer: deserializers::JavascriptPackage = serde_json::from_reader(file).change_context(Error::SerdeJson)?;
 
     Ok(deserializer.metadata.and_then(|metadata| metadata.owner))
 }

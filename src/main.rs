@@ -1,4 +1,3 @@
-use error_stack_ext::IntoContext;
 use ownership::Ownership;
 
 use crate::project::Project;
@@ -13,7 +12,6 @@ use std::{
 };
 
 mod config;
-mod error_stack_ext;
 mod ownership;
 mod project;
 
@@ -50,7 +48,7 @@ struct Args {
 
 impl Args {
     fn absolute_project_root(&self) -> Result<PathBuf, Error> {
-        self.project_root.canonicalize().into_context(Error::Io)
+        self.project_root.canonicalize().change_context(Error::Io)
     }
 
     fn absolute_config_path(&self) -> Result<PathBuf, Error> {
@@ -98,21 +96,21 @@ fn cli() -> Result<(), Error> {
     let project_root = args.absolute_project_root()?;
 
     let config_file = File::open(&config_path)
-        .into_context(Error::Io)
+        .change_context(Error::Io)
         .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
 
-    let config = serde_yaml::from_reader(config_file).into_context(Error::Io)?;
+    let config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
 
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
 
     match args.command {
-        Command::Validate => ownership.validate().into_context(Error::ValidationFailed)?,
+        Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
         Command::Generate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
+            std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file()).into_context(Error::Io)?;
-            ownership.validate().into_context(Error::ValidationFailed)?
+            std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
+            ownership.validate().change_context(Error::ValidationFailed)?
         }
     }
 
