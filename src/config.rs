@@ -21,6 +21,7 @@ pub struct Config {
 #[derive(Deserialize, Debug)]
 pub struct RubyPackageConfig {
     #[serde(alias = "pack_paths")]
+    #[allow(dead_code)]
     pub ruby_package_paths: Vec<String>,
 }
 
