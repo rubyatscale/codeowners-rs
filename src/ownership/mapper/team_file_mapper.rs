@@ -64,3 +64,46 @@ impl Mapper for TeamFileMapper {
         "Annotations at the top of file".to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_file_codeowners};
+
+    use super::*;
+    #[test]
+    fn test_entries() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_all_mappers()?;
+        let mapper = TeamFileMapper::build(ownership.project.clone());
+        let entries = mapper.entries();
+        assert_eq!(
+            entries,
+            vec![
+                Entry {
+                    path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false
+                },
+                Entry {
+                    path: "packs/jscomponents/comp.ts".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false
+                }
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_team_file_codeowners()?;
+        let mapper = TeamFileMapper::build(ownership.project.clone());
+        let owner_matchers = mapper.owner_matchers();
+        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), "team_file_mapper".to_owned())];
+        assert_eq!(owner_matchers, expected_owner_matchers);
+        Ok(())
+    }
+}

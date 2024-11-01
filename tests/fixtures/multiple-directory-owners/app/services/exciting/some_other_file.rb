@@ -1,0 +1,1 @@
+class Exciting::SomeOtherFile; end

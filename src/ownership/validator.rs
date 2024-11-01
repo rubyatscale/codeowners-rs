@@ -1,6 +1,5 @@
 use crate::project::{Project, ProjectFile};
 use core::fmt;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -14,18 +13,14 @@ use tracing::debug;
 use tracing::instrument;
 
 use super::file_generator::FileGenerator;
-use super::mapper::{Mapper, OwnerMatcher};
+use super::mapper::FileOwnerFinder;
+use super::mapper::Owner;
+use super::mapper::{Mapper, OwnerMatcher, TeamName};
 
 pub struct Validator {
     pub project: Arc<Project>,
     pub mappers: Vec<Box<dyn Mapper>>,
     pub file_generator: FileGenerator,
-}
-
-#[derive(Debug)]
-struct Owner {
-    pub sources: Vec<String>,
-    pub team_name: String,
 }
 
 #[derive(Debug)]
@@ -64,7 +59,7 @@ impl Validator {
         debug!("validating project");
         let mut errors: Vec<Error> = Vec::new();
 
-        let team_names: HashSet<&String> = self.project.teams.iter().map(|team| &team.name).collect();
+        let team_names: HashSet<&TeamName> = self.project.teams.iter().map(|team| &team.name).collect();
 
         errors.append(&mut self.invalid_team_annotation(&team_names));
         errors.append(&mut self.invalid_package_ownership(&team_names));
@@ -141,33 +136,17 @@ impl Validator {
 
     fn file_to_owners(&self) -> Vec<(&ProjectFile, Vec<Owner>)> {
         let owner_matchers: Vec<OwnerMatcher> = self.mappers.iter().flat_map(|mapper| mapper.owner_matchers()).collect();
+        let file_owner_finder = FileOwnerFinder {
+            owner_matchers: &owner_matchers,
+        };
         let project = self.project.clone();
 
         self.project
             .files
             .par_iter()
             .filter_map(|project_file| {
-                let mut owners_and_source: HashMap<&String, Vec<String>> = HashMap::new();
                 let relative_path = project.relative_path(&project_file.path);
-
-                for owner_matcher in &owner_matchers {
-                    let owner = owner_matcher.owner_for(relative_path);
-
-                    if let (Some(owner), source) = owner {
-                        let entry = owners_and_source.entry(owner);
-                        let sources = entry.or_default();
-                        sources.push(source.to_owned())
-                    }
-                }
-
-                let owners = owners_and_source
-                    .into_iter()
-                    .map(|(owner, sources)| Owner {
-                        sources,
-                        team_name: owner.to_owned(),
-                    })
-                    .collect_vec();
-
+                let owners = file_owner_finder.find(relative_path);
                 Some((project_file, owners))
             })
             .collect()

@@ -1,6 +1,9 @@
-use std::path::Path;
+use std::{error::Error, path::Path};
 
-use crate::project::{Package, PackageType, Project, ProjectFile, Team, VendoredGem};
+use crate::{
+    common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_directory_codeowners},
+    project::{Package, PackageType, Project, ProjectFile, Team, VendoredGem},
+};
 
 use super::Ownership;
 use pretty_assertions::assert_eq;
@@ -187,6 +190,22 @@ fn test_team_owned_gems() {
         ])
         .join("\n")
     )
+}
+
+#[test]
+fn test_file_with_multiple_directory_owners() -> Result<(), Box<dyn Error>> {
+    let ownership = build_ownership_with_directory_codeowners()?;
+    let result = ownership.validate();
+    assert_eq!(&result.ok(), &Some(()));
+    Ok(())
+}
+
+#[test]
+fn test_all_mappers() -> Result<(), Box<dyn Error>> {
+    let ownership = build_ownership_with_all_mappers()?;
+    let result = ownership.validate();
+    assert_eq!(&result.ok(), &Some(()));
+    Ok(())
 }
 
 fn with_disclaimer(lines: Vec<&str>) -> Vec<String> {

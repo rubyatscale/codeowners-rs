@@ -132,10 +132,14 @@ fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
 
 #[cfg(test)]
 mod tests {
-    use crate::project::{Package, PackageType};
+    use super::*;
+    use crate::{
+        common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_package_codeowners},
+        ownership::mapper::RubyPackageMapper,
+        project::{Package, PackageType},
+    };
     use itertools::Itertools;
-    use std::path::Path;
-
+    use std::{error::Error, path::Path};
     #[test]
     fn test_remove_nested_packages() {
         let packages = vec![
@@ -169,5 +173,47 @@ mod tests {
             .collect_vec();
 
         assert_eq!(package_paths, vec!["packs/a/package.yml", "packs/c/package.yml"]);
+    }
+
+    #[test]
+    fn test_entries() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_all_mappers()?;
+        let mapper = RubyPackageMapper::build(ownership.project.clone());
+        let entries = mapper.entries();
+        assert_eq!(
+            entries,
+            vec![Entry {
+                path: "packs/foo/**/**".to_owned(),
+                github_team: "@Baz".to_owned(),
+                team_name: "Baz".to_owned(),
+                disabled: false
+            }]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_package_codeowners()?;
+        let mapper = PackageMapper::build(ownership.project.clone());
+        let mut owner_matchers = mapper.owner_matchers(&PackageType::Ruby);
+        owner_matchers.sort_by_key(|e| match e {
+            OwnerMatcher::Glob { glob, .. } => glob.clone(),
+            OwnerMatcher::ExactMatches(_, source) => source.clone(),
+        });
+        let expected_owner_matchers = vec![
+            OwnerMatcher::Glob {
+                glob: "packs/bam/**/**".to_owned(),
+                team_name: "Bam".to_owned(),
+                source: "package_mapper (Ruby glob: packs/bam/**/**)".to_owned(),
+            },
+            OwnerMatcher::Glob {
+                glob: "packs/foo/**/**".to_owned(),
+                team_name: "Baz".to_owned(),
+                source: "package_mapper (Ruby glob: packs/foo/**/**)".to_owned(),
+            },
+        ];
+        assert_eq!(owner_matchers, expected_owner_matchers);
+        Ok(())
     }
 }
