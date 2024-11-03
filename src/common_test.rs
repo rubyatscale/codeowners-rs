@@ -146,6 +146,41 @@ team_file_glob:
         Ok(build_ownership(test_config)?)
     }
 
+    pub fn build_ownership_with_directory_codeowners_with_brackets() -> Result<Ownership, Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+
+        let test_config = TestConfig::new(
+            temp_dir.path().to_path_buf(),
+            vec![
+                TestProjectFile {
+                    relative_path: "app/[consumers]/deep/nesting/[nestdir]/deep_file.rb".to_owned(),
+                    content: "class DeepFile\nend\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "app/[consumers]/one_owner.rb".to_owned(),
+                    content: "class OneOwner\nend\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "app/services/service_file.rb".to_owned(),
+                    content: "class ServiceFile\nend\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "app/services/some_other_file.rb".to_owned(),
+                    content: "class SomeOtherFile\nend\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "app/[consumers]/.codeowner".to_owned(),
+                    content: "Bar\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "app/[consumers]/deep/nesting/[nestdir]/.codeowner".to_owned(),
+                    content: "Foo\n".to_owned(),
+                },
+            ],
+        );
+        Ok(build_ownership(test_config)?)
+    }
+
     pub fn build_ownership_with_all_mappers() -> Result<Ownership, Box<dyn Error>> {
         let temp_dir = tempdir()?;
 

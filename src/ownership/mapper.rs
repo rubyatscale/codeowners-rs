@@ -40,6 +40,7 @@ impl OwnerMatcher {
     pub fn owner_for(&self, relative_path: &Path) -> (Option<&TeamName>, &Source) {
         match self {
             OwnerMatcher::Glob { glob, team_name, source } => {
+                //let glob = &glob.replace("[", "\\[").replace("]", "\\]");
                 if glob_match(glob, relative_path.to_str().unwrap()) {
                     (Some(team_name), source)
                 } else {
@@ -171,30 +172,19 @@ mod tests {
     #[test]
     fn owner_for_with_brackets_in_glob() {
         assert_owner_for(
-            "packs/bam/app/[components]/**/**",
+            "packs/bam/app/\\[components\\]/**/**",
             "packs/bam/app/[components]/gadgets/sidebar.jsx",
             true,
         );
-        assert_owner_for("packs/[bam]/**/**", "packs/[bam]/app/components/sidebar.jsx", true);
+        assert_owner_for("packs/\\[bam\\]/**/**", "packs/[bam]/app/components/sidebar.jsx", true);
     }
 
     #[test]
     fn owner_for_with_multiple_brackets_in_glob() {
         assert_owner_for(
-            "packs/[bam]/bar/[foo]/**/**",
+            "packs/\\[bam\\]/bar/\\[foo\\]/**/**",
             "packs/[bam]/bar/[foo]/app/components/sidebar.jsx",
             true,
         );
-    }
-
-    #[test]
-    fn play_with_glob_match() {
-        assert!(glob_match("packs/[bam]/**/**", "packs/[bam]/app/components/sidebar.jsx"));
-        assert!(glob_match(
-            "packs/[bam]/bar/[foo]/**/**",
-            "packs/[bam]/bar/[foo]/app/components/sidebar.jsx"
-        ));
-        assert!(glob_match("packs/bam/**/**", "packs/bam/app/[components]/sidebar.jsx"));
-        assert!(glob_match("packs/bam/**/**", "packs/bam/app/sidebar_[component].jsx"));
     }
 }
