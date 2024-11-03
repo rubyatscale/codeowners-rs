@@ -40,7 +40,6 @@ impl OwnerMatcher {
     pub fn owner_for(&self, relative_path: &Path) -> (Option<&TeamName>, &Source) {
         match self {
             OwnerMatcher::Glob { glob, team_name, source } => {
-                //let glob = &glob.replace("[", "\\[").replace("]", "\\]");
                 if glob_match(glob, relative_path.to_str().unwrap()) {
                     (Some(team_name), source)
                 } else {

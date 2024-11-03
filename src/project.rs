@@ -342,3 +342,23 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
     globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
+
+    #[test]
+    fn test_matches_globs() {
+        // should fail because hidden directories are ignored by glob patterns unless explicitly included
+        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
+    }
+
+    #[test]
+    fn test_glob_match() {
+        // Exposes bug in glob-match https://github.com/devongovett/glob-match/issues/9
+        // should fail because hidden directories are ignored by glob patterns unless explicitly included
+        assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
+}

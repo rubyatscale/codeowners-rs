@@ -10,6 +10,17 @@ pub mod tests {
 
     use crate::{ownership::Ownership, project::Project};
 
+    macro_rules! ownership {
+        ($($test_files:expr),+) => {{
+            let temp_dir = tempdir()?;
+            let test_config = TestConfig::new(
+                temp_dir.path().to_path_buf(),
+                vec![$($test_files),+]
+            );
+            build_ownership(test_config)
+        }};
+    }
+
     const DEFAULT_CODE_OWNERSHIP_YML: &str = "
 ---
 owned_globs:
@@ -108,130 +119,112 @@ team_file_glob:
     }
 
     pub fn build_ownership_with_directory_codeowners() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![
-                TestProjectFile {
-                    relative_path: "app/consumers/deep/nesting/nestdir/deep_file.rb".to_owned(),
-                    content: "class DeepFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/consumers/one_owner.rb".to_owned(),
-                    content: "class OneOwner\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/service_file.rb".to_owned(),
-                    content: "class ServiceFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/some_other_file.rb".to_owned(),
-                    content: "class SomeOtherFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/consumers/.codeowner".to_owned(),
-                    content: "Bar\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/.codeowner".to_owned(),
-                    content: "Foo\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/exciting/.codeowner".to_owned(),
-                    content: "Bar\n".to_owned(),
-                },
-            ],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(
+            TestProjectFile {
+                relative_path: "app/consumers/deep/nesting/nestdir/deep_file.rb".to_owned(),
+                content: "class DeepFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/consumers/one_owner.rb".to_owned(),
+                content: "class OneOwner\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/service_file.rb".to_owned(),
+                content: "class ServiceFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/some_other_file.rb".to_owned(),
+                content: "class SomeOtherFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/consumers/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/.codeowner".to_owned(),
+                content: "Foo\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/exciting/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            }
+        )
     }
 
     pub fn build_ownership_with_directory_codeowners_with_brackets() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![
-                TestProjectFile {
-                    relative_path: "app/[consumers]/deep/nesting/[nestdir]/deep_file.rb".to_owned(),
-                    content: "class DeepFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/[consumers]/one_owner.rb".to_owned(),
-                    content: "class OneOwner\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/service_file.rb".to_owned(),
-                    content: "class ServiceFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/services/some_other_file.rb".to_owned(),
-                    content: "class SomeOtherFile\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/[consumers]/.codeowner".to_owned(),
-                    content: "Bar\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/[consumers]/deep/nesting/[nestdir]/.codeowner".to_owned(),
-                    content: "Foo\n".to_owned(),
-                },
-            ],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(
+            TestProjectFile {
+                relative_path: "app/[consumers]/deep/nesting/[nestdir]/deep_file.rb".to_owned(),
+                content: "class DeepFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/[consumers]/one_owner.rb".to_owned(),
+                content: "class OneOwner\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/service_file.rb".to_owned(),
+                content: "class ServiceFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/services/some_other_file.rb".to_owned(),
+                content: "class SomeOtherFile\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/[consumers]/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/[consumers]/deep/nesting/[nestdir]/.codeowner".to_owned(),
+                content: "Foo\n".to_owned(),
+            }
+        )
     }
 
     pub fn build_ownership_with_all_mappers() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![
-                TestProjectFile {
-                    relative_path: "app/consumers/directory_owned.rb".to_owned(),
-                    content: "class DirectoryOwned\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "app/consumers/.codeowner".to_owned(),
-                    content: "Bar\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/foo/package.yml".to_owned(),
-                    content: "owner: Baz\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/foo/app/services/package_owned.rb".to_owned(),
-                    content: "class PackageOwned\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/bar/app/services/team_file_owned.rb".to_owned(),
-                    content: "class GlobMapperOwned\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "config/teams/baz.yml".to_owned(),
-                    content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\n"
-                        .to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
-                    content: "# @team Foo\nclass TeamFileOwned\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/jscomponents/comp.ts".to_owned(),
-                    content: "// @team Foo\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "gems/taco/sauce.rb".to_owned(),
-                    content: "class Taco::Sauce\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "config/teams/bam.yml".to_owned(),
-                    content: "name: Bam\ngithub:\n  team: \"@Bam\"\n  members:\n    - Bam member\nruby:\n  owned_gems:\n    - taco\n"
-                        .to_owned(),
-                },
-            ],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(
+            TestProjectFile {
+                relative_path: "app/consumers/directory_owned.rb".to_owned(),
+                content: "class DirectoryOwned\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/consumers/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/package.yml".to_owned(),
+                content: "owner: Baz\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/app/services/package_owned.rb".to_owned(),
+                content: "class PackageOwned\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/bar/app/services/team_file_owned.rb".to_owned(),
+                content: "class GlobMapperOwned\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "config/teams/baz.yml".to_owned(),
+                content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\n"
+                    .to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
+                content: "# @team Foo\nclass TeamFileOwned\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/jscomponents/comp.ts".to_owned(),
+                content: "// @team Foo\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "gems/taco/sauce.rb".to_owned(),
+                content: "class Taco::Sauce\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "config/teams/bam.yml".to_owned(),
+                content: "name: Bam\ngithub:\n  team: \"@Bam\"\n  members:\n    - Bam member\nruby:\n  owned_gems:\n    - taco\n"
+                    .to_owned(),
+            }
+        )
     }
     pub fn build_ownership_with_team_file_codeowners() -> Result<Ownership, Box<dyn Error>> {
         let temp_dir = tempdir()?;
@@ -247,37 +240,24 @@ team_file_glob:
         Ok(build_ownership(test_config)?)
     }
     pub fn build_ownership_with_team_gem_codeowners() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![
-                TestProjectFile {
-                    relative_path: "gems/globbing/globber.rb".to_owned(),
-                    content: "class Globbing::Globber\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "config/teams/bam.yml".to_owned(),
-                    content: "name: Bam\ngithub:\n  team: \"@Bam\"\n  members:\n    - Bam member\nruby:\n  owned_gems:\n    - globbing\n"
-                        .to_owned(),
-                },
-            ],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(
+            TestProjectFile {
+                relative_path: "gems/globbing/globber.rb".to_owned(),
+                content: "class Globbing::Globber\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "config/teams/bam.yml".to_owned(),
+                content: "name: Bam\ngithub:\n  team: \"@Bam\"\n  members:\n    - Bam member\nruby:\n  owned_gems:\n    - globbing\n"
+                    .to_owned(),
+            }
+        )
     }
 
     pub fn build_ownership_with_team_glob_codeowners() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![TestProjectFile {
-                relative_path: "config/teams/baz.yml".to_owned(),
-                content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\n"
-                    .to_owned(),
-            }],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(TestProjectFile {
+            relative_path: "config/teams/baz.yml".to_owned(),
+            content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\n".to_owned(),
+        })
     }
 
     pub fn build_ownership_with_team_yml_codeowners() -> Result<Ownership, Box<dyn Error>> {
@@ -287,29 +267,23 @@ team_file_glob:
         Ok(build_ownership(test_config)?)
     }
     pub fn build_ownership_with_package_codeowners() -> Result<Ownership, Box<dyn Error>> {
-        let temp_dir = tempdir()?;
-
-        let test_config = TestConfig::new(
-            temp_dir.path().to_path_buf(),
-            vec![
-                TestProjectFile {
-                    relative_path: "packs/foo/package.yml".to_owned(),
-                    content: "owner: Baz\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/foo/app/services/package_owned.rb".to_owned(),
-                    content: "class PackageOwned\nend\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/bam/package.yml".to_owned(),
-                    content: "owner: Bam\n".to_owned(),
-                },
-                TestProjectFile {
-                    relative_path: "packs/bam/app/services/package_owned.rb".to_owned(),
-                    content: "class PackageOwned\nend\n".to_owned(),
-                },
-            ],
-        );
-        Ok(build_ownership(test_config)?)
+        ownership!(
+            TestProjectFile {
+                relative_path: "packs/foo/package.yml".to_owned(),
+                content: "owner: Baz\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/app/services/package_owned.rb".to_owned(),
+                content: "class PackageOwned\nend\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/bam/package.yml".to_owned(),
+                content: "owner: Bam\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/bam/app/services/package_owned.rb".to_owned(),
+                content: "class PackageOwned\nend\n".to_owned(),
+            }
+        )
     }
 }

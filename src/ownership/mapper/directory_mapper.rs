@@ -26,7 +26,7 @@ impl Mapper for DirectoryMapper {
             let team = team_by_name.get(&directory_codeowner_file.owner);
             if let Some(team) = team {
                 entries.push(Entry {
-                    path: format!("{}/**/**", dir_root),
+                    path: format!("{}/**/**", escape_brackets(&dir_root)),
                     github_team: team.github_team.to_owned(),
                     team_name: team.name.to_owned(),
                     disabled: team.avoid_ownership,
@@ -42,10 +42,7 @@ impl Mapper for DirectoryMapper {
 
         for file in &self.project.directory_codeowner_files {
             owner_matchers.push(OwnerMatcher::Glob {
-                glob: format!(
-                    "{}/**/**",
-                    file.directory_root().to_string_lossy().replace("[", "\\[").replace("]", "\\]")
-                ),
+                glob: format!("{}/**/**", escape_brackets(&file.directory_root().to_string_lossy())),
                 team_name: file.owner.to_owned(),
                 source: format!("{} ({:?})", SOURCE_NAME, &file.directory_root()),
             });
@@ -57,6 +54,10 @@ impl Mapper for DirectoryMapper {
     fn name(&self) -> String {
         "Owner in .codeowner".to_owned()
     }
+}
+
+fn escape_brackets(path: &str) -> String {
+    path.replace("[", "\\[").replace("]", "\\]")
 }
 
 pub fn is_directory_mapper_source(source: &str) -> bool {
@@ -112,13 +113,13 @@ mod tests {
             entries,
             vec![
                 Entry {
-                    path: "app/[consumers]/**/**".to_string(),
+                    path: "app/\\[consumers\\]/**/**".to_string(),
                     github_team: "@Bar".to_string(),
                     team_name: "Bar".to_string(),
                     disabled: false
                 },
                 Entry {
-                    path: "app/[consumers]/deep/nesting/[nestdir]/**/**".to_string(),
+                    path: "app/\\[consumers\\]/deep/nesting/\\[nestdir\\]/**/**".to_string(),
                     github_team: "@Foo".to_string(),
                     team_name: "Foo".to_string(),
                     disabled: false
