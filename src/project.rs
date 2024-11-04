@@ -340,5 +340,28 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
 }
 
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
+    globs.iter().any(|glob| {
+        let m = glob_match(glob, path.to_str().unwrap());
+        if m && path.to_str().unwrap() == "script/.eslintrc.js" {
+            dbg!(&glob);
+        }
+        m
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
+
+    #[test]
+    fn test_matches_globs() {
+        assert!(!matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
+    }
+
+    #[test]
+    fn test_glob_match() {
+        assert!(!glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
 }
