@@ -143,4 +143,47 @@ mod tests {
             Some((&team_name_longest, &source_longest))
         );
     }
+
+    fn assert_owner_for(glob: &str, relative_path: &str, expect_match: bool) {
+        let source = "directory_mapper (\"packs/bam\")".to_string();
+        let team_name = "team1".to_string();
+        let owner_matcher = OwnerMatcher::Glob {
+            glob: glob.to_string(),
+            team_name: team_name.clone(),
+            source: source.clone(),
+        };
+        let response = owner_matcher.owner_for(&Path::new(relative_path));
+        if expect_match {
+            assert_eq!(response, (Some(&team_name), &source));
+        } else {
+            assert_eq!(response, (None, &source));
+        }
+    }
+
+    #[test]
+    fn owner_for_without_brackets_in_glob() {
+        assert_owner_for("packs/bam/**/**", "packs/bam/app/components/sidebar.jsx", true);
+        assert_owner_for("packs/bam/**/**", "packs/baz/app/components/sidebar.jsx", false);
+        assert_owner_for("packs/bam/**/**", "packs/bam/app/[components]/gadgets/sidebar.jsx", true);
+        assert_owner_for("packs/bam/**/**", "packs/bam/app/sidebar_[component].jsx", true);
+    }
+
+    #[test]
+    fn owner_for_with_brackets_in_glob() {
+        assert_owner_for(
+            "packs/bam/app/\\[components\\]/**/**",
+            "packs/bam/app/[components]/gadgets/sidebar.jsx",
+            true,
+        );
+        assert_owner_for("packs/\\[bam\\]/**/**", "packs/[bam]/app/components/sidebar.jsx", true);
+    }
+
+    #[test]
+    fn owner_for_with_multiple_brackets_in_glob() {
+        assert_owner_for(
+            "packs/\\[bam\\]/bar/\\[foo\\]/**/**",
+            "packs/[bam]/bar/[foo]/app/components/sidebar.jsx",
+            true,
+        );
+    }
 }
