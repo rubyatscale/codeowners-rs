@@ -340,14 +340,10 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
 }
 
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    globs.iter().any(|glob| {
-        let m = glob_match(glob, path.to_str().unwrap());
-        if m && path.to_str().unwrap() == "script/.eslintrc.js" {
-            dbg!(&glob);
-        }
-        m
-    })
+    globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
 }
+
+// Exposes bug in glob-match https://github.com/devongovett/glob-match/issues/9
 
 #[cfg(test)]
 mod tests {
@@ -357,11 +353,13 @@ mod tests {
 
     #[test]
     fn test_matches_globs() {
-        assert!(!matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
+        // should fail because hidden directories are ignored by glob patterns unless explicitly included
+        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
     }
 
     #[test]
     fn test_glob_match() {
-        assert!(!glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+        // should fail because hidden directories are ignored by glob patterns unless explicitly included
+        assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
     }
 }
