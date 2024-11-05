@@ -62,7 +62,7 @@ mod tests {
             team_name: team_name.clone(),
             source: source.clone(),
         };
-        let response = owner_matcher.owner_for(&Path::new(relative_path));
+        let response = owner_matcher.owner_for(Path::new(relative_path));
         if expect_match {
             assert_eq!(response, (Some(&team_name), &source));
         } else {

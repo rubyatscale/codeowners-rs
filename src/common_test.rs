@@ -237,7 +237,7 @@ team_file_glob:
                     .to_owned(),
             }],
         );
-        Ok(build_ownership(test_config)?)
+        build_ownership(test_config)
     }
     pub fn build_ownership_with_team_gem_codeowners() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
@@ -264,7 +264,7 @@ team_file_glob:
         let temp_dir = tempdir()?;
 
         let test_config = TestConfig::new(temp_dir.path().to_path_buf(), vec![]);
-        Ok(build_ownership(test_config)?)
+        build_ownership(test_config)
     }
     pub fn build_ownership_with_package_codeowners() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
