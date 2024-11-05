@@ -1,4 +1,4 @@
-use ownership::Ownership;
+use ownership::{FileOwner, Ownership};
 
 use crate::project::Project;
 use clap::{Parser, Subcommand};
@@ -18,6 +18,8 @@ mod project;
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Responds with ownership for a given file
+    ForFile { name: String },
     /// Generate the CODEOWNERS file and save it to '--codeowners-file-path'.
     Generate,
 
@@ -112,6 +114,19 @@ fn cli() -> Result<(), Error> {
         Command::GenerateAndValidate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
             ownership.validate().change_context(Error::ValidationFailed)?
+        }
+        Command::ForFile { name } => {
+            let file_owners = ownership.for_file(&name).change_context(Error::Io)?;
+            match file_owners.len() {
+                0 => println!("{}", FileOwner::default()),
+                1 => println!("{}", file_owners[0]),
+                _ => {
+                    println!("Error: file is owned by multiple teams!");
+                    for file_owner in file_owners {
+                        println!("\n{}\n", file_owner);
+                    }
+                }
+            }
         }
     }
 

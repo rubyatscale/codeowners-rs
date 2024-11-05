@@ -13,8 +13,8 @@ use tracing::debug;
 use tracing::instrument;
 
 use super::file_generator::FileGenerator;
-use super::mapper::FileOwnerFinder;
-use super::mapper::Owner;
+use super::file_owner_finder::FileOwnerFinder;
+use super::file_owner_finder::Owner;
 use super::mapper::{Mapper, OwnerMatcher, TeamName};
 
 pub struct Validator {

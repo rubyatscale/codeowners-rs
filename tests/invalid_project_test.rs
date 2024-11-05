@@ -17,3 +17,36 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_for_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/invalid_project")
+        .arg("for-file")
+        .arg("ruby/app/models/blockchain.rb")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Team: Unowned"))
+        .stdout(predicate::str::contains("Team YML: Unowned"));
+
+    Ok(())
+}
+
+#[test]
+fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/invalid_project")
+        .arg("for-file")
+        .arg("ruby/app/services/multi_owned.rb")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Error: file is owned by multiple teams!"))
+        .stdout(predicate::str::contains("Team: Payments"))
+        .stdout(predicate::str::contains("Team YML: config/teams/payments.yml"))
+        .stdout(predicate::str::contains("Team: Payroll"))
+        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
+
+    Ok(())
+}

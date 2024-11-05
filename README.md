@@ -13,6 +13,7 @@ Commands:
   generate               Generate the CODEOWNERS file and save it to '--codeowners-file-path'
   validate               Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors
   generate-and-validate  Chains both 'generate' and 'validate' commands
+  for-file               Print the owners for a given file
   help                   Print this message or the help of the given subcommand(s)
 
 Options:
