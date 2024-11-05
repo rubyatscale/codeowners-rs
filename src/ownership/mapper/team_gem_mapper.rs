@@ -49,7 +49,7 @@ impl Mapper for TeamGemMapper {
                     owner_matchers.push(OwnerMatcher::Glob {
                         glob: format!("{}/**/*", self.project.relative_path(&vendored_gem.path).to_string_lossy()),
                         team_name: team.name.clone(),
-                        source: Source::TeamGemMapper,
+                        source: Source::TeamGem,
                     });
                 }
             }
@@ -95,7 +95,7 @@ mod tests {
             &vec![OwnerMatcher::Glob {
                 glob: "gems/globbing/**/*".to_owned(),
                 team_name: "Bam".to_owned(),
-                source: Source::TeamGemMapper,
+                source: Source::TeamGem,
             }],
         );
         Ok(())

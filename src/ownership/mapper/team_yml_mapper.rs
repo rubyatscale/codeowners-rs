@@ -40,7 +40,7 @@ impl Mapper for TeamYmlMapper {
             path_to_team.insert(self.project.relative_path(&team.path).to_owned(), team.name.to_owned());
         }
 
-        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamYmlMapper)]
+        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamYml)]
     }
 
     fn name(&self) -> String {
@@ -104,7 +104,7 @@ mod tests {
                     (PathBuf::from("config/teams/bar.yml"), "Bar".to_owned()),
                     (PathBuf::from("config/teams/foo.yml"), "Foo".to_owned()),
                 ]),
-                Source::TeamYmlMapper,
+                Source::TeamYml,
             )],
         );
         Ok(())

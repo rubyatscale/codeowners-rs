@@ -40,7 +40,7 @@ impl Mapper for TeamGlobMapper {
                 owner_matchers.push(OwnerMatcher::Glob {
                     glob: owned_glob.clone(),
                     team_name: team.github_team.clone(),
-                    source: Source::TeamGlobMapper,
+                    source: Source::TeamGlob,
                 })
             }
         }
@@ -85,7 +85,7 @@ mod tests {
             &vec![OwnerMatcher::Glob {
                 glob: "packs/bar/**".to_owned(),
                 team_name: "@Baz".to_owned(),
-                source: Source::TeamGlobMapper,
+                source: Source::TeamGlob,
             }],
         );
         Ok(())

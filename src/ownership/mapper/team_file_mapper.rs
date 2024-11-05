@@ -58,7 +58,7 @@ impl Mapper for TeamFileMapper {
             }
         }
 
-        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamFileMapper)]
+        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamFile)]
     }
 
     fn name(&self) -> String {
@@ -102,7 +102,7 @@ mod tests {
         let ownership = build_ownership_with_team_file_codeowners()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
         let owner_matchers = mapper.owner_matchers();
-        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), Source::TeamFileMapper)];
+        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), Source::TeamFile)];
         assert_eq!(owner_matchers, expected_owner_matchers);
         Ok(())
     }

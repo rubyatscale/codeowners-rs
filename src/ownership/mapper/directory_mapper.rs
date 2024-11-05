@@ -42,7 +42,7 @@ impl Mapper for DirectoryMapper {
             owner_matchers.push(OwnerMatcher::Glob {
                 glob: format!("{}/**/**", escape_brackets(&file.directory_root().to_string_lossy())),
                 team_name: file.owner.to_owned(),
-                source: Source::DirectoryMapper(file.directory_root().to_string_lossy().to_string()),
+                source: Source::Directory(file.directory_root().to_string_lossy().to_string()),
             });
         }
 
@@ -131,17 +131,17 @@ mod tests {
                 OwnerMatcher::Glob {
                     glob: "app/consumers/**/**".to_owned(),
                     team_name: "Bar".to_owned(),
-                    source: Source::DirectoryMapper("app/consumers".to_string()),
+                    source: Source::Directory("app/consumers".to_string()),
                 },
                 OwnerMatcher::Glob {
                     glob: "app/services/**/**".to_owned(),
                     team_name: "Foo".to_owned(),
-                    source: Source::DirectoryMapper("app/services".to_owned()),
+                    source: Source::Directory("app/services".to_owned()),
                 },
                 OwnerMatcher::Glob {
                     glob: "app/services/exciting/**/**".to_owned(),
                     team_name: "Bar".to_owned(),
-                    source: Source::DirectoryMapper("app/services/exciting".to_owned()),
+                    source: Source::Directory("app/services/exciting".to_owned()),
                 },
             ],
         );
@@ -158,12 +158,12 @@ mod tests {
                 OwnerMatcher::Glob {
                     glob: "app/\\[consumers\\]/**/**".to_string(),
                     team_name: "Bar".to_string(),
-                    source: Source::DirectoryMapper("app/[consumers]".to_string()),
+                    source: Source::Directory("app/[consumers]".to_string()),
                 },
                 OwnerMatcher::Glob {
                     glob: "app/\\[consumers\\]/deep/nesting/\\[nestdir\\]/**/**".to_string(),
                     team_name: "Foo".to_string(),
-                    source: Source::DirectoryMapper("app/[consumers]/deep/nesting/[nestdir]".to_string()),
+                    source: Source::Directory("app/[consumers]/deep/nesting/[nestdir]".to_string()),
                 },
             ],
         );

@@ -22,7 +22,7 @@ impl<'a> FileOwnerFinder<'a> {
 
             if let Some(team_name) = owner {
                 match source {
-                    Source::DirectoryMapper(_) => {
+                    Source::Directory(_) => {
                         directory_overrider.process(team_name, source);
                     }
                     _ => {
@@ -77,12 +77,12 @@ mod tests {
         let mut directory_overrider = DirectoryOverrider::default();
         assert_eq!(directory_overrider.specific_directory_owner(), None);
         let team_name_1 = "team1".to_string();
-        let source_1 = Source::DirectoryMapper("src/**".to_string());
+        let source_1 = Source::Directory("src/**".to_string());
         directory_overrider.process(&team_name_1, &source_1);
         assert_eq!(directory_overrider.specific_directory_owner(), Some((&team_name_1, &source_1)));
 
         let team_name_longest = "team2".to_string();
-        let source_longest = Source::DirectoryMapper("source/subdir/**".to_string());
+        let source_longest = Source::Directory("source/subdir/**".to_string());
         directory_overrider.process(&team_name_longest, &source_longest);
         assert_eq!(
             directory_overrider.specific_directory_owner(),
@@ -90,7 +90,7 @@ mod tests {
         );
 
         let team_name_3 = "team3".to_string();
-        let source_3 = Source::DirectoryMapper("source/**".to_string());
+        let source_3 = Source::Directory("source/**".to_string());
         directory_overrider.process(&team_name_3, &source_3);
         assert_eq!(
             directory_overrider.specific_directory_owner(),

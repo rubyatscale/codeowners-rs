@@ -31,23 +31,23 @@ pub type TeamName = String;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Source {
-    DirectoryMapper(String),
-    TeamFileMapper,
-    TeamGemMapper,
-    TeamGlobMapper,
-    PackageMapper(String, String),
-    TeamYmlMapper,
+    Directory(String),
+    TeamFile,
+    TeamGem,
+    TeamGlob,
+    Package(String, String),
+    TeamYml,
 }
 
 impl Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Source::DirectoryMapper(path) => write!(f, "{}", path),
-            Source::TeamFileMapper => write!(f, "TeamFileMapper"),
-            Source::TeamGemMapper => write!(f, "TeamGemMapper"),
-            Source::TeamGlobMapper => write!(f, "TeamGlobMapper"),
-            Source::PackageMapper(file_type, path) => write!(f, "{} glob: {}", file_type, path),
-            Source::TeamYmlMapper => write!(f, "TeamYmlMapper"),
+            Source::Directory(path) => write!(f, "{}", path),
+            Source::TeamFile => write!(f, "TeamFileMapper"),
+            Source::TeamGem => write!(f, "TeamGemMapper"),
+            Source::TeamGlob => write!(f, "TeamGlobMapper"),
+            Source::Package(file_type, path) => write!(f, "{} glob: {}", file_type, path),
+            Source::TeamYml => write!(f, "TeamYmlMapper"),
         }
     }
 }
@@ -55,7 +55,7 @@ impl Display for Source {
 impl Source {
     pub fn len(&self) -> usize {
         match self {
-            Source::DirectoryMapper(path) => path.matches('/').count(),
+            Source::Directory(path) => path.matches('/').count(),
             _ => 0,
         }
     }
@@ -87,7 +87,7 @@ mod tests {
     use super::*;
 
     fn assert_owner_for(glob: &str, relative_path: &str, expect_match: bool) {
-        let source = Source::DirectoryMapper("packs/bam".to_string());
+        let source = Source::Directory("packs/bam".to_string());
         let team_name = "team1".to_string();
         let owner_matcher = OwnerMatcher::Glob {
             glob: glob.to_string(),
