@@ -58,14 +58,15 @@ mod tests {
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = TeamYmlMapper::build(ownership.project.clone());
-        let entries = mapper.entries();
+        let mut entries = mapper.entries();
+        entries.sort_by_key(|e| e.path.clone());
         assert_eq!(
             entries,
             vec![
                 Entry {
-                    path: "config/teams/foo.yml".to_owned(),
-                    github_team: "@Foo".to_owned(),
-                    team_name: "Foo".to_owned(),
+                    path: "config/teams/bam.yml".to_owned(),
+                    github_team: "@Bam".to_owned(),
+                    team_name: "Bam".to_owned(),
                     disabled: false
                 },
                 Entry {
@@ -75,15 +76,15 @@ mod tests {
                     disabled: false
                 },
                 Entry {
-                    path: "config/teams/bam.yml".to_owned(),
-                    github_team: "@Bam".to_owned(),
-                    team_name: "Bam".to_owned(),
-                    disabled: false
-                },
-                Entry {
                     path: "config/teams/baz.yml".to_owned(),
                     github_team: "@Baz".to_owned(),
                     team_name: "Baz".to_owned(),
+                    disabled: false
+                },
+                Entry {
+                    path: "config/teams/foo.yml".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
                     disabled: false
                 }
             ]

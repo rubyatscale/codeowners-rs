@@ -76,18 +76,19 @@ mod tests {
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
-        let entries = mapper.entries();
+        let mut entries = mapper.entries();
+        entries.sort_by_key(|e| e.path.clone());
         assert_eq!(
             entries,
             vec![
                 Entry {
-                    path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
+                    path: "packs/jscomponents/comp.ts".to_owned(),
                     github_team: "@Foo".to_owned(),
                     team_name: "Foo".to_owned(),
                     disabled: false
                 },
                 Entry {
-                    path: "packs/jscomponents/comp.ts".to_owned(),
+                    path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
                     github_team: "@Foo".to_owned(),
                     team_name: "Foo".to_owned(),
                     disabled: false
