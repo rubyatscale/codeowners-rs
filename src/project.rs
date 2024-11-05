@@ -267,6 +267,10 @@ impl Project {
             .expect("Could not generate relative path")
     }
 
+    pub fn get_team(&self, name: &str) -> Option<Team> {
+        self.team_by_name().get(name).cloned()
+    }
+
     pub fn team_by_name(&self) -> HashMap<String, Team> {
         let mut result: HashMap<String, Team> = HashMap::new();
 
