@@ -45,8 +45,10 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::str::contains("Error: file is owned by multiple teams!"))
         .stdout(predicate::str::contains("Team: Payments"))
         .stdout(predicate::str::contains("Team YML: config/teams/payments.yml"))
+        .stdout(predicate::str::contains("Source(s): TeamFileMapper"))
         .stdout(predicate::str::contains("Team: Payroll"))
-        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
+        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"))
+        .stdout(predicate::str::contains("Source(s): DirectoryMapper(ruby/app/services)"));
 
     Ok(())
 }

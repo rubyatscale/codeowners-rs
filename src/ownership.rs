@@ -1,5 +1,5 @@
 use file_owner_finder::FileOwnerFinder;
-use mapper::{OwnerMatcher, TeamName};
+use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     fmt::{self, Display},
     path::Path,
@@ -29,11 +29,22 @@ pub struct Ownership {
 pub struct FileOwner {
     pub team_name: TeamName,
     pub team_config_file_path: String,
+    pub sources: Vec<Source>,
 }
 
 impl Display for FileOwner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Team: {}\nTeam YML: {}", self.team_name, self.team_config_file_path)
+        let sources = self
+            .sources
+            .iter()
+            .map(|source| source.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(
+            f,
+            "Team: {}\nTeam YML: {}\nSource(s): {}",
+            self.team_name, self.team_config_file_path, sources
+        )
     }
 }
 
@@ -42,6 +53,7 @@ impl Default for FileOwner {
         Self {
             team_name: "Unowned".to_string(),
             team_config_file_path: "Unowned".to_string(),
+            sources: vec![],
         }
     }
 }
@@ -102,6 +114,7 @@ impl Ownership {
                         .path
                         .strip_prefix(&self.project.base_path)
                         .map_or_else(|_| String::new(), |p| p.to_string_lossy().to_string()),
+                    sources: owner.sources.clone(),
                 },
                 None => FileOwner::default(),
             })

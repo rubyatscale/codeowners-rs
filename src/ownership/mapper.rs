@@ -42,11 +42,11 @@ pub enum Source {
 impl Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Source::Directory(path) => write!(f, "{}", path),
+            Source::Directory(path) => write!(f, "DirectoryMapper({})", path),
             Source::TeamFile => write!(f, "TeamFileMapper"),
             Source::TeamGem => write!(f, "TeamGemMapper"),
             Source::TeamGlob => write!(f, "TeamGlobMapper"),
-            Source::Package(file_type, path) => write!(f, "{} glob: {}", file_type, path),
+            Source::Package(file_type, path) => write!(f, "PackageMapper({}, glob: {})", file_type, path),
             Source::TeamYml => write!(f, "TeamYmlMapper"),
         }
     }
@@ -127,5 +127,18 @@ mod tests {
             "packs/[bam]/bar/[foo]/app/components/sidebar.jsx",
             true,
         );
+    }
+
+    #[test]
+    fn display_source() {
+        assert_eq!(Source::Directory("packs/bam".to_string()).to_string(), "DirectoryMapper(packs/bam)");
+        assert_eq!(Source::TeamFile.to_string(), "TeamFileMapper");
+        assert_eq!(Source::TeamGem.to_string(), "TeamGemMapper");
+        assert_eq!(Source::TeamGlob.to_string(), "TeamGlobMapper");
+        assert_eq!(
+            Source::Package("Ruby".to_string(), "packs/bam/**/**".to_string()).to_string(),
+            "PackageMapper(Ruby, glob: packs/bam/**/**)"
+        );
+        assert_eq!(Source::TeamYml.to_string(), "TeamYmlMapper");
     }
 }
