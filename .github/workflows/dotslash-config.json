@@ -1,0 +1,28 @@
+{
+    "outputs": {
+      "codeowners": {
+        "platforms": {
+          "macos-x86_64": {
+            "regex": "^codeowners-mac",
+            "path": "codeowners",
+            "format": "tar.gz"
+          },
+          "macos-aarch64": {
+            "regex": "^codeowners-mac",
+            "path": "codeowners",
+            "format": "tar.gz"
+          },
+          "linux-x86_64": {
+            "regex": "^x86_64-unknown-linux",
+            "path": "codeowners",
+            "format": "tar.gz"
+          },
+          "linux-aarch64": {
+            "regex": "^aarch64-unknown-linux",
+            "path": "codeowners",
+            "format": "tar.gz"
+          }
+        }
+      }
+    }
+  }
