@@ -1,0 +1,169 @@
+# https://github.com/actions-rs/example/blob/23ffb1bf0016f41999902ba7542b4f1bb1a89c48/.github/workflows/quickstart.yml#L4
+name: CI
+on:
+  push:
+    branches:
+      - main
+    # See:
+    # https://stackoverflow.com/questions/62968897/is-it-possible-to-not-run-github-action-for-readme-updates
+    # and
+    # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#example-excluding-paths
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Run cargo check
+        run: cargo check
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Run cargo test with backtrace
+        run: cargo test -- --nocapture
+        env:
+          RUST_BACKTRACE: 1
+  lints:
+    name: Lints
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Dwarnings"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-targets --all-features
+
+  release:
+    runs-on: macos-latest
+    needs:
+      - test
+      - lints
+      - check
+    outputs:
+      new_version: ${{ steps.check_for_version_changes.outputs.new_version }}
+      changed: ${{ steps.check_for_version_changes.outputs.changed }}
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # https://stackoverflow.com/questions/65944700/how-to-run-git-diff-in-github-actions
+          # TLDR – By default this action fetches no history.
+          # We need a bit of history to be able to check if we've recently updated the version in Cargo.toml
+          fetch-depth: 2
+      - name: Toolchain info
+        run: |
+          cargo --version --verbose
+          rustc --version
+          cargo clippy --version
+      - name: Build
+        run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
+      - name: Check for version changes in Cargo.toml
+        id: check_for_version_changes
+        run: |
+          # When there are no changes, VERSION_CHANGES will be empty
+          # Without the echo, this command would exit with a 1, causing the GitHub Action to fail
+          # Instead, we want it to succeed, but just evaluate `changed=false` in the other branch of the conditional
+          VERSION_CHANGES=$(git diff HEAD~1 HEAD Cargo.toml | grep "\+version" || echo "")
+          if [[ -n $VERSION_CHANGES ]]; then
+            NEW_VERSION=$(echo $VERSION_CHANGES | awk -F'"' '{print $2}')
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "new_version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release if current commit has updated the version in Cargo.toml
+        if: steps.check_for_version_changes.outputs.changed == 'true'
+        run: |
+          gh release create ${{steps.check_for_version_changes.outputs.new_version}} --target "${{ github.sha }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  upload-mac-universal-bin:
+    needs: release
+    runs-on: macos-latest
+    if: ${{needs.release.outputs.new_version}}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
+
+      - name: Upload mac universal binary
+        run: |
+          # This combines the intel and m1 binaries into a single binary
+          lipo -create -output target/codeowners target/aarch64-apple-darwin/release/codeowners target/x86_64-apple-darwin/release/codeowners
+
+          # Creates artifact for homebrew. -C means run from `target` directory
+          tar -czf target/codeowners-mac.tar.gz -C target codeowners
+
+          # This tarball is a binary that is executable
+          gh release upload $NEW_VERSION target/codeowners-mac.tar.gz
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ needs.release.outputs.new_version }}
+
+  upload-linux-bin:
+    needs: release
+    if: ${{needs.release.outputs.new_version}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update local toolchain
+        run: |
+          cargo install cross
+      - name: Build linux binaries
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu
+          cross build --release --target aarch64-unknown-linux-gnu
+      - name: Upload linux binaries
+        run: |
+          tar -czf target/x86_64-unknown-linux-gnu.tar.gz -C target/x86_64-unknown-linux-gnu/release codeowners
+          tar -czf target/aarch64-unknown-linux-gnu.tar.gz -C target/aarch64-unknown-linux-gnu/release codeowners
+          gh release upload $NEW_VERSION target/x86_64-unknown-linux-gnu.tar.gz
+          gh release upload $NEW_VERSION target/aarch64-unknown-linux-gnu.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ needs.release.outputs.new_version }}
+
+  generate-dotslash-files:
+    name: Generating and uploading DotSlash files
+    needs:
+      - release
+      - upload-linux-bin
+      - upload-mac-universal-bin
+    if: success() && ${{needs.release.outputs.new_version}}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: facebook/dotslash-publish-release@v1
+        # This is necessary because the action uses
+        # `gh release upload` to publish the generated DotSlash file(s)
+        # as part of the release.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Additional file that lives in your repo that defines
+          # how your DotSlash file(s) should be generated.
+          config: .github/workflows/dotslash-config.json
+          # Tag for the release to target.
+          tag: ${{ needs.release.outputs.new_version }}
