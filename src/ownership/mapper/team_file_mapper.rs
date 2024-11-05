@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use super::Entry;
 use super::{Mapper, OwnerMatcher};
+use crate::ownership::mapper::Source;
 use crate::project::Project;
 
 pub struct TeamFileMapper {
@@ -57,7 +58,7 @@ impl Mapper for TeamFileMapper {
             }
         }
 
-        vec![OwnerMatcher::ExactMatches(path_to_team, "team_file_mapper".to_owned())]
+        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamFileMapper)]
     }
 
     fn name(&self) -> String {
@@ -69,31 +70,29 @@ impl Mapper for TeamFileMapper {
 mod tests {
     use std::error::Error;
 
-    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_file_codeowners};
+    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_file_codeowners, vecs_match};
 
     use super::*;
     #[test]
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
-        let mut entries = mapper.entries();
-        entries.sort_by_key(|e| e.path.clone());
-        assert_eq!(
-            entries,
-            vec![
+        vecs_match(
+            &mapper.entries(),
+            &vec![
                 Entry {
                     path: "packs/jscomponents/comp.ts".to_owned(),
                     github_team: "@Foo".to_owned(),
                     team_name: "Foo".to_owned(),
-                    disabled: false
+                    disabled: false,
                 },
                 Entry {
                     path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
                     github_team: "@Foo".to_owned(),
                     team_name: "Foo".to_owned(),
-                    disabled: false
-                }
-            ]
+                    disabled: false,
+                },
+            ],
         );
         Ok(())
     }
@@ -103,7 +102,7 @@ mod tests {
         let ownership = build_ownership_with_team_file_codeowners()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
         let owner_matchers = mapper.owner_matchers();
-        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), "team_file_mapper".to_owned())];
+        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), Source::TeamFileMapper)];
         assert_eq!(owner_matchers, expected_owner_matchers);
         Ok(())
     }

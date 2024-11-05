@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use super::mapper::{directory_mapper::is_directory_mapper_source, OwnerMatcher, Source, TeamName};
+use super::mapper::{OwnerMatcher, Source, TeamName};
 
 #[derive(Debug)]
 pub struct Owner {
@@ -21,10 +21,13 @@ impl<'a> FileOwnerFinder<'a> {
             let (owner, source) = owner_matcher.owner_for(relative_path);
 
             if let Some(team_name) = owner {
-                if is_directory_mapper_source(source) {
-                    directory_overrider.process(team_name, source);
-                } else {
-                    team_sources_map.entry(team_name).or_default().push(source.clone());
+                match source {
+                    Source::DirectoryMapper(_) => {
+                        directory_overrider.process(team_name, source);
+                    }
+                    _ => {
+                        team_sources_map.entry(team_name).or_default().push(source.clone());
+                    }
                 }
             }
         }
@@ -74,12 +77,12 @@ mod tests {
         let mut directory_overrider = DirectoryOverrider::default();
         assert_eq!(directory_overrider.specific_directory_owner(), None);
         let team_name_1 = "team1".to_string();
-        let source_1 = "src/**".to_string();
+        let source_1 = Source::DirectoryMapper("src/**".to_string());
         directory_overrider.process(&team_name_1, &source_1);
         assert_eq!(directory_overrider.specific_directory_owner(), Some((&team_name_1, &source_1)));
 
         let team_name_longest = "team2".to_string();
-        let source_longest = "source/subdir/**".to_string();
+        let source_longest = Source::DirectoryMapper("source/subdir/**".to_string());
         directory_overrider.process(&team_name_longest, &source_longest);
         assert_eq!(
             directory_overrider.specific_directory_owner(),
@@ -87,7 +90,7 @@ mod tests {
         );
 
         let team_name_3 = "team3".to_string();
-        let source_3 = "source/**".to_string();
+        let source_3 = Source::DirectoryMapper("source/**".to_string());
         directory_overrider.process(&team_name_3, &source_3);
         assert_eq!(
             directory_overrider.specific_directory_owner(),

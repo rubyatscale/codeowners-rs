@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::Entry;
+use super::{Entry, Source};
 use super::{Mapper, OwnerMatcher};
 use crate::project::Project;
 
@@ -49,7 +49,7 @@ impl Mapper for TeamGemMapper {
                     owner_matchers.push(OwnerMatcher::Glob {
                         glob: format!("{}/**/*", self.project.relative_path(&vendored_gem.path).to_string_lossy()),
                         team_name: team.name.clone(),
-                        source: "team_gem_mapper".to_owned(),
+                        source: Source::TeamGemMapper,
                     });
                 }
             }
@@ -67,22 +67,21 @@ impl Mapper for TeamGemMapper {
 mod tests {
     use std::error::Error;
 
-    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_gem_codeowners};
+    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_gem_codeowners, vecs_match};
 
     use super::*;
     #[test]
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = TeamGemMapper::build(ownership.project.clone());
-        let entries = mapper.entries();
-        assert_eq!(
-            entries,
-            vec![Entry {
+        vecs_match(
+            &mapper.entries(),
+            &vec![Entry {
                 path: "gems/taco/**/**".to_owned(),
                 github_team: "@Bam".to_owned(),
                 team_name: "Bam".to_owned(),
-                disabled: false
-            }]
+                disabled: false,
+            }],
         );
         Ok(())
     }
@@ -91,17 +90,14 @@ mod tests {
     fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_team_gem_codeowners()?;
         let mapper = TeamGemMapper::build(ownership.project.clone());
-        let mut owner_matchers = mapper.owner_matchers();
-        owner_matchers.sort_by_key(|e| match e {
-            OwnerMatcher::Glob { glob, .. } => glob.clone(),
-            OwnerMatcher::ExactMatches(_, source) => source.clone(),
-        });
-        let expected_owner_matchers = vec![OwnerMatcher::Glob {
-            glob: "gems/globbing/**/*".to_owned(),
-            team_name: "Bam".to_owned(),
-            source: "team_gem_mapper".to_owned(),
-        }];
-        assert_eq!(owner_matchers, expected_owner_matchers);
+        vecs_match(
+            &mapper.owner_matchers(),
+            &vec![OwnerMatcher::Glob {
+                glob: "gems/globbing/**/*".to_owned(),
+                team_name: "Bam".to_owned(),
+                source: Source::TeamGemMapper,
+            }],
+        );
         Ok(())
     }
 }

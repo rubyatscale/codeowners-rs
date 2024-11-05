@@ -9,7 +9,7 @@ use tracing::{info, instrument};
 
 mod file_generator;
 mod file_owner_finder;
-mod mapper;
+pub(crate) mod mapper;
 mod validator;
 
 use crate::{ownership::mapper::DirectoryMapper, project::Project};

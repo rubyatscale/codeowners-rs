@@ -1,6 +1,7 @@
 use glob_match::glob_match;
 use std::{
     collections::HashMap,
+    fmt::{self, Display},
     path::{Path, PathBuf},
 };
 
@@ -27,7 +28,38 @@ pub trait Mapper {
     fn owner_matchers(&self) -> Vec<OwnerMatcher>;
 }
 pub type TeamName = String;
-pub type Source = String;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Source {
+    DirectoryMapper(String),
+    TeamFileMapper,
+    TeamGemMapper,
+    TeamGlobMapper,
+    PackageMapper(String, String),
+    TeamYmlMapper,
+}
+
+impl Display for Source {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Source::DirectoryMapper(path) => write!(f, "{}", path),
+            Source::TeamFileMapper => write!(f, "TeamFileMapper"),
+            Source::TeamGemMapper => write!(f, "TeamGemMapper"),
+            Source::TeamGlobMapper => write!(f, "TeamGlobMapper"),
+            Source::PackageMapper(file_type, path) => write!(f, "{} glob: {}", file_type, path),
+            Source::TeamYmlMapper => write!(f, "TeamYmlMapper"),
+        }
+    }
+}
+
+impl Source {
+    pub fn len(&self) -> usize {
+        match self {
+            Source::DirectoryMapper(path) => path.matches('/').count(),
+            _ => 0,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum OwnerMatcher {
@@ -55,7 +87,7 @@ mod tests {
     use super::*;
 
     fn assert_owner_for(glob: &str, relative_path: &str, expect_match: bool) {
-        let source = "directory_mapper (\"packs/bam\")".to_string();
+        let source = Source::DirectoryMapper("packs/bam".to_string());
         let team_name = "team1".to_string();
         let owner_matcher = OwnerMatcher::Glob {
             glob: glob.to_string(),

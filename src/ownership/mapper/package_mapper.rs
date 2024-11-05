@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::Entry;
+use super::{Entry, Source};
 use super::{Mapper, OwnerMatcher};
 use crate::project::{Package, PackageType, Project};
 use itertools::Itertools;
@@ -104,7 +104,7 @@ impl PackageMapper {
                 owner_matchers.push(OwnerMatcher::Glob {
                     glob: format!("{}/**/**", package_root),
                     team_name: team.name.to_owned(),
-                    source: format!("package_mapper ({:?} glob: {}/**/**)", &package_type, package_root),
+                    source: Source::PackageMapper(package_type.to_string(), format!("{}/**/**", package_root)),
                 });
             }
         }
@@ -134,7 +134,7 @@ fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
 mod tests {
     use super::*;
     use crate::{
-        common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_package_codeowners},
+        common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_package_codeowners, vecs_match},
         ownership::mapper::RubyPackageMapper,
         project::{Package, PackageType},
     };
@@ -179,15 +179,14 @@ mod tests {
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = RubyPackageMapper::build(ownership.project.clone());
-        let entries = mapper.entries();
-        assert_eq!(
-            entries,
-            vec![Entry {
+        vecs_match(
+            &mapper.entries(),
+            &vec![Entry {
                 path: "packs/foo/**/**".to_owned(),
                 github_team: "@Baz".to_owned(),
                 team_name: "Baz".to_owned(),
-                disabled: false
-            }]
+                disabled: false,
+            }],
         );
         Ok(())
     }
@@ -196,24 +195,21 @@ mod tests {
     fn test_owner_matchers() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_package_codeowners()?;
         let mapper = PackageMapper::build(ownership.project.clone());
-        let mut owner_matchers = mapper.owner_matchers(&PackageType::Ruby);
-        owner_matchers.sort_by_key(|e| match e {
-            OwnerMatcher::Glob { glob, .. } => glob.clone(),
-            OwnerMatcher::ExactMatches(_, source) => source.clone(),
-        });
-        let expected_owner_matchers = vec![
-            OwnerMatcher::Glob {
-                glob: "packs/bam/**/**".to_owned(),
-                team_name: "Bam".to_owned(),
-                source: "package_mapper (Ruby glob: packs/bam/**/**)".to_owned(),
-            },
-            OwnerMatcher::Glob {
-                glob: "packs/foo/**/**".to_owned(),
-                team_name: "Baz".to_owned(),
-                source: "package_mapper (Ruby glob: packs/foo/**/**)".to_owned(),
-            },
-        ];
-        assert_eq!(owner_matchers, expected_owner_matchers);
+        vecs_match(
+            &mapper.owner_matchers(&PackageType::Ruby),
+            &vec![
+                OwnerMatcher::Glob {
+                    glob: "packs/bam/**/**".to_owned(),
+                    team_name: "Bam".to_owned(),
+                    source: Source::PackageMapper("Ruby".to_owned(), "packs/bam/**/**".to_owned()),
+                },
+                OwnerMatcher::Glob {
+                    glob: "packs/foo/**/**".to_owned(),
+                    team_name: "Baz".to_owned(),
+                    source: Source::PackageMapper("Ruby".to_owned(), "packs/foo/**/**".to_owned()),
+                },
+            ],
+        );
         Ok(())
     }
 }
