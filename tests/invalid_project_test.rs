@@ -13,7 +13,7 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::str::contains("CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file"))
         .stdout(predicate::str::contains("Some files are missing ownership\n- ruby/app/models/blockchain.rb\n- ruby/app/unowned.rb"))
         .stdout(predicate::str::contains("Found invalid team annotations\n- ruby/app/models/blockchain.rb is referencing an invalid team - 'Web3'"))
-        .stdout(predicate::str::contains("Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways\n- gems/payroll_calculator/calculator.rb (owner: Payments, source: team_file_mapper)\n- gems/payroll_calculator/calculator.rb (owner: Payroll, source: team_gem_mapper)"));
+        .stdout(predicate::str::contains("Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways\n- gems/payroll_calculator/calculator.rb (owner: Payments, source: TeamFileMapper)\n- gems/payroll_calculator/calculator.rb (owner: Payroll, source: TeamGemMapper)"));
 
     Ok(())
 }
@@ -45,8 +45,10 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::str::contains("Error: file is owned by multiple teams!"))
         .stdout(predicate::str::contains("Team: Payments"))
         .stdout(predicate::str::contains("Team YML: config/teams/payments.yml"))
+        .stdout(predicate::str::contains("Source(s): TeamFileMapper"))
         .stdout(predicate::str::contains("Team: Payroll"))
-        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
+        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"))
+        .stdout(predicate::str::contains("Source(s): DirectoryMapper(ruby/app/services)"));
 
     Ok(())
 }

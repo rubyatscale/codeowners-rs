@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{
     collections::HashMap,
+    fmt::Display,
     fs::File,
     io::BufRead,
     path::{Path, PathBuf},
@@ -76,6 +77,12 @@ impl DirectoryCodeownersFile {
 pub enum PackageType {
     Ruby,
     Javascript,
+}
+
+impl Display for PackageType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 mod deserializers {

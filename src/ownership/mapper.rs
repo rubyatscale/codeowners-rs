@@ -1,6 +1,7 @@
 use glob_match::glob_match;
 use std::{
     collections::HashMap,
+    fmt::{self, Display},
     path::{Path, PathBuf},
 };
 
@@ -27,7 +28,38 @@ pub trait Mapper {
     fn owner_matchers(&self) -> Vec<OwnerMatcher>;
 }
 pub type TeamName = String;
-pub type Source = String;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Source {
+    Directory(String),
+    TeamFile,
+    TeamGem,
+    TeamGlob,
+    Package(String, String),
+    TeamYml,
+}
+
+impl Display for Source {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Source::Directory(path) => write!(f, "DirectoryMapper({})", path),
+            Source::TeamFile => write!(f, "TeamFileMapper"),
+            Source::TeamGem => write!(f, "TeamGemMapper"),
+            Source::TeamGlob => write!(f, "TeamGlobMapper"),
+            Source::Package(file_type, path) => write!(f, "PackageMapper({}, glob: {})", file_type, path),
+            Source::TeamYml => write!(f, "TeamYmlMapper"),
+        }
+    }
+}
+
+impl Source {
+    pub fn len(&self) -> usize {
+        match self {
+            Source::Directory(path) => path.matches('/').count(),
+            _ => 0,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum OwnerMatcher {
@@ -55,7 +87,7 @@ mod tests {
     use super::*;
 
     fn assert_owner_for(glob: &str, relative_path: &str, expect_match: bool) {
-        let source = "directory_mapper (\"packs/bam\")".to_string();
+        let source = Source::Directory("packs/bam".to_string());
         let team_name = "team1".to_string();
         let owner_matcher = OwnerMatcher::Glob {
             glob: glob.to_string(),
@@ -95,5 +127,18 @@ mod tests {
             "packs/[bam]/bar/[foo]/app/components/sidebar.jsx",
             true,
         );
+    }
+
+    #[test]
+    fn display_source() {
+        assert_eq!(Source::Directory("packs/bam".to_string()).to_string(), "DirectoryMapper(packs/bam)");
+        assert_eq!(Source::TeamFile.to_string(), "TeamFileMapper");
+        assert_eq!(Source::TeamGem.to_string(), "TeamGemMapper");
+        assert_eq!(Source::TeamGlob.to_string(), "TeamGlobMapper");
+        assert_eq!(
+            Source::Package("Ruby".to_string(), "packs/bam/**/**".to_string()).to_string(),
+            "PackageMapper(Ruby, glob: packs/bam/**/**)"
+        );
+        assert_eq!(Source::TeamYml.to_string(), "TeamYmlMapper");
     }
 }

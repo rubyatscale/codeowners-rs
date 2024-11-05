@@ -286,4 +286,27 @@ team_file_glob:
             }
         )
     }
+
+    pub fn vecs_match<T: PartialEq + std::fmt::Debug>(a: &Vec<T>, b: &Vec<T>) {
+        // First check lengths match
+        assert_eq!(a.len(), b.len(), "Vectors have different lengths");
+
+        // Check each element in a exists in b
+        for elem_a in a {
+            assert!(
+                b.contains(elem_a),
+                "Element {:?} from first vector not found in second vector",
+                elem_a
+            );
+        }
+
+        // Check each element in b exists in a
+        for elem_b in b {
+            assert!(
+                a.contains(elem_b),
+                "Element {:?} from second vector not found in first vector",
+                elem_b
+            );
+        }
+    }
 }
