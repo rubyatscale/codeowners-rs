@@ -18,15 +18,22 @@ mod project;
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Responds with ownership for a given file
+    #[clap(about = "Finds the owner of a given file.", visible_alias = "f")]
     ForFile { name: String },
-    /// Generate the CODEOWNERS file and save it to '--codeowners-file-path'.
+
+    #[clap(
+        about = "Generate the CODEOWNERS file and save it to '--codeowners-file-path'.",
+        visible_alias = "g"
+    )]
     Generate,
 
-    /// Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.
+    #[clap(
+        about = "Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.",
+        visible_alias = "v"
+    )]
     Validate,
 
-    /// Chains both 'generate' and 'validate' commands
+    #[clap(about = "Chains both `generate` and `validate` commands.", visible_alias = "gv")]
     GenerateAndValidate,
 }
 
@@ -107,13 +114,13 @@ fn cli() -> Result<(), Error> {
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
 
     match args.command {
-        Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
+        Command::Validate => ownership.validate(false).change_context(Error::ValidationFailed)?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
-            ownership.validate().change_context(Error::ValidationFailed)?
+            ownership.validate(true).change_context(Error::ValidationFailed)?
         }
         Command::ForFile { name } => {
             let file_owners = ownership.for_file(&name).change_context(Error::Io)?;
