@@ -47,3 +47,58 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_for_team() -> Result<(), Box<dyn Error>> {
+    let expected_stdout = r#"
+# Code Ownership Report for `Payroll` Team
+
+## Annotations at the top of file
+/javascript/packages/PayrollFlow/index.tsx
+/ruby/app/models/payroll.rb
+
+## Team-specific owned globs
+This team owns nothing in this category.
+
+## Owner in .codeowner
+/ruby/app/payroll/**/**
+
+## Owner metadata key in package.yml
+/ruby/packages/payroll_flow/**/**
+
+## Owner metadata key in package.json
+/javascript/packages/PayrollFlow/**/**
+
+## Team YML ownership
+/config/teams/payroll.yml
+
+## Team owned gems
+/gems/payroll_calculator/**/**
+"#
+    .trim_start();
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("for-team")
+        .arg("Payroll")
+        .assert()
+        .success()
+        .stdout(predicate::eq(expected_stdout));
+
+    Ok(())
+}
+
+#[test]
+fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("for-team")
+        .arg("Nope")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Team not found"));
+
+    Ok(())
+}
