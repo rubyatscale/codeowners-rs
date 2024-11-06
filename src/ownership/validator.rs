@@ -36,7 +36,7 @@ pub struct Errors(Vec<Error>);
 
 impl Validator {
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self) -> Result<(), Errors> {
+    pub fn validate(&self, skip_codeowners_file_validation: bool) -> Result<(), Errors> {
         let mut validation_errors = Vec::new();
 
         debug!("validate_invalid_team");
@@ -45,8 +45,10 @@ impl Validator {
         debug!("validate_file_ownership");
         validation_errors.append(&mut self.validate_file_ownership());
 
-        debug!("validate_codeowners_file");
-        validation_errors.append(&mut self.validate_codeowners_file());
+        if !skip_codeowners_file_validation {
+            debug!("validate_codeowners_file");
+            validation_errors.append(&mut self.validate_codeowners_file());
+        }
 
         if validation_errors.is_empty() {
             Ok(())
