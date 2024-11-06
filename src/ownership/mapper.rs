@@ -46,7 +46,7 @@ impl Display for Source {
             Source::TeamFile => write!(f, "TeamFileMapper"),
             Source::TeamGem => write!(f, "TeamGemMapper"),
             Source::TeamGlob => write!(f, "TeamGlobMapper"),
-            Source::Package(file_type, path) => write!(f, "PackageMapper({}, glob: {})", file_type, path),
+            Source::Package(package_path, glob) => write!(f, "Owner defined in `{}` with implicity owned glob: `{}`", package_path, glob),
             Source::TeamYml => write!(f, "TeamYmlMapper"),
         }
     }
@@ -136,8 +136,8 @@ mod tests {
         assert_eq!(Source::TeamGem.to_string(), "TeamGemMapper");
         assert_eq!(Source::TeamGlob.to_string(), "TeamGlobMapper");
         assert_eq!(
-            Source::Package("Ruby".to_string(), "packs/bam/**/**".to_string()).to_string(),
-            "PackageMapper(Ruby, glob: packs/bam/**/**)"
+            Source::Package("packs/bam/packag.yml".to_string(), "packs/bam/**/**".to_string()).to_string(),
+            "Owner defined in `packs/bam/packag.yml` with implicity owned glob: `packs/bam/**/**`"
         );
         assert_eq!(Source::TeamYml.to_string(), "TeamYmlMapper");
     }
