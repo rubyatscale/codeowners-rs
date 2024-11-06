@@ -114,13 +114,13 @@ fn cli() -> Result<(), Error> {
     let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
 
     match args.command {
-        Command::Validate => ownership.validate(false).change_context(Error::ValidationFailed)?,
+        Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
         Command::Generate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
         }
         Command::GenerateAndValidate => {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
-            ownership.validate(true).change_context(Error::ValidationFailed)?
+            ownership.validate().change_context(Error::ValidationFailed)?
         }
         Command::ForFile { name } => {
             let file_owners = ownership.for_file(&name).change_context(Error::Io)?;

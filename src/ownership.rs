@@ -86,7 +86,7 @@ impl Ownership {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self, skip_codeowners_file_validation: bool) -> Result<(), ValidatorErrors> {
+    pub fn validate(&self) -> Result<(), ValidatorErrors> {
         info!("validating file ownership");
         let validator = Validator {
             project: self.project.clone(),
@@ -94,7 +94,7 @@ impl Ownership {
             file_generator: FileGenerator { mappers: self.mappers() },
         };
 
-        validator.validate(skip_codeowners_file_validation)
+        validator.validate()
     }
 
     #[instrument(level = "debug", skip_all)]
