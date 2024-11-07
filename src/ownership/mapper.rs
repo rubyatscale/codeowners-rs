@@ -6,6 +6,7 @@ use std::{
 };
 
 pub(crate) mod directory_mapper;
+mod escaper;
 mod package_mapper;
 mod team_file_mapper;
 mod team_gem_mapper;
