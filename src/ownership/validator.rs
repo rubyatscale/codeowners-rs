@@ -36,7 +36,7 @@ pub struct Errors(Vec<Error>);
 
 impl Validator {
     #[instrument(level = "debug", skip_all)]
-    pub fn validate(&self, skip_codeowners_file_validation: bool) -> Result<(), Errors> {
+    pub fn validate(&self) -> Result<(), Errors> {
         let mut validation_errors = Vec::new();
 
         debug!("validate_invalid_team");
@@ -45,10 +45,8 @@ impl Validator {
         debug!("validate_file_ownership");
         validation_errors.append(&mut self.validate_file_ownership());
 
-        if !skip_codeowners_file_validation {
-            debug!("validate_codeowners_file");
-            validation_errors.append(&mut self.validate_codeowners_file());
-        }
+        debug!("validate_codeowners_file");
+        validation_errors.append(&mut self.validate_codeowners_file());
 
         if validation_errors.is_empty() {
             Ok(())
@@ -129,10 +127,15 @@ impl Validator {
     fn validate_codeowners_file(&self) -> Vec<Error> {
         let generated_file = self.file_generator.generate_file();
 
-        if generated_file != self.project.codeowners_file {
-            vec![Error::CodeownershipFileIsStale]
-        } else {
-            vec![]
+        match self.project.get_codeowners_file() {
+            Ok(current_file) => {
+                if generated_file != current_file {
+                    vec![Error::CodeownershipFileIsStale]
+                } else {
+                    vec![]
+                }
+            }
+            Err(_) => vec![Error::CodeownershipFileIsStale], // Treat any read error as stale file
         }
     }
 

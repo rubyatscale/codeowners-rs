@@ -23,7 +23,7 @@ pub struct Project {
     pub packages: Vec<Package>,
     pub vendored_gems: Vec<VendoredGem>,
     pub teams: Vec<Team>,
-    pub codeowners_file: String,
+    pub codeowners_file_path: PathBuf,
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
 }
 
@@ -249,12 +249,6 @@ impl Project {
             "finished scanning project",
         );
 
-        let codeowners_file: String = if codeowners_file_path.exists() {
-            std::fs::read_to_string(codeowners_file_path).change_context(Error::Io)?
-        } else {
-            "".to_owned()
-        };
-
         let owned_files = owned_files(owned_file_paths);
 
         Ok(Project {
@@ -263,9 +257,18 @@ impl Project {
             vendored_gems,
             teams,
             packages,
-            codeowners_file,
+            codeowners_file_path: codeowners_file_path.to_path_buf(),
             directory_codeowner_files,
         })
+    }
+
+    pub fn get_codeowners_file(&self) -> Result<String, Error> {
+        let codeowners_file: String = if self.codeowners_file_path.exists() {
+            std::fs::read_to_string(&self.codeowners_file_path).change_context(Error::Io)?
+        } else {
+            "".to_owned()
+        };
+        Ok(codeowners_file)
     }
 
     pub fn relative_path<'a>(&'a self, absolute_path: &'a Path) -> &'a Path {
