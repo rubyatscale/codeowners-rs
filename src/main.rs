@@ -21,6 +21,9 @@ enum Command {
     #[clap(about = "Finds the owner of a given file.", visible_alias = "f")]
     ForFile { name: String },
 
+    #[clap(about = "Finds code ownership information for a given team ", visible_alias = "t")]
+    ForTeam { name: String },
+
     #[clap(
         about = "Generate the CODEOWNERS file and save it to '--codeowners-file-path'.",
         visible_alias = "g"
@@ -135,6 +138,19 @@ fn cli() -> Result<(), Error> {
                 }
             }
         }
+        Command::ForTeam { name } => match ownership.for_team(&name) {
+            Ok(team_ownerships) => {
+                println!("# Code Ownership Report for `{}` Team", name);
+                for team_ownership in team_ownerships {
+                    println!("\n#{}", team_ownership.heading);
+                    match team_ownership.globs.len() {
+                        0 => println!("This team owns nothing in this category."),
+                        _ => println!("{}", team_ownership.globs.join("\n")),
+                    }
+                }
+            }
+            Err(err) => println!("{}", err),
+        },
     }
 
     Ok(())
