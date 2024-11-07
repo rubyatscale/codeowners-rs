@@ -4,16 +4,17 @@ It's also the [oxidation](https://wiki.mozilla.org/Oxidation) of an existing [CL
 
 ### Documentation
 
-```bash
+```text
 A CLI to validate and generate Github's CODEOWNERS file
 
-Usage: codeowners [OPTIONS] <COMMAND>
+Usage: codeowners-rs [OPTIONS] <COMMAND>
 
 Commands:
-  generate               Generate the CODEOWNERS file and save it to '--codeowners-file-path'
-  validate               Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors
-  generate-and-validate  Chains both 'generate' and 'validate' commands
-  for-file               Print the owners for a given file
+  for-file               Finds the owner of a given file. [aliases: f]
+  for-team               Finds code ownership information for a given team  [aliases: t]
+  generate               Generate the CODEOWNERS file and save it to '--codeowners-file-path'. [aliases: g]
+  validate               Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors. [aliases: v]
+  generate-and-validate  Chains both `generate` and `validate` commands. [aliases: gv]
   help                   Print this message or the help of the given subcommand(s)
 
 Options:
