@@ -34,7 +34,7 @@ pub enum Source {
     Directory(String),
     TeamFile,
     TeamGem,
-    TeamGlob,
+    TeamGlob(String),
     Package(String, String),
     TeamYml,
 }
@@ -42,12 +42,14 @@ pub enum Source {
 impl Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Source::Directory(path) => write!(f, "DirectoryMapper({})", path),
-            Source::TeamFile => write!(f, "TeamFileMapper"),
-            Source::TeamGem => write!(f, "TeamGemMapper"),
-            Source::TeamGlob => write!(f, "TeamGlobMapper"),
-            Source::Package(package_path, glob) => write!(f, "Owner defined in `{}` with implicity owned glob: `{}`", package_path, glob),
-            Source::TeamYml => write!(f, "TeamYmlMapper"),
+            Source::Directory(path) => write!(f, "Owner specified in `{}/.codeowner`", path),
+            Source::TeamFile => write!(f, "Owner annotation at the top of the file"),
+            Source::TeamGem => write!(f, "Owner specified in Team YML's `owned_gems`"),
+            Source::TeamGlob(glob) => write!(f, "Owner specified in Team YML as an owned_glob `{}`", glob),
+            Source::Package(package_path, glob) => {
+                write!(f, "Owner defined in `{}` with implicity owned glob: `{}`", package_path, glob)
+            }
+            Source::TeamYml => write!(f, "Teams own their configuration files"),
         }
     }
 }
@@ -131,14 +133,20 @@ mod tests {
 
     #[test]
     fn display_source() {
-        assert_eq!(Source::Directory("packs/bam".to_string()).to_string(), "DirectoryMapper(packs/bam)");
-        assert_eq!(Source::TeamFile.to_string(), "TeamFileMapper");
-        assert_eq!(Source::TeamGem.to_string(), "TeamGemMapper");
-        assert_eq!(Source::TeamGlob.to_string(), "TeamGlobMapper");
+        assert_eq!(
+            Source::Directory("packs/bam".to_string()).to_string(),
+            "Owner specified in `packs/bam/.codeowner`"
+        );
+        assert_eq!(Source::TeamFile.to_string(), "Owner annotation at the top of the file");
+        assert_eq!(Source::TeamGem.to_string(), "Owner specified in Team YML's `owned_gems`");
+        assert_eq!(
+            Source::TeamGlob("a/glob/**".to_string()).to_string(),
+            "Owner specified in Team YML as an owned_glob `a/glob/**`"
+        );
         assert_eq!(
             Source::Package("packs/bam/packag.yml".to_string(), "packs/bam/**/**".to_string()).to_string(),
             "Owner defined in `packs/bam/packag.yml` with implicity owned glob: `packs/bam/**/**`"
         );
-        assert_eq!(Source::TeamYml.to_string(), "TeamYmlMapper");
+        assert_eq!(Source::TeamYml.to_string(), "Teams own their configuration files");
     }
 }
