@@ -104,7 +104,7 @@ impl PackageMapper {
                 owner_matchers.push(OwnerMatcher::Glob {
                     glob: format!("{}/**/**", package_root),
                     team_name: team.name.to_owned(),
-                    source: Source::Package(package_type.to_string(), format!("{}/**/**", package_root)),
+                    source: Source::Package(package.path.to_string_lossy().to_string(), format!("{}/**/**", package_root)),
                 });
             }
         }
@@ -201,12 +201,12 @@ mod tests {
                 OwnerMatcher::Glob {
                     glob: "packs/bam/**/**".to_owned(),
                     team_name: "Bam".to_owned(),
-                    source: Source::Package("Ruby".to_owned(), "packs/bam/**/**".to_owned()),
+                    source: Source::Package("packs/bam/package.yml".to_owned(), "packs/bam/**/**".to_owned()),
                 },
                 OwnerMatcher::Glob {
                     glob: "packs/foo/**/**".to_owned(),
                     team_name: "Baz".to_owned(),
-                    source: Source::Package("Ruby".to_owned(), "packs/foo/**/**".to_owned()),
+                    source: Source::Package("packs/foo/package.yml".to_owned(), "packs/foo/**/**".to_owned()),
                 },
             ],
         );

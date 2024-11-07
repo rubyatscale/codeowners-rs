@@ -42,7 +42,7 @@ impl Display for FileOwner {
             .join(", ");
         write!(
             f,
-            "Team: {}\nTeam YML: {}\nSource(s): {}",
+            "Team: {}\nTeam YML: {}\nDescription: {}",
             self.team_name, self.team_config_file_path, sources
         )
     }
