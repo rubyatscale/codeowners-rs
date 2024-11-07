@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use super::escaper::escape_brackets;
 use super::Entry;
 use super::{Mapper, OwnerMatcher};
 use crate::ownership::mapper::Source;
@@ -30,7 +31,7 @@ impl Mapper for TeamFileMapper {
                     let relative_path = self.project.relative_path(&owned_file.path);
 
                     entries.push(Entry {
-                        path: relative_path.to_string_lossy().to_string(),
+                        path: escape_brackets(&relative_path.to_string_lossy()),
                         github_team: team.github_team.to_owned(),
                         team_name: team.name.to_owned(),
                         disabled: team.avoid_ownership,
@@ -70,16 +71,23 @@ impl Mapper for TeamFileMapper {
 mod tests {
     use std::error::Error;
 
-    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_file_codeowners, vecs_match};
+    use crate::common_test::tests::{build_ownership_with_team_file_codeowners, vecs_match};
 
     use super::*;
     #[test]
     fn test_entries() -> Result<(), Box<dyn Error>> {
-        let ownership = build_ownership_with_all_mappers()?;
+        let ownership = build_ownership_with_team_file_codeowners()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
+        dbg!(&mapper.entries());
         vecs_match(
             &mapper.entries(),
             &vec![
+                Entry {
+                    path: "packs/\\[admin\\]/comp.ts".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
                 Entry {
                     path: "packs/jscomponents/comp.ts".to_owned(),
                     github_team: "@Foo".to_owned(),
@@ -87,9 +95,9 @@ mod tests {
                     disabled: false,
                 },
                 Entry {
-                    path: "packs/zebra/app/services/team_file_owned.rb".to_owned(),
-                    github_team: "@Foo".to_owned(),
-                    team_name: "Foo".to_owned(),
+                    path: "packs/bar/comp.rb".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
                     disabled: false,
                 },
             ],
@@ -102,7 +110,14 @@ mod tests {
         let ownership = build_ownership_with_team_file_codeowners()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
         let owner_matchers = mapper.owner_matchers();
-        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(HashMap::new(), Source::TeamFile)];
+        let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(
+            HashMap::from([
+                (PathBuf::from("packs/[admin]/comp.ts"), "Bar".to_owned()),
+                (PathBuf::from("packs/bar/comp.rb"), "Bar".to_owned()),
+                (PathBuf::from("packs/jscomponents/comp.ts"), "Foo".to_owned()),
+            ]),
+            Source::TeamFile,
+        )];
         assert_eq!(owner_matchers, expected_owner_matchers);
         Ok(())
     }

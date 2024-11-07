@@ -231,11 +231,20 @@ team_file_glob:
 
         let test_config = TestConfig::new(
             temp_dir.path().to_path_buf(),
-            vec![TestProjectFile {
-                relative_path: "config/teams/baz.yml".to_owned(),
-                content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\n"
-                    .to_owned(),
-            }],
+            vec![
+                TestProjectFile {
+                    relative_path: "packs/jscomponents/comp.ts".to_owned(),
+                    content: "// @team Foo\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "packs/[admin]/comp.ts".to_owned(),
+                    content: "// @team Bar\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "packs/bar/comp.rb".to_owned(),
+                    content: "// @team Bar\n".to_owned(),
+                },
+            ],
         );
         build_ownership(test_config)
     }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::escaper::escape_brackets;
 use super::{Entry, Source};
 use super::{Mapper, OwnerMatcher};
 use crate::project::Project;
@@ -52,10 +53,6 @@ impl Mapper for DirectoryMapper {
     fn name(&self) -> String {
         "Owner in .codeowner".to_owned()
     }
-}
-
-fn escape_brackets(path: &str) -> String {
-    path.replace("[", "\\[").replace("]", "\\]")
 }
 
 #[cfg(test)]
