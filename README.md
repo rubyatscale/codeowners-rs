@@ -2,6 +2,13 @@
 This is a CLI tool to generate [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) from an existing project assuming certain conventions around file annotations and Ruby/Javascript packages.
 It's also the [oxidation](https://wiki.mozilla.org/Oxidation) of an existing [CLI tool](https://github.com/rubyatscale/code_ownership) written in Ruby.
 
+Targeting a large project, `codeowners` can be signifcantly faster than `codeownership`:
+
+| Command | Mean [s] | Min [s] | Max [s] | Relative |
+|:---|---:|---:|---:|---:|
+| `codeowners-rs validate` | 7.397 ± 0.143 | 7.091 | 7.621 | 1.00 |
+| `codeownership validate` | 45.265 ± 0.495 | 44.845 | 46.563 | 6.12 ± 0.14 |
+
 ### Documentation
 
 ```text
@@ -29,6 +36,52 @@ Options:
   -V, --version
           Print version
 ```
+
+#### for-file
+
+Finds the owner of a given file.
+
+``` text
+$ codeowners for-file javascript/packages/PayrollFlow/index.tsx
+
+Team: Payroll
+Team YML: config/teams/payroll.yml
+Description: Owner annotation at the top of the file, Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+
+```
+
+#### for-team
+
+Finds code ownership information for a given team.
+
+``` text
+$ codeowners for-team Payroll
+
+# Code Ownership Report for `Payroll` Team
+
+## Annotations at the top of file
+/javascript/packages/PayrollFlow/index.tsx
+/ruby/app/models/payroll.rb
+
+## Team-specific owned globs
+This team owns nothing in this category.
+
+## Owner in .codeowner
+/ruby/app/payroll/**/**
+
+## Owner metadata key in package.yml
+/ruby/packages/payroll_flow/**/**
+
+## Owner metadata key in package.json
+/javascript/packages/PayrollFlow/**/**
+
+## Team YML ownership
+/config/teams/payroll.yml
+
+## Team owned gems
+/gems/payroll_calculator/**/**
+```
+
 
 ### Adoption
 This is an experimental port that might never be supported, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working, if you still wish to adopt it, here are the instructions:
