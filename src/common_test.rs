@@ -6,6 +6,8 @@ pub mod tests {
         path::PathBuf,
     };
 
+    use indoc::indoc;
+
     use tempfile::tempdir;
 
     use crate::{ownership::Ownership, project::Project};
@@ -21,18 +23,18 @@ pub mod tests {
         }};
     }
 
-    const DEFAULT_CODE_OWNERSHIP_YML: &str = "
----
-owned_globs:
-  - \"{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}\"
-unowned_globs:
-  - config/code_ownership.yml
-javascript_package_paths:
-  - javascript/packages/**
-vendored_gems_path: gems
-team_file_glob:
-  - config/teams/**/*.yml
-        ";
+    const DEFAULT_CODE_OWNERSHIP_YML: &str = indoc! {"
+        ---
+        owned_globs:
+          - \"{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}\"
+        unowned_globs:
+          - config/code_ownership.yml
+        javascript_package_paths:
+          - javascript/packages/**
+        vendored_gems_path: gems
+        team_file_glob:
+          - config/teams/**/*.yml
+    "};
 
     #[derive(Debug)]
     pub struct TestConfig {
