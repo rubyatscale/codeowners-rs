@@ -79,4 +79,4 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
             - Owner specified in `ruby/app/services/.codeowner`
         "}));
     Ok(())
-}          
+}

@@ -46,7 +46,8 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
             Team YML: config/teams/payroll.yml
-            Description: Owner annotation at the top of the file
+            Description:
+            - Owner annotation at the top of the file
         "}));
     Ok(())
 }
