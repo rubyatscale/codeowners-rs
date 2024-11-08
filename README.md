@@ -52,6 +52,10 @@ Options:
           Print version
 ```
 
+#### Getting Started
+
+See the [CONFIGURATION.md](CONFIGURATION.md) file for more information on how to codeowners.
+
 #### for-file
 
 Finds the owner of a given file.
@@ -61,7 +65,9 @@ $ codeowners for-file javascript/packages/PayrollFlow/index.tsx
 
 Team: Payroll
 Team YML: config/teams/payroll.yml
-Description: Owner annotation at the top of the file, Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+Description: 
+- Owner annotation at the top of the file.
+- Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
 
 ```
 
