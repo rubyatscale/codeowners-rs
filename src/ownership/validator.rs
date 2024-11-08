@@ -173,16 +173,16 @@ impl Error {
     pub fn messages(&self) -> Vec<String> {
         match self {
             Error::FileWithoutOwner { path } => vec![format!("- {}", path.to_string_lossy())],
-            Error::FileWithMultipleOwners { path, owners } => owners
-                .iter()
-                .flat_map(|owner| {
-                    owner
-                        .sources
-                        .iter()
-                        .map(|source| format!("- {} (owner: {}, source: {})", path.to_string_lossy(), owner.team_name, &source))
-                        .collect_vec()
-                })
-                .collect_vec(),
+            Error::FileWithMultipleOwners { path, owners } => {
+                let mut output = vec![format!("\n{}", path.to_string_lossy().to_string())];
+                for owner in owners.iter().sorted_by_key(|owner| owner.team_name.to_lowercase()) {
+                    output.push(format!(" owner: {}", owner.team_name));
+                    for source in &owner.sources {
+                        output.push(format!("  - {}", source));
+                    }
+                }
+                vec![output.join("\n")]
+            }
             Error::CodeownershipFileIsStale => vec![],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }

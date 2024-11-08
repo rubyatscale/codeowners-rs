@@ -52,6 +52,21 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("for-file")
+        .arg("javascript/packages/PayrollFlow/index.tsx")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Team: Payroll"))
+        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
+
+    Ok(())
+}
+
+#[test]
 fn test_for_team() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
