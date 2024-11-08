@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use indoc::indoc;
 use predicates::prelude::predicate;
 use std::{error::Error, path::Path, process::Command};
 
@@ -42,41 +43,16 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .arg("ruby/app/models/payroll.rb")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Team: Payroll"))
-        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
-
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+            Description: Owner annotation at the top of the file
+        "}));
     Ok(())
 }
 
 #[test]
 fn test_for_team() -> Result<(), Box<dyn Error>> {
-    let expected_stdout = r#"
-# Code Ownership Report for `Payroll` Team
-
-## Annotations at the top of file
-/javascript/packages/PayrollFlow/index.tsx
-/ruby/app/models/payroll.rb
-
-## Team-specific owned globs
-This team owns nothing in this category.
-
-## Owner in .codeowner
-/ruby/app/payroll/**/**
-
-## Owner metadata key in package.yml
-/ruby/packages/payroll_flow/**/**
-
-## Owner metadata key in package.json
-/javascript/packages/PayrollFlow/**/**
-
-## Team YML ownership
-/config/teams/payroll.yml
-
-## Team owned gems
-/gems/payroll_calculator/**/**
-"#
-    .trim_start();
-
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
@@ -84,8 +60,31 @@ This team owns nothing in this category.
         .arg("Payroll")
         .assert()
         .success()
-        .stdout(predicate::eq(expected_stdout));
+        .stdout(predicate::eq(indoc! {"
+            # Code Ownership Report for `Payroll` Team
 
+            ## Annotations at the top of file
+            /javascript/packages/PayrollFlow/index.tsx
+            /ruby/app/models/payroll.rb
+
+            ## Team-specific owned globs
+            This team owns nothing in this category.
+
+            ## Owner in .codeowner
+            /ruby/app/payroll/**/**
+
+            ## Owner metadata key in package.yml
+            /ruby/packages/payroll_flow/**/**
+
+            ## Owner metadata key in package.json
+            /javascript/packages/PayrollFlow/**/**
+
+            ## Team YML ownership
+            /config/teams/payroll.yml
+
+            ## Team owned gems
+            /gems/payroll_calculator/**/**
+        "}));
     Ok(())
 }
 
@@ -98,7 +97,9 @@ fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
         .arg("Nope")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Team not found"));
+        .stdout(predicate::eq(indoc! {"
+            Team not found
+        "}));
 
     Ok(())
 }
