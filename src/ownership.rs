@@ -1,4 +1,5 @@
 use file_owner_finder::FileOwnerFinder;
+use itertools::Itertools;
 use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
@@ -53,12 +54,13 @@ impl Display for FileOwner {
         let sources = self
             .sources
             .iter()
+            .sorted_by_key(|source| source.to_string())
             .map(|source| source.to_string())
             .collect::<Vec<String>>()
-            .join(", ");
+            .join("\n- ");
         write!(
             f,
-            "Team: {}\nTeam YML: {}\nDescription: {}",
+            "Team: {}\nTeam YML: {}\nDescription:\n- {}",
             self.team_name, self.team_config_file_path, sources
         )
     }
@@ -123,6 +125,7 @@ impl Ownership {
         let owners = file_owner_finder.find(Path::new(file_path));
         Ok(owners
             .iter()
+            .sorted_by_key(|owner| owner.team_name.to_lowercase())
             .map(|owner| match self.project.get_team(&owner.team_name) {
                 Some(team) => FileOwner {
                     team_name: owner.team_name.clone(),

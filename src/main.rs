@@ -133,7 +133,7 @@ fn cli() -> Result<(), Error> {
                 _ => {
                     println!("Error: file is owned by multiple teams!");
                     for file_owner in file_owners {
-                        println!("\n{}\n", file_owner);
+                        println!("\n{}", file_owner);
                     }
                 }
             }

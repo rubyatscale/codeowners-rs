@@ -52,7 +52,7 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::eq(indoc! {"
             Team: Unowned
             Team YML: Unowned
-            Description: \n"})); // trailing whitespace
+            Description:\n- \n"})); // trailing whitespace
     Ok(())
 }
 
@@ -65,17 +65,18 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
         .arg("ruby/app/services/multi_owned.rb")
         .assert()
         .success()
-        .stdout(predicate::str::starts_with("Error: file is owned by multiple teams!"))
-        // order not static
-        .stdout(predicate::str::contains(indoc! {"
-            Team: Payroll
-            Team YML: config/teams/payroll.yml
-            Description: Owner specified in `ruby/app/services/.codeowner`
-        "}))
-        .stdout(predicate::str::contains(indoc! {"
+        .stdout(predicate::eq(indoc! {"
+            Error: file is owned by multiple teams!
+
             Team: Payments
             Team YML: config/teams/payments.yml
-            Description: Owner annotation at the top of the file
+            Description:
+            - Owner annotation at the top of the file
+
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+            Description:
+            - Owner specified in `ruby/app/services/.codeowner`
         "}));
     Ok(())
-}
+}          
