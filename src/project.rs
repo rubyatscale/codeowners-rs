@@ -9,7 +9,7 @@ use std::{
 
 use error_stack::{Context, Result, ResultExt};
 
-use ignore::WalkBuilder;
+use jwalk::WalkDir;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
 use tracing::{info, instrument};
@@ -165,17 +165,15 @@ impl Project {
         let mut vendored_gems: Vec<VendoredGem> = Vec::new();
         let mut directory_codeowner_files: Vec<DirectoryCodeownersFile> = Vec::new();
 
-        let mut builder = WalkBuilder::new(base_path);
-        builder.hidden(false);
-        let walkdir = builder.build();
-
-        for entry in walkdir {
-            let entry = entry.change_context(Error::Io)?;
-
+        for entry in WalkDir::new(base_path).follow_links(true).skip_hidden(false).into_iter() {
+            let entry = match entry.change_context(Error::Io) {
+                Ok(entry) => entry,
+                Err(_) => continue,
+            };
             let absolute_path = entry.path();
             let relative_path = absolute_path.strip_prefix(base_path).change_context(Error::Io)?.to_owned();
 
-            if entry.file_type().unwrap().is_dir() {
+            if entry.file_type().is_dir() {
                 if relative_path.parent() == Some(Path::new(&config.vendored_gems_path)) {
                     let file_name = relative_path.file_name().expect("expected a file_name");
                     vendored_gems.push(VendoredGem {
@@ -190,7 +188,7 @@ impl Project {
             let file_name = relative_path.file_name().expect("expected a file_name");
 
             if file_name.eq_ignore_ascii_case("package.yml") && matches_globs(relative_path.parent().unwrap(), &config.ruby_package_paths) {
-                if let Some(owner) = ruby_package_owner(absolute_path)? {
+                if let Some(owner) = ruby_package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -202,7 +200,7 @@ impl Project {
             if file_name.eq_ignore_ascii_case("package.json")
                 && matches_globs(relative_path.parent().unwrap(), &config.javascript_package_paths)
             {
-                if let Some(owner) = javascript_package_owner(absolute_path)? {
+                if let Some(owner) = javascript_package_owner(&absolute_path)? {
                     packages.push(Package {
                         path: relative_path.clone(),
                         owner,
@@ -212,7 +210,7 @@ impl Project {
             }
 
             if file_name.eq_ignore_ascii_case(".codeowner") {
-                let owner = std::fs::read_to_string(absolute_path).change_context(Error::Io)?;
+                let owner = std::fs::read_to_string(&absolute_path).change_context(Error::Io)?;
                 let owner = owner.trim().to_owned();
 
                 let relative_path = relative_path.to_owned();
@@ -223,7 +221,7 @@ impl Project {
             }
 
             if matches_globs(&relative_path, &config.team_file_glob) {
-                let file = File::open(absolute_path).change_context(Error::Io)?;
+                let file = File::open(&absolute_path).change_context(Error::Io)?;
                 let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 
                 teams.push(Team {
