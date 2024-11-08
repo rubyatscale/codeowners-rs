@@ -4,17 +4,32 @@ It's also the [oxidation](https://wiki.mozilla.org/Oxidation) of an existing [CL
 
 Targeting a large project, `codeowners` can be signifcantly faster than `codeownership`:
 
+``` text
+$ hyperfine 'codeownership validate' 'codeowners validate'
+Benchmark 1: codeownership validate
+  Time (mean ± σ):     44.389 s ±  0.219 s    [User: 4.034 s, System: 22.216 s]
+  Range (min … max):   44.014 s … 44.738 s    10 runs
+
+Benchmark 2: codeowners validate
+  Time (mean ± σ):      7.521 s ±  0.080 s    [User: 8.809 s, System: 44.343 s]
+  Range (min … max):    7.361 s …  7.603 s    10 runs
+
+Summary
+  codeowners validate ran
+    5.90 ± 0.07 times faster than codeownership validate
+```
+
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `codeowners-rs validate` | 7.397 ± 0.143 | 7.091 | 7.621 | 1.00 |
-| `codeownership validate` | 45.265 ± 0.495 | 44.845 | 46.563 | 6.12 ± 0.14 |
+| `codeownership validate` | 44.389 ± 0.219 | 44.014 | 44.738 | 5.90 ± 0.07 |
+| `codeowners validate` | 7.521 ± 0.080 | 7.361 | 7.603 | 1.00 |
 
 ### Documentation
 
 ```text
 A CLI to validate and generate Github's CODEOWNERS file
 
-Usage: codeowners-rs [OPTIONS] <COMMAND>
+Usage: codeowners [OPTIONS] <COMMAND>
 
 Commands:
   for-file               Finds the owner of a given file. [aliases: f]
@@ -84,7 +99,7 @@ This team owns nothing in this category.
 
 
 ### Adoption
-This is an experimental port that might never be supported, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working, if you still wish to adopt it, here are the instructions:
+This is an experimental port, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working, if you still wish to adopt it, here are the instructions:
 
 ```bash
 # sets up a Rust toolchain
