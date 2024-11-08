@@ -52,7 +52,9 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .stdout(predicate::eq(indoc! {"
             Team: Unowned
             Team YML: Unowned
-            Description:\n- \n"})); // trailing whitespace
+            Description:
+            - Unowned
+            "}));
     Ok(())
 }
 

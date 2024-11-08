@@ -51,13 +51,17 @@ impl TeamOwnership {
 
 impl Display for FileOwner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sources = self
-            .sources
-            .iter()
-            .sorted_by_key(|source| source.to_string())
-            .map(|source| source.to_string())
-            .collect::<Vec<String>>()
-            .join("\n- ");
+        let sources = if self.sources.is_empty() {
+            "Unowned".to_string()
+        } else {
+            self.sources
+                .iter()
+                .sorted_by_key(|source| source.to_string())
+                .map(|source| source.to_string())
+                .collect::<Vec<_>>()
+                .join("\n- ")
+        };
+
         write!(
             f,
             "Team: {}\nTeam YML: {}\nDescription:\n- {}",

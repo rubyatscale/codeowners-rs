@@ -54,14 +54,6 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
-    let expected_output = r#"
-Team: Payroll
-Team YML: config/teams/payroll.yml
-Description:
-- Owner annotation at the top of the file
-- Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
-    "#
-    .trim();
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
@@ -69,7 +61,13 @@ Description:
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()
-        .stdout(predicate::str::contains(expected_output));
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+        "}));
     Ok(())
 }
 
@@ -82,8 +80,13 @@ fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Team: Payroll"))
-        .stdout(predicate::str::contains("Team YML: config/teams/payroll.yml"));
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+        "}));
 
     Ok(())
 }
