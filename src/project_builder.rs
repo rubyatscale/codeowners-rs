@@ -35,6 +35,8 @@ pub struct ProjectBuilder<'a> {
     pub codeowners_file_path: PathBuf,
 }
 
+const INITIAL_VECTOR_CAPACITY: usize = 1000;
+
 impl<'a> ProjectBuilder<'a> {
     pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf) -> Self {
         Self {
@@ -46,8 +48,7 @@ impl<'a> ProjectBuilder<'a> {
 
     #[instrument(level = "debug", skip_all)]
     pub fn build(&mut self) -> Result<Project, Error> {
-        let mut entry_types = Vec::new();
-
+        let mut entry_types = Vec::with_capacity(INITIAL_VECTOR_CAPACITY);
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         let walkdir = builder.build();
@@ -68,22 +69,20 @@ impl<'a> ProjectBuilder<'a> {
         if is_dir {
             return Ok(EntryType::Directory(absolute_path.to_owned(), relative_path.to_owned()));
         }
-        let file_name = relative_path.file_name().expect("expected a file_name");
+        let file_name = relative_path
+            .file_name()
+            .expect("expected a file_name")
+            .to_string_lossy()
+            .to_lowercase();
 
-        match file_name.to_str().unwrap_or("") {
-            name if name.eq_ignore_ascii_case("package.yml")
-                && matches_globs(relative_path.parent().unwrap(), &self.config.ruby_package_paths) =>
-            {
+        match file_name.as_str() {
+            name if name == "package.yml" && matches_globs(relative_path.parent().unwrap(), &self.config.ruby_package_paths) => {
                 Ok(EntryType::RubyPackage(absolute_path.to_owned(), relative_path.to_owned()))
             }
-            name if name.eq_ignore_ascii_case("package.json")
-                && matches_globs(relative_path.parent().unwrap(), &self.config.javascript_package_paths) =>
-            {
+            name if name == "package.json" && matches_globs(relative_path.parent().unwrap(), &self.config.javascript_package_paths) => {
                 Ok(EntryType::JavascriptPackage(absolute_path.to_owned(), relative_path.to_owned()))
             }
-            name if name.eq_ignore_ascii_case(".codeowner") => {
-                Ok(EntryType::CodeownerFile(absolute_path.to_owned(), relative_path.to_owned()))
-            }
+            ".codeowner" => Ok(EntryType::CodeownerFile(absolute_path.to_owned(), relative_path.to_owned())),
             _ if matches_globs(&relative_path, &self.config.team_file_glob) => {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
@@ -101,7 +100,7 @@ impl<'a> ProjectBuilder<'a> {
             .fold(
                 || {
                     (
-                        Vec::<ProjectFile>::new(),
+                        Vec::<ProjectFile>::with_capacity(INITIAL_VECTOR_CAPACITY),
                         Vec::<Package>::new(),
                         Vec::<VendoredGem>::new(),
                         Vec::<DirectoryCodeownersFile>::new(),
@@ -223,7 +222,6 @@ fn build_project_file(path: PathBuf) -> ProjectFile {
     };
 
     let first_line = content.lines().next();
-
     let Some(first_line) = first_line else {
         return ProjectFile { path, owner: None };
     };
