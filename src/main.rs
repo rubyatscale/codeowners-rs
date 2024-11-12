@@ -1,6 +1,6 @@
 use ownership::{FileOwner, Ownership};
 
-use crate::project::Project;
+use crate::project_builder::ProjectBuilder;
 use clap::{Parser, Subcommand};
 use core::fmt;
 use error_stack::{Context, Result, ResultExt};
@@ -15,6 +15,7 @@ mod common_test;
 mod config;
 mod ownership;
 mod project;
+mod project_builder;
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -114,7 +115,9 @@ fn cli() -> Result<(), Error> {
 
     let config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
 
-    let ownership = Ownership::build(Project::build(&project_root, &codeowners_file_path, &config).change_context(Error::Io)?);
+    let mut builder = ProjectBuilder::new(&config, project_root, codeowners_file_path.clone());
+    let project = builder.build().change_context(Error::Io)?;
+    let ownership = Ownership::build(project);
 
     match args.command {
         Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
