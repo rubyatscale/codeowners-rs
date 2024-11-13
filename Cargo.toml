@@ -6,6 +6,9 @@ edition = "2021"
 [profile.release]
 debug = true
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
 clap_derive = "4.5.18"
@@ -13,9 +16,8 @@ error-stack = "0.5.0"
 fast-glob = "0.4.0"
 ignore = "0.4.23"
 itertools = "0.13.0"
-path-clean = "1.0.1"
 lazy_static = "1.5.0"
-num_cpus = "1.16.0"
+path-clean = "1.0.1"
 rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.214", features = ["derive"] }

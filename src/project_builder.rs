@@ -6,14 +6,14 @@ use std::{
 use error_stack::{Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::WalkBuilder;
-use lazy_static::lazy_static;
+use project_file_builder::build_project_file;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use regex::Regex;
 use tracing::instrument;
 
 use crate::{
     config::Config,
     project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
+    project_file_builder,
 };
 
 type AbsolutePath = PathBuf;
@@ -57,7 +57,9 @@ impl<'a> ProjectBuilder<'a> {
             let entry = entry.change_context(Error::Io)?;
             entry_types.push(self.build_entry_type(entry)?);
         }
-        self.build_project_from_entry_types(entry_types)
+        let project = self.build_project_from_entry_types(entry_types);
+        project_file_builder::save_cache()?;
+        project
     }
 
     fn build_entry_type(&mut self, entry: ignore::DirEntry) -> Result<EntryType, Error> {
@@ -87,7 +89,7 @@ impl<'a> ProjectBuilder<'a> {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
             _ if matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs) => {
-                let project_file = build_project_file(absolute_path.to_path_buf());
+                let project_file = build_project_file(absolute_path.to_path_buf(), false);
                 Ok(EntryType::OwnedFile(project_file))
             }
             _ => Ok(EntryType::NullEntry()),
@@ -206,34 +208,6 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
     Ok(deserializer.metadata.and_then(|metadata| metadata.owner))
 }
 
-lazy_static! {
-    static ref TEAM_REGEX: Regex = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
-}
-
-#[instrument(level = "debug", skip_all)]
-fn owned_files(owned_file_paths: Vec<PathBuf>) -> Vec<ProjectFile> {
-    owned_file_paths.into_par_iter().map(build_project_file).collect()
-}
-
-fn build_project_file(path: PathBuf) -> ProjectFile {
-    let content = match std::fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(_) => return ProjectFile { path, owner: None },
-    };
-
-    let first_line = content.lines().next();
-    let Some(first_line) = first_line else {
-        return ProjectFile { path, owner: None };
-    };
-
-    let owner = TEAM_REGEX
-        .captures(first_line)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str().to_string());
-
-    ProjectFile { path, owner }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +225,12 @@ mod tests {
         // Exposes bug in glob-match https://github.com/devongovett/glob-match/issues/9
         // should fail because hidden directories are ignored by glob patterns unless explicitly included
         assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
+
+    #[test]
+    fn test_build_project_file() {
+        let project_file = build_project_file(PathBuf::from("script/.eslintrc.js"), false);
+        assert_eq!(project_file.path, PathBuf::from("script/.eslintrc.js"));
+        assert_eq!(project_file.owner, None);
     }
 }

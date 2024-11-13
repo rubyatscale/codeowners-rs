@@ -1,7 +1,7 @@
-use ownership::{FileOwner, Ownership};
+use codeowners::ownership::{self, FileOwner, Ownership};
 
-use crate::project_builder::ProjectBuilder;
 use clap::{Parser, Subcommand};
+use codeowners::project_builder::ProjectBuilder;
 use core::fmt;
 use error_stack::{Context, Result, ResultExt};
 use path_clean::PathClean;
@@ -10,12 +10,6 @@ use std::{
     path::{Path, PathBuf},
     process,
 };
-
-mod common_test;
-mod config;
-mod ownership;
-mod project;
-mod project_builder;
 
 #[derive(Subcommand, Debug)]
 enum Command {
