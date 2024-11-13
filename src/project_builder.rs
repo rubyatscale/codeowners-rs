@@ -89,7 +89,7 @@ impl<'a> ProjectBuilder<'a> {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
             _ if matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs) => {
-                let project_file = build_project_file(absolute_path.to_path_buf(), false);
+                let project_file = build_project_file(absolute_path.to_path_buf(), true);
                 Ok(EntryType::OwnedFile(project_file))
             }
             _ => Ok(EntryType::NullEntry()),

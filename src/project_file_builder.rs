@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     fs::{self, File, OpenOptions},
     io::{BufReader, BufWriter},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 
@@ -22,9 +22,8 @@ pub(crate) fn build_project_file(path: PathBuf, use_cache: bool) -> ProjectFile 
 
     let project_file = build_project_file_without_cache(&path);
 
-    if let Ok(mut cache) = PROJECT_FILE_CACHE.lock() {
-        cache.insert(path.clone(), project_file.owner.clone().unwrap());
-    }
+    save_project_file_to_cache(&path, &project_file);
+
     project_file
 }
 
@@ -55,13 +54,19 @@ pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
     ProjectFile { path: path.clone(), owner }
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct CacheEntry {
+    timestamp: u64,
+    owner: Option<String>,
+}
+
 lazy_static! {
     static ref TEAM_REGEX: Regex = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
-    static ref PROJECT_FILE_CACHE: Box<Mutex<HashMap<PathBuf, String>>> =
+    static ref PROJECT_FILE_CACHE: Box<Mutex<HashMap<PathBuf, CacheEntry>>> =
         Box::new(Mutex::new(load_cache().unwrap_or_else(|_| HashMap::with_capacity(10000))));
 }
 
-fn load_cache() -> Result<HashMap<PathBuf, String>, Error> {
+fn load_cache() -> Result<HashMap<PathBuf, CacheEntry>, Error> {
     let cache_path = get_cache_path();
     if !cache_path.exists() {
         return Ok(HashMap::with_capacity(10000));
@@ -95,12 +100,39 @@ fn get_cache_path() -> PathBuf {
 
 fn get_project_file_from_cache(path: &PathBuf) -> Result<Option<ProjectFile>, Error> {
     if let Ok(cache) = PROJECT_FILE_CACHE.lock() {
-        if let Some(cached_owner) = cache.get(path) {
-            return Ok(Some(ProjectFile {
-                path: path.clone(),
-                owner: Some(cached_owner.clone()),
-            }));
+        if let Some(cached_entry) = cache.get(path) {
+            let timestamp = get_file_timestamp(path)?;
+            if cached_entry.timestamp == timestamp {
+                return Ok(Some(ProjectFile {
+                    path: path.clone(),
+                    owner: cached_entry.owner.clone(),
+                }));
+            }
         }
     }
     Ok(None)
+}
+
+fn save_project_file_to_cache(path: &Path, project_file: &ProjectFile) {
+    if let Ok(mut cache) = PROJECT_FILE_CACHE.lock() {
+        if let Ok(timestamp) = get_file_timestamp(path) {
+            cache.insert(
+                path.to_path_buf(),
+                CacheEntry {
+                    timestamp,
+                    owner: project_file.owner.clone(),
+                },
+            );
+        }
+    }
+}
+
+fn get_file_timestamp(path: &Path) -> Result<u64, Error> {
+    let metadata = fs::metadata(path).change_context(Error::Io)?;
+    metadata
+        .modified()
+        .change_context(Error::Io)?
+        .duration_since(std::time::UNIX_EPOCH)
+        .change_context(Error::Io)
+        .map(|duration| duration.as_secs())
 }
