@@ -6,14 +6,13 @@ use std::{
 use error_stack::{Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::WalkBuilder;
-use project_file_builder::build_project_file;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
 
 use crate::{
     config::Config,
     project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
-    project_file_builder,
+    project_file_builder::ProjectFileBuilder,
 };
 
 type AbsolutePath = PathBuf;
@@ -30,16 +29,19 @@ enum EntryType {
 
 #[derive(Debug)]
 pub struct ProjectBuilder<'a> {
-    pub config: &'a Config,
-    pub base_path: PathBuf,
-    pub codeowners_file_path: PathBuf,
+    config: &'a Config,
+    base_path: PathBuf,
+    codeowners_file_path: PathBuf,
+    project_file_builder: ProjectFileBuilder<'a>,
 }
 
 const INITIAL_VECTOR_CAPACITY: usize = 1000;
 
 impl<'a> ProjectBuilder<'a> {
-    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf) -> Self {
+    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, use_cache: bool) -> Self {
+        let project_file_builder = ProjectFileBuilder::new(config, base_path.clone(), use_cache);
         Self {
+            project_file_builder,
             config,
             base_path,
             codeowners_file_path,
@@ -58,7 +60,7 @@ impl<'a> ProjectBuilder<'a> {
             entry_types.push(self.build_entry_type(entry)?);
         }
         let project = self.build_project_from_entry_types(entry_types);
-        project_file_builder::save_cache()?;
+        self.project_file_builder.possibly_save_cache()?;
         project
     }
 
@@ -89,7 +91,7 @@ impl<'a> ProjectBuilder<'a> {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
             _ if matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs) => {
-                let project_file = build_project_file(absolute_path.to_path_buf(), true);
+                let project_file = self.project_file_builder.build(absolute_path.to_path_buf());
                 Ok(EntryType::OwnedFile(project_file))
             }
             _ => Ok(EntryType::NullEntry()),
@@ -225,12 +227,5 @@ mod tests {
         // Exposes bug in glob-match https://github.com/devongovett/glob-match/issues/9
         // should fail because hidden directories are ignored by glob patterns unless explicitly included
         assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
-    }
-
-    #[test]
-    fn test_build_project_file() {
-        let project_file = build_project_file(PathBuf::from("script/.eslintrc.js"), false);
-        assert_eq!(project_file.path, PathBuf::from("script/.eslintrc.js"));
-        assert_eq!(project_file.owner, None);
     }
 }

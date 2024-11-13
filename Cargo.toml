@@ -29,6 +29,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
+glob = "0.3.1"
 rusty-hook = "^0.11.2"
 predicates = "3.1.2"
 pretty_assertions = "1.4.1" # Shows a more readable diff when comparing objects

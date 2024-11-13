@@ -16,6 +16,9 @@ pub struct Config {
 
     #[serde(alias = "unbuilt_gems_path")]
     pub vendored_gems_path: String,
+
+    #[serde(default = "default_cache_directory")]
+    pub cache_directory: String,
 }
 
 #[allow(dead_code)]
@@ -31,4 +34,8 @@ fn ruby_package_paths() -> Vec<String> {
 
 fn team_file_glob() -> Vec<String> {
     vec!["config/teams/**/*.yml".to_owned()]
+}
+
+fn default_cache_directory() -> String {
+    String::from("tmp/cache/codeowners")
 }

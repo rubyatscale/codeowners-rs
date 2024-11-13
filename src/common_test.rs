@@ -110,14 +110,14 @@ pub mod tests {
         let config = serde_yaml::from_reader(config_file)?;
 
         let codeowners_file_path = &test_config.temp_dir_path.join(".github/CODEOWNERS");
-        let mut builder = ProjectBuilder::new(&config, test_config.temp_dir_path.clone(), codeowners_file_path.clone());
+        let mut builder = ProjectBuilder::new(&config, test_config.temp_dir_path.clone(), codeowners_file_path.clone(), false);
         let project = builder.build()?;
         let ownership = Ownership::build(project);
         if test_config.generate_codeowners {
             std::fs::write(codeowners_file_path, ownership.generate_file())?;
         }
         // rebuild project to ensure new codeowners file is read
-        let mut builder = ProjectBuilder::new(&config, test_config.temp_dir_path.clone(), codeowners_file_path.clone());
+        let mut builder = ProjectBuilder::new(&config, test_config.temp_dir_path.clone(), codeowners_file_path.clone(), false);
         let project = builder.build()?;
         Ok(Ownership::build(project))
     }

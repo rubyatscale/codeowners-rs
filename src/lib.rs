@@ -3,4 +3,4 @@ pub(crate) mod config;
 pub mod ownership;
 pub(crate) mod project;
 pub mod project_builder;
-pub(crate) mod project_file_builder;
+pub mod project_file_builder;

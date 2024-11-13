@@ -8,6 +8,7 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("validate")
         .assert()
         .success();
@@ -22,6 +23,7 @@ fn test_generate() -> Result<(), Box<dyn Error>> {
         .arg("tests/fixtures/valid_project")
         .arg("--codeowners-file-path")
         .arg("../../../tmp/CODEOWNERS")
+        .arg("--no-cache")
         .arg("generate")
         .assert()
         .success();
@@ -39,6 +41,7 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("for-file")
         .arg("ruby/app/models/payroll.rb")
         .assert()
@@ -57,6 +60,7 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("for-file")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
@@ -76,6 +80,7 @@ fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("for-file")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
@@ -96,6 +101,7 @@ fn test_for_team() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("for-team")
         .arg("Payroll")
         .assert()
@@ -133,6 +139,7 @@ fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
         .arg("for-team")
         .arg("Nope")
         .assert()
