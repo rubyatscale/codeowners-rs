@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use codeowners::{
-    cache::GlobalCache,
+    cache::{file::GlobalCache, noop::NoopCache, Cache},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,
@@ -102,20 +102,17 @@ pub fn cli() -> Result<(), Error> {
 
     let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
 
-    let mut global_cache = GlobalCache::new(&project_root, &config.cache_directory);
-    global_cache.load_cache().change_context(Error::Io)?;
+    let cache: &dyn Cache = if args.no_cache {
+        &NoopCache::default() as &dyn Cache
+    } else {
+        &GlobalCache::new(project_root.clone(), config.cache_directory.clone()).change_context(Error::Io)? as &dyn Cache
+    };
 
-    let mut project_builder = ProjectBuilder::new(
-        &config,
-        project_root.clone(),
-        codeowners_file_path.clone(),
-        !args.no_cache,
-        &global_cache,
-    );
+    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), !args.no_cache, cache);
     let project = project_builder.build().change_context(Error::Io)?;
     let ownership = Ownership::build(project);
 
-    global_cache.persist_cache().change_context(Error::Io)?;
+    cache.persist_cache().change_context(Error::Io)?;
 
     match args.command {
         Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
@@ -153,7 +150,7 @@ pub fn cli() -> Result<(), Error> {
             Err(err) => println!("{}", err),
         },
         Command::DeleteCache => {
-            global_cache.delete_cache().change_context(Error::Io)?;
+            cache.delete_cache().change_context(Error::Io)?;
         }
     }
 

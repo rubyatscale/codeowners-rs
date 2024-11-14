@@ -10,7 +10,12 @@ pub mod tests {
 
     use tempfile::tempdir;
 
-    use crate::{cache::GlobalCache, config::Config, ownership::Ownership, project_builder::ProjectBuilder};
+    use crate::{
+        cache::{noop::NoopCache, Cache},
+        config::Config,
+        ownership::Ownership,
+        project_builder::ProjectBuilder,
+    };
 
     macro_rules! ownership {
         ($($test_files:expr),+) => {{
@@ -110,13 +115,13 @@ pub mod tests {
         let config: Config = serde_yaml::from_reader(config_file)?;
 
         let codeowners_file_path = &test_config.temp_dir_path.join(".github/CODEOWNERS");
-        let global_cache = GlobalCache::new(&test_config.temp_dir_path, &config.cache_directory);
+        let cache: &dyn Cache = &NoopCache::default();
         let mut builder = ProjectBuilder::new(
             &config,
             test_config.temp_dir_path.clone(),
             codeowners_file_path.clone(),
             false,
-            &global_cache,
+            cache,
         );
         let project = builder.build()?;
         let ownership = Ownership::build(project);
@@ -129,7 +134,7 @@ pub mod tests {
             test_config.temp_dir_path.clone(),
             codeowners_file_path.clone(),
             false,
-            &global_cache,
+            cache,
         );
         let project = builder.build()?;
         Ok(Ownership::build(project))

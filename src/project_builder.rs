@@ -10,7 +10,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
 
 use crate::{
-    cache::GlobalCache,
+    cache::Cache,
     config::Config,
     project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
     project_file_builder::ProjectFileBuilder,
@@ -28,7 +28,6 @@ enum EntryType {
     NullEntry(),
 }
 
-#[derive(Debug)]
 pub struct ProjectBuilder<'a> {
     config: &'a Config,
     base_path: PathBuf,
@@ -39,14 +38,8 @@ pub struct ProjectBuilder<'a> {
 const INITIAL_VECTOR_CAPACITY: usize = 1000;
 
 impl<'a> ProjectBuilder<'a> {
-    pub fn new(
-        config: &'a Config,
-        base_path: PathBuf,
-        codeowners_file_path: PathBuf,
-        use_cache: bool,
-        global_cache: &'a GlobalCache,
-    ) -> Self {
-        let project_file_builder = ProjectFileBuilder::new(use_cache, global_cache);
+    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, use_cache: bool, cache: &'a dyn Cache) -> Self {
+        let project_file_builder = ProjectFileBuilder::new(use_cache, cache);
         Self {
             project_file_builder,
             config,
