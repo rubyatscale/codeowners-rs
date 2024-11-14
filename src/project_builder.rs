@@ -10,6 +10,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
 
 use crate::{
+    cache::GlobalCache,
     config::Config,
     project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
     project_file_builder::ProjectFileBuilder,
@@ -38,8 +39,14 @@ pub struct ProjectBuilder<'a> {
 const INITIAL_VECTOR_CAPACITY: usize = 1000;
 
 impl<'a> ProjectBuilder<'a> {
-    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, use_cache: bool) -> Self {
-        let project_file_builder = ProjectFileBuilder::new(config, base_path.clone(), use_cache);
+    pub fn new(
+        config: &'a Config,
+        base_path: PathBuf,
+        codeowners_file_path: PathBuf,
+        use_cache: bool,
+        global_cache: &'a GlobalCache,
+    ) -> Self {
+        let project_file_builder = ProjectFileBuilder::new(use_cache, global_cache);
         Self {
             project_file_builder,
             config,
@@ -59,13 +66,7 @@ impl<'a> ProjectBuilder<'a> {
             let entry = entry.change_context(Error::Io)?;
             entry_types.push(self.build_entry_type(entry)?);
         }
-        let project = self.build_project_from_entry_types(entry_types);
-        self.project_file_builder.possibly_save_cache()?;
-        project
-    }
-
-    pub fn delete_cache(&mut self) -> Result<(), Error> {
-        self.project_file_builder.delete_cache()
+        self.build_project_from_entry_types(entry_types)
     }
 
     fn build_entry_type(&mut self, entry: ignore::DirEntry) -> Result<EntryType, Error> {

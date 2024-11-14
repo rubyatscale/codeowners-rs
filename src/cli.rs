@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
 use codeowners::{
+    cache::GlobalCache,
+    config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,
 };
@@ -98,11 +100,22 @@ pub fn cli() -> Result<(), Error> {
         .change_context(Error::Io)
         .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
 
-    let config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
+    let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
 
-    let mut project_builder = ProjectBuilder::new(&config, project_root, codeowners_file_path.clone(), !args.no_cache);
+    let mut global_cache = GlobalCache::new(&project_root, &config.cache_directory);
+    global_cache.load_cache().change_context(Error::Io)?;
+
+    let mut project_builder = ProjectBuilder::new(
+        &config,
+        project_root.clone(),
+        codeowners_file_path.clone(),
+        !args.no_cache,
+        &global_cache,
+    );
     let project = project_builder.build().change_context(Error::Io)?;
     let ownership = Ownership::build(project);
+
+    global_cache.persist_cache().change_context(Error::Io)?;
 
     match args.command {
         Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
@@ -140,7 +153,7 @@ pub fn cli() -> Result<(), Error> {
             Err(err) => println!("{}", err),
         },
         Command::DeleteCache => {
-            project_builder.delete_cache().change_context(Error::Io)?;
+            global_cache.delete_cache().change_context(Error::Io)?;
         }
     }
 
