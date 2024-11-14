@@ -9,7 +9,6 @@ use crate::{
 };
 
 pub struct ProjectFileBuilder<'a> {
-    use_cache: bool,
     global_cache: &'a Cache,
 }
 
@@ -18,15 +17,11 @@ lazy_static! {
 }
 
 impl<'a> ProjectFileBuilder<'a> {
-    pub fn new(use_cache: bool, global_cache: &'a Cache) -> Self {
-        Self { use_cache, global_cache }
+    pub fn new(global_cache: &'a Cache) -> Self {
+        Self { global_cache }
     }
 
     pub(crate) fn build(&mut self, path: PathBuf) -> ProjectFile {
-        if !self.use_cache {
-            return build_project_file_without_cache(&path);
-        }
-
         if let Ok(Some(cached_project_file)) = self.get_project_file_from_cache(&path) {
             return cached_project_file;
         }
