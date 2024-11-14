@@ -6,7 +6,7 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/multiple-directory-owners")
-        //.arg("tests/fixtures/valid_project_2")
+        .arg("--no-cache")
         .arg("validate")
         .assert()
         .success();
@@ -21,6 +21,7 @@ fn test_generate() -> Result<(), Box<dyn Error>> {
         .arg("tests/fixtures/multiple-directory-owners")
         .arg("--codeowners-file-path")
         .arg("../../../tmp/CODEOWNERS")
+        .arg("--no-cache")
         .arg("generate")
         .assert()
         .success();

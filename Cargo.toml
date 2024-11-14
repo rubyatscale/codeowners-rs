@@ -1,21 +1,24 @@
 [package]
 name = "codeowners"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [profile.release]
 debug = true
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
 clap_derive = "4.5.18"
 error-stack = "0.5.0"
+enum_dispatch = "0.3.13"
 fast-glob = "0.4.0"
 ignore = "0.4.23"
 itertools = "0.13.0"
-path-clean = "1.0.1"
 lazy_static = "1.5.0"
-num_cpus = "1.16.0"
+path-clean = "1.0.1"
 rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.214", features = ["derive"] }
@@ -27,6 +30,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
+glob = "0.3.1"
 rusty-hook = "^0.11.2"
 predicates = "3.1.2"
 pretty_assertions = "1.4.1" # Shows a more readable diff when comparing objects
