@@ -149,6 +149,9 @@ mod tests {
             })
         );
 
+        cache.delete_cache().change_context(Error::Io)?;
+        assert!(!persisted_cache_path.exists());
+
         Ok(())
     }
 
