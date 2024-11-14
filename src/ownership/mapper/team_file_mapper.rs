@@ -78,7 +78,6 @@ mod tests {
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_team_file_codeowners()?;
         let mapper = TeamFileMapper::build(ownership.project.clone());
-        dbg!(&mapper.entries());
         vecs_match(
             &mapper.entries(),
             &vec![

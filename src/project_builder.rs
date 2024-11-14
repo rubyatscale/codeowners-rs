@@ -64,6 +64,10 @@ impl<'a> ProjectBuilder<'a> {
         project
     }
 
+    pub fn delete_cache(&mut self) -> Result<(), Error> {
+        self.project_file_builder.delete_cache()
+    }
+
     fn build_entry_type(&mut self, entry: ignore::DirEntry) -> Result<EntryType, Error> {
         let absolute_path = entry.path();
 

@@ -100,8 +100,8 @@ pub fn cli() -> Result<(), Error> {
 
     let config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
 
-    let mut builder = ProjectBuilder::new(&config, project_root, codeowners_file_path.clone(), !args.no_cache);
-    let project = builder.build().change_context(Error::Io)?;
+    let mut project_builder = ProjectBuilder::new(&config, project_root, codeowners_file_path.clone(), !args.no_cache);
+    let project = project_builder.build().change_context(Error::Io)?;
     let ownership = Ownership::build(project);
 
     match args.command {
@@ -140,7 +140,7 @@ pub fn cli() -> Result<(), Error> {
             Err(err) => println!("{}", err),
         },
         Command::DeleteCache => {
-            //project_file_builder::delete_cache().change_context(Error::Io)?;
+            project_builder.delete_cache().change_context(Error::Io)?;
         }
     }
 

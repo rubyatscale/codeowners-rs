@@ -65,6 +65,7 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/invalid_project")
+        .arg("--no-cache")
         .arg("for-file")
         .arg("ruby/app/services/multi_owned.rb")
         .assert()

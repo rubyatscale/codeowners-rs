@@ -105,6 +105,7 @@ impl<'a> ProjectFileBuilder<'a> {
 
     pub fn delete_cache(&self) -> Result<(), Error> {
         let cache_path = self.get_cache_path();
+        dbg!("deleting", &cache_path);
         fs::remove_file(cache_path).change_context(Error::Io)
     }
 
