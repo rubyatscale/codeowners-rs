@@ -1,6 +1,6 @@
 [package]
 name = "codeowners"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [profile.release]
@@ -13,6 +13,7 @@ path = "src/lib.rs"
 clap = { version = "4.5.20", features = ["derive"] }
 clap_derive = "4.5.18"
 error-stack = "0.5.0"
+enum_dispatch = "0.3.13"
 fast-glob = "0.4.0"
 ignore = "0.4.23"
 itertools = "0.13.0"

@@ -8,7 +8,7 @@ use std::{
     sync::Mutex,
 };
 
-use super::{Cache, FileOwnerCacheEntry};
+use super::{Caching, FileOwnerCacheEntry};
 
 #[derive(Debug)]
 pub struct GlobalCache {
@@ -19,11 +19,11 @@ pub struct GlobalCache {
 
 const DEFAULT_CACHE_CAPACITY: usize = 10000;
 
-impl Cache for GlobalCache {
+impl Caching for GlobalCache {
     fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
         if let Ok(cache) = self.file_owner_cache.as_ref().unwrap().lock() {
             if let Some(cached_entry) = cache.get(path) {
-                let timestamp = Self::get_file_timestamp(path)?;
+                let timestamp = get_file_timestamp(path)?;
                 if cached_entry.timestamp == timestamp {
                     return Ok(Some(cached_entry.clone()));
                 }
@@ -34,7 +34,7 @@ impl Cache for GlobalCache {
 
     fn write_file_owner(&self, path: &Path, owner: Option<String>) {
         if let Ok(mut cache) = self.file_owner_cache.as_ref().unwrap().lock() {
-            if let Ok(timestamp) = Self::get_file_timestamp(path) {
+            if let Ok(timestamp) = get_file_timestamp(path) {
                 cache.insert(path.to_path_buf(), FileOwnerCacheEntry { timestamp, owner });
             }
         }
@@ -95,14 +95,76 @@ impl GlobalCache {
 
         cache_dir.join("project-file-cache.json")
     }
+}
+fn get_file_timestamp(path: &Path) -> Result<u64, Error> {
+    let metadata = fs::metadata(path).change_context(Error::Io)?;
+    metadata
+        .modified()
+        .change_context(Error::Io)?
+        .duration_since(std::time::UNIX_EPOCH)
+        .change_context(Error::Io)
+        .map(|duration| duration.as_secs())
+}
 
-    fn get_file_timestamp(path: &Path) -> Result<u64, Error> {
-        let metadata = fs::metadata(path).change_context(Error::Io)?;
-        metadata
-            .modified()
-            .change_context(Error::Io)?
-            .duration_since(std::time::UNIX_EPOCH)
-            .change_context(Error::Io)
-            .map(|duration| duration.as_secs())
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn test_cache_dir() -> Result<(), Error> {
+        let temp_dir = tempdir().change_context(Error::Io)?;
+        let cache_dir = "test-codeowners-cache";
+        let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;
+
+        let file_path = PathBuf::from("tests/fixtures/valid_project/ruby/app/models/bank_account.rb");
+        assert!(file_path.exists());
+        let timestamp = get_file_timestamp(&file_path)?;
+
+        let cache_entry = cache.get_file_owner(&file_path)?;
+        assert_eq!(cache_entry, None);
+
+        cache.write_file_owner(&file_path, Some("owner 1".to_owned()));
+        let cache_entry = cache.get_file_owner(&file_path)?;
+        assert_eq!(
+            cache_entry,
+            Some(FileOwnerCacheEntry {
+                timestamp,
+                owner: Some("owner 1".to_owned())
+            })
+        );
+
+        cache.persist_cache().change_context(Error::Io)?;
+        let persisted_cache_path = cache.get_cache_path();
+        assert!(persisted_cache_path.exists());
+
+        let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;
+        let cache_entry = cache.get_file_owner(&file_path)?;
+        assert_eq!(
+            cache_entry,
+            Some(FileOwnerCacheEntry {
+                timestamp,
+                owner: Some("owner 1".to_owned())
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_corrupted_cache() -> Result<(), Error> {
+        let temp_dir = tempdir().change_context(Error::Io)?;
+        let cache_dir = "test-codeowners-cache";
+        let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;
+        let cache_path = cache.get_cache_path();
+        fs::write(cache_path, "corrupted_cache").change_context(Error::Io)?;
+
+        // When the cache is corrupted, it should be ignored and a new cache should be created
+        let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;
+        let file_path = PathBuf::from("tests/fixtures/valid_project/ruby/app/models/bank_account.rb");
+        let cache_entry = cache.get_file_owner(&file_path)?;
+        assert_eq!(cache_entry, None);
+        Ok(())
     }
 }

@@ -115,13 +115,13 @@ pub mod tests {
         let config: Config = serde_yaml::from_reader(config_file)?;
 
         let codeowners_file_path = &test_config.temp_dir_path.join(".github/CODEOWNERS");
-        let cache: &dyn Cache = &NoopCache::default();
+        let cache: Cache = NoopCache::default().into();
         let mut builder = ProjectBuilder::new(
             &config,
             test_config.temp_dir_path.clone(),
             codeowners_file_path.clone(),
             false,
-            cache,
+            &cache,
         );
         let project = builder.build()?;
         let ownership = Ownership::build(project);
@@ -134,7 +134,7 @@ pub mod tests {
             test_config.temp_dir_path.clone(),
             codeowners_file_path.clone(),
             false,
-            cache,
+            &cache,
         );
         let project = builder.build()?;
         Ok(Ownership::build(project))

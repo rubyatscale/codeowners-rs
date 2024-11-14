@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use codeowners::{
-    cache::{file::GlobalCache, noop::NoopCache, Cache},
+    cache::{file::GlobalCache, noop::NoopCache, Cache, Caching},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,
@@ -101,14 +101,15 @@ pub fn cli() -> Result<(), Error> {
         .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
 
     let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
-
-    let cache: &dyn Cache = if args.no_cache {
-        &NoopCache::default() as &dyn Cache
+    let cache: Cache = if args.no_cache {
+        NoopCache::default().into()
     } else {
-        &GlobalCache::new(project_root.clone(), config.cache_directory.clone()).change_context(Error::Io)? as &dyn Cache
+        GlobalCache::new(project_root.clone(), config.cache_directory.clone())
+            .change_context(Error::Io)?
+            .into()
     };
 
-    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), !args.no_cache, cache);
+    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), !args.no_cache, &cache);
     let project = project_builder.build().change_context(Error::Io)?;
     let ownership = Ownership::build(project);
 

@@ -38,7 +38,7 @@ pub struct ProjectBuilder<'a> {
 const INITIAL_VECTOR_CAPACITY: usize = 1000;
 
 impl<'a> ProjectBuilder<'a> {
-    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, use_cache: bool, cache: &'a dyn Cache) -> Self {
+    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, use_cache: bool, cache: &'a Cache) -> Self {
         let project_file_builder = ProjectFileBuilder::new(use_cache, cache);
         Self {
             project_file_builder,

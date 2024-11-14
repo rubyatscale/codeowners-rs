@@ -4,13 +4,13 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    cache::Cache,
+    cache::{Cache, Caching},
     project::{Error, ProjectFile},
 };
 
 pub struct ProjectFileBuilder<'a> {
     use_cache: bool,
-    global_cache: &'a dyn Cache,
+    global_cache: &'a Cache,
 }
 
 lazy_static! {
@@ -18,7 +18,7 @@ lazy_static! {
 }
 
 impl<'a> ProjectFileBuilder<'a> {
-    pub fn new(use_cache: bool, global_cache: &'a dyn Cache) -> Self {
+    pub fn new(use_cache: bool, global_cache: &'a Cache) -> Self {
         Self { use_cache, global_cache }
     }
 

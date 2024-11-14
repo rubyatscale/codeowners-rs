@@ -2,12 +2,12 @@ use crate::project::Error;
 use error_stack::Result;
 use std::path::Path;
 
-use super::{Cache, FileOwnerCacheEntry};
+use super::{Caching, FileOwnerCacheEntry};
 
 #[derive(Default)]
 pub struct NoopCache {}
 
-impl Cache for NoopCache {
+impl Caching for NoopCache {
     fn get_file_owner(&self, _path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
         Ok(None)
     }
