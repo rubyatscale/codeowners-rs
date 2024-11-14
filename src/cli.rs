@@ -109,7 +109,7 @@ pub fn cli() -> Result<(), Error> {
             .into()
     };
 
-    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), !args.no_cache, &cache);
+    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), &cache);
     let project = project_builder.build().change_context(Error::Io)?;
     let ownership = Ownership::build(project);
 
