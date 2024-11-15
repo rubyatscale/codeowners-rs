@@ -9,4 +9,7 @@ echo "To run these benchmarks on your application, you can place this repo next 
 
 hyperfine --warmup=2 --runs=3 --export-markdown tmp/codeowners_benchmarks.md \
   '../rubyatscale/codeowners-rs/target/release/codeowners gv' \
+  'jwalk=1 ../rubyatscale/codeowners-rs/target/release/codeowners gv' \
+  'jwalk=1 entryrayon=1 ../rubyatscale/codeowners-rs/target/release/codeowners gv' \
+  'entryrayon=1 ../rubyatscale/codeowners-rs/target/release/codeowners gv' \
   'bin/codeowners-rs gv' 
