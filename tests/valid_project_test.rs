@@ -48,6 +48,7 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file
@@ -67,6 +68,7 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file
@@ -87,6 +89,7 @@ fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file

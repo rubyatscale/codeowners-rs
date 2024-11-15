@@ -53,7 +53,8 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Unowned
-            Team YML: Unowned
+            Github Team: Unowned
+            Team YML: 
             Description:
             - Unowned
             "}));
@@ -72,13 +73,15 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
         .success()
         .stdout(predicate::eq(indoc! {"
             Error: file is owned by multiple teams!
-
+            
             Team: Payments
+            Github Team: @PaymentTeam
             Team YML: config/teams/payments.yml
             Description:
             - Owner annotation at the top of the file
-
+            
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
             Description:
             - Owner specified in `ruby/app/services/.codeowner`
