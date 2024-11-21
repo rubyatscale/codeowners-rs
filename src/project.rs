@@ -29,7 +29,7 @@ pub struct ProjectFile {
     pub path: PathBuf,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Team {
     pub path: PathBuf,
     pub name: String,

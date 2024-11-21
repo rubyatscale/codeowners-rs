@@ -14,7 +14,10 @@ mod file_owner_finder;
 pub(crate) mod mapper;
 mod validator;
 
-use crate::{ownership::mapper::DirectoryMapper, project::Project};
+use crate::{
+    ownership::mapper::DirectoryMapper,
+    project::{Project, Team},
+};
 
 pub use validator::Errors as ValidatorErrors;
 
@@ -29,7 +32,7 @@ pub struct Ownership {
 }
 
 pub struct FileOwner {
-    pub team_name: TeamName,
+    pub team: Team,
     pub team_config_file_path: String,
     pub sources: Vec<Source>,
 }
@@ -64,8 +67,8 @@ impl Display for FileOwner {
 
         write!(
             f,
-            "Team: {}\nTeam YML: {}\nDescription:\n- {}",
-            self.team_name, self.team_config_file_path, sources
+            "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- {}",
+            self.team.name, self.team.github_team, self.team_config_file_path, sources
         )
     }
 }
@@ -73,8 +76,12 @@ impl Display for FileOwner {
 impl Default for FileOwner {
     fn default() -> Self {
         Self {
-            team_name: "Unowned".to_string(),
-            team_config_file_path: "Unowned".to_string(),
+            team: Team {
+                name: "Unowned".to_string(),
+                github_team: "Unowned".to_string(),
+                ..Default::default()
+            },
+            team_config_file_path: "".to_string(),
             sources: vec![],
         }
     }
@@ -132,7 +139,7 @@ impl Ownership {
             .sorted_by_key(|owner| owner.team_name.to_lowercase())
             .map(|owner| match self.project.get_team(&owner.team_name) {
                 Some(team) => FileOwner {
-                    team_name: owner.team_name.clone(),
+                    team: team.clone(),
                     team_config_file_path: team
                         .path
                         .strip_prefix(&self.project.base_path)
@@ -220,7 +227,7 @@ mod tests {
         let ownership = build_ownership_with_all_mappers()?;
         let file_owners = ownership.for_file("app/consumers/directory_owned.rb").unwrap();
         assert_eq!(file_owners.len(), 1);
-        assert_eq!(file_owners[0].team_name, "Bar");
+        assert_eq!(file_owners[0].team.name, "Bar");
         assert_eq!(file_owners[0].team_config_file_path, "config/teams/bar.yml");
         Ok(())
     }
