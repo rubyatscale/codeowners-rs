@@ -6,6 +6,7 @@ use std::{
 };
 
 use error_stack::{Context, Result, ResultExt};
+use serde::Serialize;
 
 pub struct Project {
     pub base_path: PathBuf,
@@ -29,7 +30,7 @@ pub struct ProjectFile {
     pub path: PathBuf,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Team {
     pub path: PathBuf,
     pub name: String,
