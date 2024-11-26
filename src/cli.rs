@@ -16,7 +16,11 @@ use std::{
 #[derive(Subcommand, Debug)]
 enum Command {
     #[clap(about = "Finds the owner of a given file.", visible_alias = "f")]
-    ForFile { name: String },
+    ForFile {
+        name: String,
+        #[arg(long, help = "Output result as JSON")]
+        json: bool,
+    },
 
     #[clap(about = "Finds code ownership information for a given team ", visible_alias = "t")]
     ForTeam { name: String },
@@ -124,15 +128,41 @@ pub fn cli() -> Result<(), Error> {
             std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
             ownership.validate().change_context(Error::ValidationFailed)?
         }
-        Command::ForFile { name } => {
+        Command::ForFile { name, json } => {
             let file_owners = ownership.for_file(&name).change_context(Error::Io)?;
-            match file_owners.len() {
-                0 => println!("{}", FileOwner::default()),
-                1 => println!("{}", file_owners[0]),
-                _ => {
-                    println!("Error: file is owned by multiple teams!");
-                    for file_owner in file_owners {
-                        println!("\n{}", file_owner);
+            if json {
+                let output = match file_owners.len() {
+                    0 => serde_json::json!({
+                        "team_name": null,
+                        "team_yml": null
+                    }),
+                    1 => {
+                        let owner = &file_owners[0];
+                        serde_json::json!({
+                            "team_name": owner.team.name,
+                            "team_yml": owner.team_config_file_path
+                        })
+                    }
+                    _ => serde_json::json!({
+                        "error": "Multiple owners",
+                        "owners": file_owners.iter().map(|o| {
+                            serde_json::json!({
+                                "team_name": o.team,
+                                "team_yml": o.team_config_file_path
+                            })
+                        }).collect::<Vec<_>>()
+                    }),
+                };
+                println!("{}", serde_json::to_string(&output).unwrap());
+            } else {
+                match file_owners.len() {
+                    0 => println!("{}", FileOwner::default()),
+                    1 => println!("{}", file_owners[0]),
+                    _ => {
+                        println!("Error: file is owned by multiple teams!");
+                        for file_owner in file_owners {
+                            println!("\n{}", file_owner);
+                        }
                     }
                 }
             }
