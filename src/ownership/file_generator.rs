@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::{Entry, Mapper};
 
 pub struct FileGenerator {
@@ -41,7 +43,159 @@ impl FileGenerator {
 
     fn to_sorted_lines(entries: &[Entry]) -> Vec<String> {
         let mut lines: Vec<String> = entries.iter().map(|entry| entry.to_row()).collect();
-        lines.sort();
+        lines.sort_by(|a, b| {
+            if let Some((prefix, _)) = a.split_once("**") {
+                if b.starts_with(prefix) {
+                    return Ordering::Less;
+                }
+            }
+            if let Some((prefix, _)) = b.split_once("**") {
+                if a.starts_with(prefix) {
+                    return Ordering::Greater;
+                }
+            }
+            a.cmp(b)
+        });
         lines
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_sorted_lines_with_special_characters() {
+        // The `(` character is less than `*` in the default sort order.
+        let mut illustrate_issue = vec!["*".to_string(), "(".to_string()];
+        illustrate_issue.sort();
+        assert_eq!(illustrate_issue, vec!["(".to_string(), "*".to_string()]);
+
+        let entries = vec![
+            Entry {
+                // Problem is when a dir name starts with `(`.
+                path: "directory/owner/(my_folder)/**/**".to_string(),
+                github_team: "@foo".to_string(),
+                team_name: "footeam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                // Another example of a dir starting with `(`.
+                path: "directory/owner/(my_folder)/without_glob".to_string(),
+                github_team: "@zoo".to_string(),
+                team_name: "zooteam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                // And is compared to a glob that starts with `*`.
+                path: "directory/owner/**".to_string(),
+                github_team: "@bar".to_string(),
+                team_name: "barteam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "directory/owner/my_folder/**".to_string(),
+                github_team: "@baz".to_string(),
+                team_name: "bazteam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "directory/**".to_string(),
+                github_team: "@bop".to_string(),
+                team_name: "bopteam".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        assert_eq!(
+            sorted,
+            vec![
+                "/directory/** @bop",
+                "/directory/owner/** @bar",
+                "/directory/owner/(my_folder)/**/** @foo",
+                "/directory/owner/(my_folder)/without_glob @zoo",
+                "/directory/owner/my_folder/** @baz"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_basic_sorting() {
+        let entries = vec![
+            Entry {
+                path: "b_directory/owner/**".to_string(),
+                github_team: "@bar".to_string(),
+                team_name: "barteam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "a_directory/owner/**".to_string(),
+                github_team: "@foo".to_string(),
+                team_name: "footeam".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        assert_eq!(sorted, vec!["/a_directory/owner/** @foo", "/b_directory/owner/** @bar"]);
+    }
+
+    #[test]
+    fn test_sorting_with_mixed_case() {
+        let entries = vec![
+            Entry {
+                path: "directory/Owner/**".to_string(),
+                github_team: "@bar".to_string(),
+                team_name: "barteam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "directory/owner/**".to_string(),
+                github_team: "@foo".to_string(),
+                team_name: "footeam".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        assert_eq!(sorted, vec!["/directory/Owner/** @bar", "/directory/owner/** @foo"]);
+    }
+
+    #[test]
+    fn test_sorting_with_numbers() {
+        let entries = vec![
+            Entry {
+                path: "directory/owner1/**".to_string(),
+                github_team: "@foo".to_string(),
+                team_name: "footeam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "directory/owner2/**".to_string(),
+                github_team: "@bar".to_string(),
+                team_name: "barteam".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        assert_eq!(sorted, vec!["/directory/owner1/** @foo", "/directory/owner2/** @bar"]);
+    }
+
+    #[test]
+    fn test_sorting_with_special_characters() {
+        let entries = vec![
+            Entry {
+                path: "directory/owner-1/**".to_string(),
+                github_team: "@foo".to_string(),
+                team_name: "footeam".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "directory/owner_2/**".to_string(),
+                github_team: "@bar".to_string(),
+                team_name: "barteam".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        assert_eq!(sorted, vec!["/directory/owner-1/** @foo", "/directory/owner_2/** @bar"]);
     }
 }

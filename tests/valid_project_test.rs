@@ -120,6 +120,7 @@ fn test_for_team() -> Result<(), Box<dyn Error>> {
             This team owns nothing in this category.
 
             ## Owner in .codeowner
+            /javascript/packages/items/**/**
             /ruby/app/payroll/**/**
 
             ## Owner metadata key in package.yml
