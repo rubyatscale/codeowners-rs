@@ -12,7 +12,7 @@ pub struct FileOwnerFinder<'a> {
     pub owner_matchers: &'a [OwnerMatcher],
 }
 
-impl<'a> FileOwnerFinder<'a> {
+impl FileOwnerFinder<'_> {
     pub fn find(&self, relative_path: &Path) -> Vec<Owner> {
         let mut team_sources_map: HashMap<&TeamName, Vec<Source>> = HashMap::new();
         let mut directory_overrider = DirectoryOverrider::default();
