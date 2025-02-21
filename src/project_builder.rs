@@ -12,7 +12,7 @@ use tracing::instrument;
 use crate::{
     cache::Cache,
     config::Config,
-    project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
+    project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
 };
 

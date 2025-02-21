@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use codeowners::{
-    cache::{file::GlobalCache, noop::NoopCache, Cache, Caching},
+    cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,

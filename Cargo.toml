@@ -1,7 +1,7 @@
 [package]
 name = "codeowners"
 version = "0.2.3"
-edition = "2021"
+edition = "2024"
 
 [profile.release]
 debug = true
@@ -16,7 +16,7 @@ error-stack = "0.5.0"
 enum_dispatch = "0.3.13"
 fast-glob = "0.4.0"
 ignore = "0.4.23"
-itertools = "0.13.0"
+itertools = "0.14.0"
 lazy_static = "1.5.0"
 path-clean = "1.0.1"
 rayon = "1.10.0"

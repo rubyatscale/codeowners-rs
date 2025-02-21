@@ -54,7 +54,7 @@ fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
             return ProjectFile {
                 path: path.clone(),
                 owner: None,
-            }
+            };
         }
     };
 

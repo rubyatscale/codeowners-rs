@@ -99,11 +99,7 @@ pub struct Entry {
 impl Entry {
     fn to_row(&self) -> String {
         let line = format!("/{} {}", self.path, self.github_team);
-        if self.disabled {
-            format!("# {}", line)
-        } else {
-            line
-        }
+        if self.disabled { format!("# {}", line) } else { line }
     }
 }
 
@@ -379,8 +375,10 @@ mod tests {
         "};
 
         let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file);
-        assert!(team_ownership
-            .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file"));
+        assert!(
+            team_ownership
+                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file")
+        );
         Ok(())
     }
 
@@ -392,8 +390,10 @@ mod tests {
         "};
 
         let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file);
-        assert!(team_ownership
-            .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file"));
+        assert!(
+            team_ownership
+                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file")
+        );
         Ok(())
     }
 
