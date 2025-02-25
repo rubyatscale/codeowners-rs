@@ -1,17 +1,9 @@
 use clap::{Parser, Subcommand};
-use codeowners::{
-    cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
-    config::Config,
-    ownership::{FileOwner, Ownership},
-    project_builder::ProjectBuilder,
-};
-use core::fmt;
-use error_stack::{Context, Result, ResultExt};
+use codeowners::runner::Error as RunnerError;
+use codeowners::runner::{RunConfig, Runner};
+use error_stack::{Result, ResultExt};
 use path_clean::PathClean;
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -64,105 +56,52 @@ struct Args {
 }
 
 impl Args {
-    fn absolute_project_root(&self) -> Result<PathBuf, Error> {
-        self.project_root.canonicalize().change_context(Error::Io)
+    fn absolute_project_root(&self) -> Result<PathBuf, RunnerError> {
+        self.project_root.canonicalize().change_context(RunnerError::Io)
     }
 
-    fn absolute_config_path(&self) -> Result<PathBuf, Error> {
+    fn absolute_config_path(&self) -> Result<PathBuf, RunnerError> {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<PathBuf, Error> {
+    fn absolute_codeowners_path(&self) -> Result<PathBuf, RunnerError> {
         Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
     }
 
-    fn absolute_path(&self, path: &Path) -> Result<PathBuf, Error> {
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf, RunnerError> {
         Ok(self.absolute_project_root()?.join(path))
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    Io,
-    ValidationFailed,
-}
-
-impl Context for Error {}
-
-pub fn cli() -> Result<(), Error> {
+pub fn cli() -> Result<(), RunnerError> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
     let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
-    let config_file = File::open(&config_path)
-        .change_context(Error::Io)
-        .attach_printable(format!("Can't open config file: {}", config_path.to_string_lossy()))?;
-
-    let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
-    let cache: Cache = if args.no_cache {
-        NoopCache::default().into()
-    } else {
-        GlobalCache::new(project_root.clone(), config.cache_directory.clone())
-            .change_context(Error::Io)?
-            .into()
+    let run_config = RunConfig {
+        config_path,
+        codeowners_file_path,
+        project_root,
+        no_cache: args.no_cache,
     };
 
-    let mut project_builder = ProjectBuilder::new(&config, project_root.clone(), codeowners_file_path.clone(), &cache);
-    let project = project_builder.build().change_context(Error::Io)?;
-    let ownership = Ownership::build(project);
-
-    cache.persist_cache().change_context(Error::Io)?;
+    let runner = Runner::new(run_config).change_context(RunnerError::Io)?;
 
     match args.command {
-        Command::Validate => ownership.validate().change_context(Error::ValidationFailed)?,
-        Command::Generate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
-        }
+        Command::Validate => runner.validate()?,
+        Command::Generate => runner.generate()?,
         Command::GenerateAndValidate => {
-            std::fs::write(codeowners_file_path, ownership.generate_file()).change_context(Error::Io)?;
-            ownership.validate().change_context(Error::ValidationFailed)?
+            runner.generate()?;
+            runner.validate()?;
         }
         Command::ForFile { name } => {
-            let file_owners = ownership.for_file(&name).change_context(Error::Io)?;
-            match file_owners.len() {
-                0 => println!("{}", FileOwner::default()),
-                1 => println!("{}", file_owners[0]),
-                _ => {
-                    println!("Error: file is owned by multiple teams!");
-                    for file_owner in file_owners {
-                        println!("\n{}", file_owner);
-                    }
-                }
-            }
+            runner.for_file(&name)?;
         }
-        Command::ForTeam { name } => match ownership.for_team(&name) {
-            Ok(team_ownerships) => {
-                println!("# Code Ownership Report for `{}` Team", name);
-                for team_ownership in team_ownerships {
-                    println!("\n#{}", team_ownership.heading);
-                    match team_ownership.globs.len() {
-                        0 => println!("This team owns nothing in this category."),
-                        _ => println!("{}", team_ownership.globs.join("\n")),
-                    }
-                }
-            }
-            Err(err) => println!("{}", err),
-        },
-        Command::DeleteCache => {
-            cache.delete_cache().change_context(Error::Io)?;
-        }
+        Command::ForTeam { name } => runner.for_team(&name)?,
+        Command::DeleteCache => runner.delete_cache()?,
     }
 
     Ok(())
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Io => fmt.write_str("Error::Io"),
-            Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
-        }
-    }
 }
