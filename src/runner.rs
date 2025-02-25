@@ -2,6 +2,7 @@ use core::fmt;
 use std::{fs::File, path::PathBuf};
 
 use error_stack::{Context, Result, ResultExt};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
@@ -10,6 +11,50 @@ use crate::{
     project_builder::ProjectBuilder,
 };
 
+pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
+    let runner = match Runner::new(run_config.clone()) {
+        Ok(runner) => runner,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            };
+        }
+    };
+    match runner.validate() {
+        Ok(_) => RunResult::default(),
+        Err(err) => RunResult {
+            validate_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
+}
+
+pub fn generate_and_validate(run_config: &RunConfig) -> RunResult {
+    let runner = match Runner::new(run_config.clone()) {
+        Ok(runner) => runner,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            };
+        }
+    };
+    match runner.generate_and_validate() {
+        Ok(_) => RunResult::default(),
+        Err(err) => RunResult {
+            validate_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
+}
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct RunResult {
+    pub validate_errors: Vec<String>,
+    pub io_errors: Vec<String>,
+    pub info_messages: Vec<String>,
+}
+#[derive(Debug, Clone)]
 pub struct RunConfig {
     pub project_root: PathBuf,
     pub codeowners_file_path: PathBuf,
