@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use codeowners::runner::Error as RunnerError;
+use codeowners::runner::{Error as RunnerError, RunResult};
 use codeowners::runner::{RunConfig, Runner};
 use error_stack::{Result, ResultExt};
 use path_clean::PathClean;
@@ -73,7 +73,7 @@ impl Args {
     }
 }
 
-pub fn cli() -> Result<(), RunnerError> {
+pub fn cli() -> Result<RunResult, RunnerError> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
@@ -89,19 +89,14 @@ pub fn cli() -> Result<(), RunnerError> {
 
     let runner = Runner::new(run_config).change_context(RunnerError::Io)?;
 
-    match args.command {
-        Command::Validate => runner.validate()?,
-        Command::Generate => runner.generate()?,
-        Command::GenerateAndValidate => {
-            runner.generate()?;
-            runner.validate()?;
-        }
-        Command::ForFile { name } => {
-            runner.for_file(&name)?;
-        }
-        Command::ForTeam { name } => runner.for_team(&name)?,
-        Command::DeleteCache => runner.delete_cache()?,
-    }
+    let runner_result = match args.command {
+        Command::Validate => runner.validate(),
+        Command::Generate => runner.generate(),
+        Command::GenerateAndValidate => runner.generate_and_validate(),
+        Command::ForFile { name } => runner.for_file(&name),
+        Command::ForTeam { name } => runner.for_team(&name),
+        Command::DeleteCache => runner.delete_cache(),
+    };
 
-    Ok(())
+    Ok(runner_result)
 }

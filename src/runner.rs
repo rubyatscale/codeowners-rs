@@ -12,25 +12,24 @@ use crate::{
 };
 
 pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
-    let runner = match Runner::new(run_config.clone()) {
-        Ok(runner) => runner,
-        Err(err) => {
-            return RunResult {
-                io_errors: vec![err.to_string()],
-                ..Default::default()
-            };
-        }
-    };
-    match runner.validate() {
-        Ok(_) => RunResult::default(),
-        Err(err) => RunResult {
-            validate_errors: vec![err.to_string()],
-            ..Default::default()
-        },
-    }
+    run_with_runner(run_config, |runner| runner.validate())
+}
+
+pub fn generate(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.generate())
 }
 
 pub fn generate_and_validate(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.generate_and_validate())
+}
+
+pub fn delete_cache(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.delete_cache())
+}
+
+pub type Runnable = fn(Runner) -> RunResult;
+
+pub fn run_with_runner(run_config: &RunConfig, runnable: Runnable) -> RunResult {
     let runner = match Runner::new(run_config.clone()) {
         Ok(runner) => runner,
         Err(err) => {
@@ -40,17 +39,12 @@ pub fn generate_and_validate(run_config: &RunConfig) -> RunResult {
             };
         }
     };
-    match runner.generate_and_validate() {
-        Ok(_) => RunResult::default(),
-        Err(err) => RunResult {
-            validate_errors: vec![err.to_string()],
-            ..Default::default()
-        },
-    }
+    runnable(runner)
 }
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct RunResult {
-    pub validate_errors: Vec<String>,
+    pub validation_errors: Vec<String>,
     pub io_errors: Vec<String>,
     pub info_messages: Vec<String>,
 }
@@ -66,6 +60,12 @@ pub struct Runner {
     run_config: RunConfig,
     ownership: Ownership,
     cache: Cache,
+}
+
+impl RunResult {
+    pub fn has_errors(&self) -> bool {
+        !self.validation_errors.is_empty() || !self.io_errors.is_empty()
+    }
 }
 
 #[derive(Debug)]
@@ -117,56 +117,94 @@ impl Runner {
         })
     }
 
-    pub fn validate(&self) -> Result<(), Error> {
-        self.ownership.validate().change_context(Error::ValidationFailed)?;
-        Ok(())
-    }
-
-    pub fn generate(&self) -> Result<(), Error> {
-        std::fs::write(&self.run_config.codeowners_file_path, self.ownership.generate_file()).change_context(Error::Io)?;
-        Ok(())
-    }
-
-    pub fn generate_and_validate(&self) -> Result<(), Error> {
-        self.generate().change_context(Error::Io)?;
-        self.validate().change_context(Error::ValidationFailed)?;
-        Ok(())
-    }
-
-    pub fn for_file(&self, file_path: &str) -> Result<(), Error> {
-        let file_owners = self.ownership.for_file(file_path).change_context(Error::Io)?;
-        match file_owners.len() {
-            0 => println!("{}", FileOwner::default()),
-            1 => println!("{}", file_owners[0]),
-            _ => {
-                println!("Error: file is owned by multiple teams!");
-                for file_owner in file_owners {
-                    println!("\n{}", file_owner);
-                }
-            }
+    pub fn validate(&self) -> RunResult {
+        match self.ownership.validate() {
+            Ok(_) => RunResult::default(),
+            Err(err) => RunResult {
+                validation_errors: vec![format!("{}", err)],
+                ..Default::default()
+            },
         }
-        Ok(())
     }
 
-    pub fn for_team(&self, team_name: &str) -> Result<(), Error> {
+    pub fn generate(&self) -> RunResult {
+        match std::fs::write(&self.run_config.codeowners_file_path, self.ownership.generate_file()) {
+            Ok(_) => RunResult::default(),
+            Err(err) => RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn generate_and_validate(&self) -> RunResult {
+        let run_result = self.generate();
+        if run_result.has_errors() {
+            return run_result;
+        }
+        self.validate()
+    }
+
+    pub fn for_file(&self, file_path: &str) -> RunResult {
+        let file_owners = match self.ownership.for_file(file_path) {
+            Ok(file_owners) => file_owners,
+            Err(err) => {
+                return RunResult {
+                    io_errors: vec![err.to_string()],
+                    ..Default::default()
+                };
+            }
+        };
+        let info_messages: Vec<String> = match file_owners.len() {
+            0 => vec![format!("{}", FileOwner::default())],
+            1 => vec![format!("{}", file_owners[0])],
+            _ => {
+                let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
+                for file_owner in file_owners {
+                    error_messages.push(format!("\n{}", file_owner));
+                }
+                return RunResult {
+                    validation_errors: error_messages,
+                    ..Default::default()
+                };
+            }
+        };
+        RunResult {
+            info_messages,
+            ..Default::default()
+        }
+    }
+
+    pub fn for_team(&self, team_name: &str) -> RunResult {
+        let mut info_messages = vec![];
+        let mut io_errors = vec![];
         match self.ownership.for_team(team_name) {
             Ok(team_ownerships) => {
-                println!("# Code Ownership Report for `{}` Team", team_name);
+                info_messages.push(format!("# Code Ownership Report for `{}` Team", team_name));
                 for team_ownership in team_ownerships {
-                    println!("\n#{}", team_ownership.heading);
+                    info_messages.push(format!("\n#{}", team_ownership.heading));
                     match team_ownership.globs.len() {
-                        0 => println!("This team owns nothing in this category."),
-                        _ => println!("{}", team_ownership.globs.join("\n")),
+                        0 => info_messages.push("This team owns nothing in this category.".to_string()),
+                        _ => info_messages.push(team_ownership.globs.join("\n")),
                     }
                 }
             }
-            Err(err) => println!("{}", err),
+            Err(err) => io_errors.push(format!("{}", err)),
         }
-        Ok(())
+        RunResult {
+            info_messages,
+            io_errors,
+            ..Default::default()
+        }
     }
 
-    pub fn delete_cache(&self) -> Result<(), Error> {
-        self.cache.delete_cache().change_context(Error::Io)?;
-        Ok(())
+    pub fn delete_cache(&self) -> RunResult {
+        match self.cache.delete_cache().change_context(Error::Io) {
+            Ok(_) => RunResult::default(),
+            Err(err) => RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            },
+        }
     }
 }
