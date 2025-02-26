@@ -19,7 +19,7 @@ pub fn generate(run_config: &RunConfig) -> RunResult {
     run_with_runner(run_config, |runner| runner.generate())
 }
 
-pub fn generate_and_validate(run_config: &RunConfig) -> RunResult {
+pub fn generate_and_validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
     run_with_runner(run_config, |runner| runner.generate_and_validate())
 }
 
@@ -30,7 +30,7 @@ pub fn delete_cache(run_config: &RunConfig) -> RunResult {
 pub type Runnable = fn(Runner) -> RunResult;
 
 pub fn run_with_runner(run_config: &RunConfig, runnable: Runnable) -> RunResult {
-    let runner = match Runner::new(run_config.clone()) {
+    let runner = match Runner::new(run_config) {
         Ok(runner) => runner,
         Err(err) => {
             return RunResult {
@@ -70,7 +70,7 @@ impl RunResult {
 
 #[derive(Debug)]
 pub enum Error {
-    Io,
+    Io(String),
     ValidationFailed,
 }
 
@@ -78,24 +78,34 @@ impl Context for Error {}
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io => fmt.write_str("Error::Io"),
+            Error::Io(msg) => fmt.write_str(&format!("{}", msg)),
             Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
         }
     }
 }
 
 impl Runner {
-    pub fn new(run_config: RunConfig) -> Result<Self, Error> {
+    pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
         let config_file = File::open(&run_config.config_path)
-            .change_context(Error::Io)
+            .change_context(Error::Io(format!(
+                "Can't open config file: {}",
+                &run_config.config_path.to_string_lossy()
+            )))
             .attach_printable(format!("Can't open config file: {}", &run_config.config_path.to_string_lossy()))?;
 
-        let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io)?;
+        let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io(format!(
+            "Can't parse config file: {}",
+            &run_config.config_path.to_string_lossy()
+        )))?;
         let cache: Cache = if run_config.no_cache {
             NoopCache::default().into()
         } else {
             GlobalCache::new(run_config.project_root.clone(), config.cache_directory.clone())
-                .change_context(Error::Io)?
+                .change_context(Error::Io(format!(
+                    "Can't create cache: {}",
+                    &run_config.config_path.to_string_lossy()
+                )))
+                .attach_printable(format!("Can't create cache: {}", &run_config.config_path.to_string_lossy()))?
                 .into()
         };
 
@@ -105,13 +115,19 @@ impl Runner {
             run_config.codeowners_file_path.clone(),
             &cache,
         );
-        let project = project_builder.build().change_context(Error::Io)?;
+        let project = project_builder.build().change_context(Error::Io(format!(
+            "Can't build project: {}",
+            &run_config.config_path.to_string_lossy()
+        )))?;
         let ownership = Ownership::build(project);
 
-        cache.persist_cache().change_context(Error::Io)?;
+        cache.persist_cache().change_context(Error::Io(format!(
+            "Can't persist cache: {}",
+            &run_config.config_path.to_string_lossy()
+        )))?;
 
         Ok(Self {
-            run_config,
+            run_config: run_config.clone(),
             ownership,
             cache,
         })
@@ -199,7 +215,10 @@ impl Runner {
     }
 
     pub fn delete_cache(&self) -> RunResult {
-        match self.cache.delete_cache().change_context(Error::Io) {
+        match self.cache.delete_cache().change_context(Error::Io(format!(
+            "Can't delete cache: {}",
+            &self.run_config.config_path.to_string_lossy()
+        ))) {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
                 io_errors: vec![err.to_string()],

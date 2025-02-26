@@ -57,7 +57,10 @@ struct Args {
 
 impl Args {
     fn absolute_project_root(&self) -> Result<PathBuf, RunnerError> {
-        self.project_root.canonicalize().change_context(RunnerError::Io)
+        self.project_root.canonicalize().change_context(RunnerError::Io(format!(
+            "Can't canonicalize project root: {}",
+            &self.project_root.to_string_lossy()
+        )))
     }
 
     fn absolute_config_path(&self) -> Result<PathBuf, RunnerError> {
@@ -87,7 +90,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         no_cache: args.no_cache,
     };
 
-    let runner = Runner::new(run_config).change_context(RunnerError::Io)?;
+    let runner = Runner::new(&run_config)?;
 
     let runner_result = match args.command {
         Command::Validate => runner.validate(),
