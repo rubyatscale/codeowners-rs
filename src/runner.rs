@@ -78,7 +78,7 @@ impl Context for Error {}
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io(msg) => fmt.write_str(&format!("{}", msg)),
+            Error::Io(msg) => fmt.write_str(msg),
             Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
         }
     }
