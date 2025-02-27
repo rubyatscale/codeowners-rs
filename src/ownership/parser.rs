@@ -1,6 +1,10 @@
 use crate::ownership::{FileGenerator, TeamOwnership};
 use std::error::Error;
 
+pub fn team_name_from_file_path(file_path: &str, codeowners_file: &str) -> Result<Option<String>, Box<dyn Error>> {
+   todo!()
+}
+
 pub fn parse_for_team(team_name: String, codeowners_file: &str) -> Result<Vec<TeamOwnership>, Box<dyn Error>> {
     let mut output = vec![];
     let mut current_section: Option<TeamOwnership> = None;
@@ -210,6 +214,50 @@ mod tests {
                 },
             ],
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_team_name_from_file_path_exact_match() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned @Foo
+        "};
+        let team_name = team_name_from_file_path("path/to/owned", codeownership_file)?;
+        assert_eq!(team_name, Some("@Foo".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_team_name_from_file_path_glob_match() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned/** @Foo
+        "};
+        let team_name = team_name_from_file_path("path/to/owned/file", codeownership_file)?;
+        assert_eq!(team_name, Some("@Foo".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_team_name_from_file_path_no_match() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+        "};
+        let team_name = team_name_from_file_path("path/to/owned/file", codeownership_file)?;
+        assert_eq!(team_name, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_team_name_from_file_path_prioritize_lowest_match() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned/file @Foo
+            /path/to/owned/file @Bar
+        "};
+        let team_name = team_name_from_file_path("path/to/owned/file", codeownership_file)?;
+        assert_eq!(team_name, Some("@Bar".to_string()));
         Ok(())
     }
 }
