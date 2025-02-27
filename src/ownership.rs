@@ -125,6 +125,12 @@ impl Ownership {
     }
 
     #[instrument(level = "debug", skip_all)]
+    pub fn fast_for_file(&self, file_path: &str) -> Result<(String, String), ValidatorErrors> {
+        let file_owner = self.for_file(file_path)?;
+        Ok((file_owner[0].team.name.clone(), file_owner[0].team.github_team.clone()))
+    }
+
+    #[instrument(level = "debug", skip_all)]
     pub fn for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, ValidatorErrors> {
         info!("getting file ownership for {}", file_path);
         let owner_matchers: Vec<OwnerMatcher> = self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect();
