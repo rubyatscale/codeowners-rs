@@ -76,6 +76,11 @@ impl<'a> ProjectBuilder<'a> {
             .expect("expected a file_name")
             .to_string_lossy()
             .to_lowercase();
+        
+        if relative_path.to_str().unwrap() == "frontend/packages/components/src/components/Icon/.codeowner" {
+            dbg!(&file_name);
+            dbg!(file_name.as_str() == ".codeowner");
+        }
 
         match file_name.as_str() {
             name if name == "package.yml" && matches_globs(relative_path.parent().unwrap(), &self.config.ruby_package_paths) => {
