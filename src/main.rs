@@ -1,27 +1,33 @@
 mod cli;
 use std::process;
 
-use cli::Error;
-use codeowners::ownership;
+use codeowners::runner::{Error as RunnerError, RunResult};
 use error_stack::Result;
 
 use crate::cli::cli;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), RunnerError> {
     install_logger();
-    maybe_print_errors(cli())?;
+    maybe_print_errors(cli()?)?;
 
     Ok(())
 }
 
-fn maybe_print_errors(result: Result<(), Error>) -> Result<(), Error> {
-    if let Err(error) = result {
-        if let Some(validation_errors) = error.downcast_ref::<ownership::ValidatorErrors>() {
-            println!("{}", validation_errors);
-            process::exit(-1);
-        } else {
-            Err(error)?
+fn maybe_print_errors(result: RunResult) -> Result<(), RunnerError> {
+    dbg!(&result);
+    if !result.info_messages.is_empty() {
+        for msg in result.info_messages {
+            println!("{}", msg);
         }
+    }
+    if !result.io_errors.is_empty() || !result.validation_errors.is_empty() {
+        for msg in result.io_errors {
+            println!("{}", msg);
+        }
+        for msg in result.validation_errors {
+            println!("{}", msg);
+        }
+        process::exit(-1);
     }
 
     Ok(())

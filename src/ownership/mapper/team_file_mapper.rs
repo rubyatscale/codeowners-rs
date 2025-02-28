@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::escaper::escape_brackets;
 use super::Entry;
+use super::escaper::escape_brackets;
 use super::{Mapper, OwnerMatcher};
 use crate::ownership::mapper::Source;
 use crate::project::Project;

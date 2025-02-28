@@ -80,7 +80,7 @@ impl OwnerMatcher {
                     (None, source)
                 }
             }
-            OwnerMatcher::ExactMatches(ref path_to_team, source) => (path_to_team.get(relative_path), source),
+            OwnerMatcher::ExactMatches(path_to_team, source) => (path_to_team.get(relative_path), source),
         }
     }
 }

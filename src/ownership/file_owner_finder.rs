@@ -57,7 +57,7 @@ impl<'a> DirectoryOverrider<'a> {
     fn process(&mut self, team_name: &'a TeamName, source: &'a Source) {
         if self
             .specific_directory_owner
-            .map_or(true, |(_, current_source)| current_source.len() < source.len())
+            .is_none_or(|(_, current_source)| current_source.len() < source.len())
         {
             self.specific_directory_owner = Some((team_name, source));
         }

@@ -11,7 +11,7 @@ pub mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        cache::{noop::NoopCache, Cache},
+        cache::{Cache, noop::NoopCache},
         config::Config,
         ownership::Ownership,
         project_builder::ProjectBuilder,

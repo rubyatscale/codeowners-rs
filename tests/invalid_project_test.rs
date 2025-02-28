@@ -70,7 +70,7 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
         .arg("for-file")
         .arg("ruby/app/services/multi_owned.rb")
         .assert()
-        .success()
+        .failure()
         .stdout(predicate::eq(indoc! {"
             Error: file is owned by multiple teams!
             
