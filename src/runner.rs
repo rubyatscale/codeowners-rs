@@ -1,15 +1,14 @@
 use core::fmt;
 use std::{fs::File, path::PathBuf};
 
-use error_stack::{Context, Result, ResultExt};
-use serde::{Deserialize, Serialize};
-
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,
 };
+use error_stack::{Context, Result, ResultExt};
+use serde::{Deserialize, Serialize};
 
 pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
     run_with_runner(run_config, |runner| runner.validate())
@@ -27,9 +26,18 @@ pub fn delete_cache(run_config: &RunConfig) -> RunResult {
     run_with_runner(run_config, |runner| runner.delete_cache())
 }
 
-pub type Runnable = fn(Runner) -> RunResult;
+pub fn for_file(run_config: &RunConfig, file_path: &str) -> RunResult {
+    run_with_runner(run_config, |runner| runner.for_file(file_path))
+}
 
-pub fn run_with_runner(run_config: &RunConfig, runnable: Runnable) -> RunResult {
+pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
+    run_with_runner(run_config, |runner| runner.for_team(team_name))
+}
+
+pub fn run_with_runner<F>(run_config: &RunConfig, runnable: F) -> RunResult
+where
+    F: FnOnce(Runner) -> RunResult,
+{
     let runner = match Runner::new(run_config) {
         Ok(runner) => runner,
         Err(err) => {

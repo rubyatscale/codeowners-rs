@@ -148,7 +148,7 @@ fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
         .arg("Nope")
         .assert()
         .failure()
-        .stdout(predicate::eq(indoc! {"
+        .stderr(predicate::eq(indoc! {"
             Team not found
         "}));
 

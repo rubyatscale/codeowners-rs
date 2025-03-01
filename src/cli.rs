@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use codeowners::runner::{Error as RunnerError, RunResult};
-use codeowners::runner::{RunConfig, Runner};
+use codeowners::runner::RunConfig;
+use codeowners::runner::{self, Error as RunnerError, RunResult};
 use error_stack::{Result, ResultExt};
 use path_clean::PathClean;
 use std::path::{Path, PathBuf};
@@ -89,16 +89,15 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         project_root,
         no_cache: args.no_cache,
     };
-
-    let runner = Runner::new(&run_config)?;
+    let todo_file_paths: Vec<String> = vec![];
 
     let runner_result = match args.command {
-        Command::Validate => runner.validate(),
-        Command::Generate => runner.generate(),
-        Command::GenerateAndValidate => runner.generate_and_validate(),
-        Command::ForFile { name } => runner.for_file(&name),
-        Command::ForTeam { name } => runner.for_team(&name),
-        Command::DeleteCache => runner.delete_cache(),
+        Command::Validate => runner::validate(&run_config, todo_file_paths),
+        Command::Generate => runner::generate(&run_config),
+        Command::GenerateAndValidate => runner::generate_and_validate(&run_config, todo_file_paths),
+        Command::ForFile { name } => runner::for_file(&run_config, &name),
+        Command::ForTeam { name } => runner::for_team(&run_config, &name),
+        Command::DeleteCache => runner::delete_cache(&run_config),
     };
 
     Ok(runner_result)
