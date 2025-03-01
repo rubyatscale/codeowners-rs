@@ -14,7 +14,6 @@ fn main() -> Result<(), RunnerError> {
 }
 
 fn maybe_print_errors(result: RunResult) -> Result<(), RunnerError> {
-    dbg!(&result);
     if !result.info_messages.is_empty() {
         for msg in result.info_messages {
             println!("{}", msg);
