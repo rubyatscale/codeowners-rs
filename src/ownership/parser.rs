@@ -1,5 +1,32 @@
 use crate::ownership::{FileGenerator, TeamOwnership};
-use std::error::Error;
+use fast_glob::glob_match;
+use std::{error::Error, path::Path};
+
+pub fn team_name_from_file_path(file_path: &Path, codeowners_file: &str) -> Option<String> {
+    let stripped_lines = stripped_lines_by_priority(codeowners_file);
+    let slash_prefixed = if file_path.starts_with("/") {
+        file_path.to_str().unwrap().to_string()
+    } else {
+        format!("/{}", file_path.to_str()?)
+    };
+    for line in stripped_lines {
+        let (glob, team_name) = line.split_once(' ')?;
+        if glob_match(glob, &slash_prefixed) {
+            return Some(team_name.to_string());
+        }
+    }
+
+    None
+}
+
+fn stripped_lines_by_priority(codeowners_file: &str) -> Vec<String> {
+    codeowners_file
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.trim().starts_with("#"))
+        .map(|line| line.trim().to_string())
+        .rev()
+        .collect()
+}
 
 pub fn parse_for_team(team_name: String, codeowners_file: &str) -> Result<Vec<TeamOwnership>, Box<dyn Error>> {
     let mut output = vec![];
@@ -210,6 +237,33 @@ mod tests {
                 },
             ],
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_stripped_lines_by_priority() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned @Foo
+        "};
+
+        let stripped_lines = stripped_lines_by_priority(codeownership_file);
+        assert_eq!(stripped_lines, vec!["/path/to/owned @Foo"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_stripped_lines_by_priority_with_multiple_sections() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned @Foo
+
+            # Second Section
+            /another/path/to/owned @Bar
+        "};
+
+        let stripped_lines = stripped_lines_by_priority(codeownership_file);
+        assert_eq!(stripped_lines, vec!["/another/path/to/owned @Bar", "/path/to/owned @Foo"]);
         Ok(())
     }
 }

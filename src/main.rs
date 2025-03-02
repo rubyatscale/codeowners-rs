@@ -21,7 +21,7 @@ fn maybe_print_errors(result: RunResult) -> Result<(), RunnerError> {
     }
     if !result.io_errors.is_empty() || !result.validation_errors.is_empty() {
         for msg in result.io_errors {
-            println!("{}", msg);
+            eprintln!("{}", msg);
         }
         for msg in result.validation_errors {
             println!("{}", msg);
