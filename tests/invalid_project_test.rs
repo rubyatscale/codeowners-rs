@@ -48,7 +48,6 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .arg("tests/fixtures/invalid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--verbose")
         .arg("ruby/app/models/blockchain.rb")
         .assert()
         .success()
@@ -63,13 +62,30 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/invalid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg("ruby/app/models/blockchain.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Unowned
+            Team YML:
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/invalid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--verbose")
         .arg("ruby/app/services/multi_owned.rb")
         .assert()
         .failure()

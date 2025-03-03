@@ -9,8 +9,13 @@ use std::path::{Path, PathBuf};
 enum Command {
     #[clap(about = "Finds the owner of a given file.", visible_alias = "f")]
     ForFile {
-        #[arg(short, long, default_value = "false")]
-        verbose: bool,
+        #[arg(
+            short,
+            long,
+            default_value = "false",
+            help = "Find the owner from the CODEOWNERS file and just return the team name and yml path"
+        )]
+        fast: bool,
         name: String,
     },
 
@@ -98,7 +103,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::Validate => runner::validate(&run_config, vec![]),
         Command::Generate => runner::generate(&run_config),
         Command::GenerateAndValidate => runner::generate_and_validate(&run_config, vec![]),
-        Command::ForFile { name, verbose } => runner::for_file(&run_config, &name, verbose),
+        Command::ForFile { name, fast } => runner::for_file(&run_config, &name, fast),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
     };

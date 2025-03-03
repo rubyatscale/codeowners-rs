@@ -4,7 +4,7 @@ use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
     fmt::{self, Display},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 use tracing::{info, instrument};
@@ -12,7 +12,7 @@ use tracing::{info, instrument};
 mod file_generator;
 mod file_owner_finder;
 pub(crate) mod mapper;
-mod parser;
+pub(crate) mod parser;
 mod validator;
 
 use crate::{
@@ -176,10 +176,6 @@ impl Ownership {
             Box::new(TeamGemMapper::build(self.project.clone())),
         ]
     }
-}
-
-pub fn fast_team_name_from_file_path(file_path: &str, code_owners_file_path: &PathBuf) -> Result<Option<String>, Box<dyn Error>> {
-    parser::team_name_from_file_path(Path::new(file_path), code_owners_file_path)
 }
 
 #[cfg(test)]

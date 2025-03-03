@@ -43,7 +43,6 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--verbose")
         .arg("ruby/app/models/payroll.rb")
         .assert()
         .success()
@@ -58,13 +57,30 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg("ruby/app/models/payroll.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--verbose")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()
@@ -80,13 +96,30 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg("javascript/packages/PayrollFlow/index.tsx")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--verbose")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()

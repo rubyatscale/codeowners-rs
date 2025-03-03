@@ -1,5 +1,8 @@
 use core::fmt;
-use std::{fs::File, path::PathBuf};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use error_stack::{Context, Result, ResultExt};
 use serde::{Deserialize, Serialize};
@@ -7,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
-    ownership::{FileOwner, Ownership, fast_team_name_from_file_path},
+    ownership::{FileOwner, Ownership},
+    project::Team,
     project_builder::ProjectBuilder,
 };
 
@@ -31,26 +35,49 @@ pub struct Runner {
     cache: Cache,
 }
 
-pub fn for_file(run_config: &RunConfig, file_path: &str, verbose: bool) -> RunResult {
-    if verbose {
-        run_with_runner(run_config, |runner| runner.for_file(file_path))
+pub fn for_file(run_config: &RunConfig, file_path: &str, fast: bool) -> RunResult {
+    if fast {
+        for_file_from_codeowners(run_config, file_path)
     } else {
-        let result = fast_team_name_from_file_path(file_path, &run_config.codeowners_file_path);
-        match result {
-            Ok(Some(team_name)) => RunResult {
-                info_messages: vec![format!("{}", team_name)],
-                ..Default::default()
-            },
-            Ok(None) => RunResult {
-                info_messages: vec!["No team found".to_string()],
-                ..Default::default()
-            },
-            Err(err) => RunResult {
-                io_errors: vec![err.to_string()],
-                ..Default::default()
-            },
-        }
+        run_with_runner(run_config, |runner| runner.for_file(file_path))
     }
+}
+
+fn for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> RunResult {
+    match team_for_file_from_codeowners(run_config, file_path) {
+        Ok(Some(team)) => {
+            let relative_team_yml_path = team.path.strip_prefix(&run_config.project_root).unwrap_or(&team.path);
+
+            RunResult {
+                info_messages: vec![
+                    format!("Team: {}", team.name),
+                    format!("Team YML: {}", relative_team_yml_path.display()),
+                ],
+                ..Default::default()
+            }
+        }
+        Ok(None) => RunResult {
+            info_messages: vec!["Team: Unowned".to_string(), "Team YML:".to_string()],
+            ..Default::default()
+        },
+        Err(err) => RunResult {
+            io_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
+}
+
+pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+    let config = config_from_path(&run_config.config_path)?;
+
+    let parser = crate::ownership::parser::Parser {
+        project_root: run_config.project_root.clone(),
+        codeowners_file_path: run_config.codeowners_file_path.clone(),
+        team_file_globs: config.team_file_glob.clone(),
+    };
+    Ok(parser
+        .team_from_file_path(Path::new(file_path))
+        .map_err(|e| Error::Io(e.to_string()))?)
 }
 
 pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
