@@ -4,7 +4,6 @@ use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
     fmt::{self, Display},
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -180,9 +179,7 @@ impl Ownership {
 }
 
 pub fn fast_team_name_from_file_path(file_path: &str, code_owners_file_path: &PathBuf) -> Result<Option<String>, Box<dyn Error>> {
-    let code_owners = fs::read_to_string(code_owners_file_path)?;
-    let team_name = parser::team_name_from_file_path(Path::new(file_path), &code_owners);
-    Ok(team_name)
+    parser::team_name_from_file_path(Path::new(file_path), code_owners_file_path)
 }
 
 #[cfg(test)]

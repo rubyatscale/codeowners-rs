@@ -150,16 +150,8 @@ impl<'a> ProjectBuilder<'a> {
                             });
                         }
                         EntryType::TeamFile(absolute_path, _relative_path) => {
-                            let file = File::open(&absolute_path).unwrap();
-                            let deserializer: deserializers::Team = serde_yaml::from_reader(file).unwrap();
-                            team_files.push(Team {
-                                path: absolute_path.to_owned(),
-                                name: deserializer.name,
-                                github_team: deserializer.github.team,
-                                owned_globs: deserializer.owned_globs,
-                                owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or_default(),
-                                avoid_ownership: deserializer.github.do_not_add_to_codeowners_file,
-                            });
+                            let team = Team::from_team_file_path(absolute_path).unwrap();
+                            team_files.push(team);
                         }
                         EntryType::NullEntry() => {}
                     }
@@ -177,8 +169,7 @@ impl<'a> ProjectBuilder<'a> {
                     acc
                 },
             );
-        let teams_by_name = teams.iter()
-        .map(|team| (team.name.clone(), team.clone())).collect();
+        let teams_by_name = teams.iter().map(|team| (team.name.clone(), team.clone())).collect();
 
         Ok(Project {
             base_path: self.base_path.to_owned(),

@@ -2,6 +2,7 @@ use core::fmt;
 use std::{
     collections::HashMap,
     fmt::Display,
+    fs::File,
     path::{Path, PathBuf},
 };
 
@@ -38,6 +39,21 @@ pub struct Team {
     pub owned_globs: Vec<String>,
     pub owned_gems: Vec<String>,
     pub avoid_ownership: bool,
+}
+
+impl Team {
+    pub fn from_team_file_path(absolute_path: PathBuf) -> Result<Self, Error> {
+        let file = File::open(&absolute_path).change_context(Error::Io)?;
+        let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
+        Ok(Self {
+            path: absolute_path.to_owned(),
+            name: deserializer.name,
+            github_team: deserializer.github.team,
+            owned_globs: deserializer.owned_globs,
+            owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or_default(),
+            avoid_ownership: deserializer.github.do_not_add_to_codeowners_file,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]

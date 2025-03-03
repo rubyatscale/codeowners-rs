@@ -32,7 +32,6 @@ pub struct Runner {
 }
 
 pub fn for_file(run_config: &RunConfig, file_path: &str, verbose: bool) -> RunResult {
-    dbg!(verbose);
     if verbose {
         run_with_runner(run_config, |runner| runner.for_file(file_path))
     } else {
@@ -114,19 +113,17 @@ impl fmt::Display for Error {
     }
 }
 
+fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
+    let config_file = File::open(path)
+        .change_context(Error::Io(format!("Can't open config file: {}", &path.to_string_lossy())))
+        .attach_printable(format!("Can't open config file: {}", &path.to_string_lossy()))?;
+
+    serde_yaml::from_reader(config_file).change_context(Error::Io(format!("Can't parse config file: {}", &path.to_string_lossy())))
+}
 impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
-        let config_file = File::open(&run_config.config_path)
-            .change_context(Error::Io(format!(
-                "Can't open config file: {}",
-                &run_config.config_path.to_string_lossy()
-            )))
-            .attach_printable(format!("Can't open config file: {}", &run_config.config_path.to_string_lossy()))?;
+        let config = config_from_path(&run_config.config_path)?;
 
-        let config: Config = serde_yaml::from_reader(config_file).change_context(Error::Io(format!(
-            "Can't parse config file: {}",
-            &run_config.config_path.to_string_lossy()
-        )))?;
         let cache: Cache = if run_config.no_cache {
             NoopCache::default().into()
         } else {

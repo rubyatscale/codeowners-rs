@@ -1,22 +1,40 @@
 use crate::ownership::{FileGenerator, TeamOwnership};
 use fast_glob::glob_match;
-use std::{error::Error, path::Path};
+use std::{
+    error::Error,
+    fs,
+    io::Error as IoError,
+    path::{Path, PathBuf},
+};
 
-pub fn team_name_from_file_path(file_path: &Path, codeowners_file: &str) -> Option<String> {
-    let stripped_lines = stripped_lines_by_priority(codeowners_file);
-    let slash_prefixed = if file_path.starts_with("/") {
-        file_path.to_str().unwrap().to_string()
+pub fn team_name_from_file_path(file_path: &Path, codeowners_file_path: &PathBuf) -> Result<Option<String>, Box<dyn Error>> {
+    let file_path_str = file_path
+        .to_str()
+        .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
+    let slash_prefixed = if file_path_str.starts_with("/") {
+        file_path_str.to_string()
     } else {
-        format!("/{}", file_path.to_str()?)
+        format!("/{}", file_path_str)
     };
-    for line in stripped_lines {
-        let (glob, team_name) = line.split_once(' ')?;
+
+    let codeowners_lines_in_priorty = build_codeowners_lines_in_priority(codeowners_file_path)?;
+
+    for line in codeowners_lines_in_priorty {
+        let (glob, team_name) = line
+            .split_once(' ')
+            .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))?;
         if glob_match(glob, &slash_prefixed) {
-            return Some(team_name.to_string());
+            return Ok(Some(team_name.to_string()));
         }
     }
 
-    None
+    Ok(None)
+}
+
+fn build_codeowners_lines_in_priority(codeowners_file_path: &PathBuf) -> Result<Vec<String>, Box<dyn Error>> {
+    let codeowners_file = fs::read_to_string(codeowners_file_path)?;
+    let stripped_lines = stripped_lines_by_priority(&codeowners_file);
+    Ok(stripped_lines)
 }
 
 fn stripped_lines_by_priority(codeowners_file: &str) -> Vec<String> {
