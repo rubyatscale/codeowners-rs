@@ -18,7 +18,7 @@ impl DirectoryMapper {
 impl Mapper for DirectoryMapper {
     fn entries(&self) -> Vec<Entry> {
         let mut entries: Vec<Entry> = Vec::new();
-        let team_by_name = self.project.team_by_name();
+        let team_by_name = self.project.teams_by_name.clone();
 
         for directory_codeowner_file in &self.project.directory_codeowner_files {
             let dir_root = directory_codeowner_file.directory_root().to_string_lossy();

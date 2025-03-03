@@ -177,6 +177,8 @@ impl<'a> ProjectBuilder<'a> {
                     acc
                 },
             );
+        let teams_by_name = teams.iter()
+        .map(|team| (team.name.clone(), team.clone())).collect();
 
         Ok(Project {
             base_path: self.base_path.to_owned(),
@@ -186,6 +188,7 @@ impl<'a> ProjectBuilder<'a> {
             packages,
             codeowners_file_path: self.codeowners_file_path.to_path_buf(),
             directory_codeowner_files: directory_codeowners,
+            teams_by_name,
         })
     }
 }

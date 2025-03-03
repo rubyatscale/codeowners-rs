@@ -15,6 +15,7 @@ pub struct Project {
     pub teams: Vec<Team>,
     pub codeowners_file_path: PathBuf,
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
+    pub teams_by_name: HashMap<String, Team>,
 }
 
 #[derive(Clone, Debug)]
@@ -162,17 +163,7 @@ impl Project {
     }
 
     pub fn get_team(&self, name: &str) -> Option<Team> {
-        self.team_by_name().get(name).cloned()
-    }
-
-    pub fn team_by_name(&self) -> HashMap<String, Team> {
-        let mut result: HashMap<String, Team> = HashMap::new();
-
-        for team in &self.teams {
-            result.insert(team.name.clone(), team.clone());
-        }
-
-        result
+        self.teams_by_name.get(name).cloned()
     }
 
     pub fn vendored_gem_by_name(&self) -> HashMap<String, VendoredGem> {
