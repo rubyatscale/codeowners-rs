@@ -66,7 +66,7 @@ impl PackageMapper {
 impl PackageMapper {
     fn entries(&self, package_type: &PackageType) -> Vec<Entry> {
         let mut entries: Vec<Entry> = Vec::new();
-        let team_by_name = self.project.team_by_name();
+        let team_by_name = self.project.teams_by_name.clone();
 
         for package in self.project.packages.iter().filter(|package| &package.package_type == package_type) {
             let package_root = package.package_root().to_string_lossy();
@@ -87,7 +87,7 @@ impl PackageMapper {
 
     fn owner_matchers(&self, package_type: &PackageType) -> Vec<OwnerMatcher> {
         let mut owner_matchers: Vec<OwnerMatcher> = Vec::new();
-        let team_by_name = self.project.team_by_name();
+        let team_by_name = self.project.teams_by_name.clone();
 
         let packages = &self.project.packages;
         let packages: Vec<&Package> = packages.iter().filter(|package| &package.package_type == package_type).collect();

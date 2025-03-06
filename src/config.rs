@@ -1,20 +1,22 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub owned_globs: Vec<String>,
 
     #[serde(default = "ruby_package_paths")]
     pub ruby_package_paths: Vec<String>,
 
-    #[serde(alias = "js_package_paths")]
+    #[serde(alias = "js_package_paths", default = "javascript_package_paths")]
     pub javascript_package_paths: Vec<String>,
 
     #[serde(default = "team_file_glob")]
     pub team_file_glob: Vec<String>,
+
+    #[serde(default = "unowned_globs")]
     pub unowned_globs: Vec<String>,
 
-    #[serde(alias = "unbuilt_gems_path")]
+    #[serde(alias = "unbuilt_gems_path", default = "vendored_gems_path")]
     pub vendored_gems_path: String,
 
     #[serde(default = "default_cache_directory")]
@@ -38,4 +40,59 @@ fn team_file_glob() -> Vec<String> {
 
 fn default_cache_directory() -> String {
     String::from("tmp/cache/codeowners")
+}
+
+fn javascript_package_paths() -> Vec<String> {
+    vec!["frontend/**/*".to_owned()]
+}
+
+fn unowned_globs() -> Vec<String> {
+    vec![
+        "frontend/**/node_modules/**/*".to_owned(),
+        "frontend/**/__generated__/**/*".to_owned(),
+    ]
+}
+
+fn vendored_gems_path() -> String {
+    "vendored/".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        error::Error,
+        fs::{self, File},
+    };
+
+    use indoc::indoc;
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_config() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}\"
+        "};
+        fs::write(&config_path, config_str)?;
+        let config_file = File::open(&config_path)?;
+        let config: Config = serde_yaml::from_reader(config_file)?;
+        assert_eq!(
+            config.owned_globs,
+            vec!["{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}"]
+        );
+        assert_eq!(config.ruby_package_paths, vec!["packs/**/*", "components/**"]);
+        assert_eq!(config.javascript_package_paths, vec!["frontend/**/*"]);
+        assert_eq!(config.team_file_glob, vec!["config/teams/**/*.yml"]);
+        assert_eq!(
+            config.unowned_globs,
+            vec!["frontend/**/node_modules/**/*", "frontend/**/__generated__/**/*"]
+        );
+        assert_eq!(config.vendored_gems_path, "vendored/");
+        Ok(())
+    }
 }

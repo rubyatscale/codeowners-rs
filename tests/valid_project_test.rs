@@ -57,6 +57,24 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg("ruby/app/models/payroll.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
@@ -73,6 +91,24 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
             Description:
             - Owner annotation at the top of the file
             - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+        "}));
+    Ok(())
+}
+
+#[test]
+fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg("javascript/packages/PayrollFlow/index.tsx")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
         "}));
     Ok(())
 }
@@ -148,7 +184,7 @@ fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
         .arg("Nope")
         .assert()
         .failure()
-        .stdout(predicate::eq(indoc! {"
+        .stderr(predicate::eq(indoc! {"
             Team not found
         "}));
 

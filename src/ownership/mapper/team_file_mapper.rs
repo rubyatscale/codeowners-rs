@@ -21,7 +21,7 @@ impl TeamFileMapper {
 impl Mapper for TeamFileMapper {
     fn entries(&self) -> Vec<Entry> {
         let mut entries: Vec<Entry> = Vec::new();
-        let team_by_name = self.project.team_by_name();
+        let team_by_name = self.project.teams_by_name.clone();
 
         for owned_file in &self.project.files {
             if let Some(ref owner) = owned_file.owner {
@@ -44,7 +44,7 @@ impl Mapper for TeamFileMapper {
     }
 
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
-        let team_by_name = self.project.team_by_name();
+        let team_by_name = self.project.teams_by_name.clone();
 
         let mut path_to_team: HashMap<PathBuf, String> = HashMap::new();
 

@@ -1,5 +1,102 @@
-use crate::ownership::{FileGenerator, TeamOwnership};
-use std::error::Error;
+use crate::{
+    ownership::{FileGenerator, TeamOwnership},
+    project::Team,
+};
+use fast_glob::glob_match;
+use memoize::memoize;
+use std::{
+    collections::HashMap,
+    error::Error,
+    fs,
+    io::Error as IoError,
+    path::{Path, PathBuf},
+};
+
+pub struct Parser {
+    pub project_root: PathBuf,
+    pub codeowners_file_path: PathBuf,
+    pub team_file_globs: Vec<String>,
+}
+
+impl Parser {
+    pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
+        let file_path_str = file_path
+            .to_str()
+            .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
+        let slash_prefixed = if file_path_str.starts_with("/") {
+            file_path_str.to_string()
+        } else {
+            format!("/{}", file_path_str)
+        };
+
+        let codeowners_lines_in_priorty = build_codeowners_lines_in_priority(self.codeowners_file_path.to_string_lossy().into_owned());
+        for line in codeowners_lines_in_priorty {
+            let (glob, team_name) = line
+                .split_once(' ')
+                .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))?;
+            if glob_match(glob, &slash_prefixed) {
+                let tbn = teams_by_github_team_name(self.absolute_team_files_globs());
+                let team: Option<Team> = tbn.get(team_name.to_string().as_str()).cloned();
+                return Ok(team);
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn absolute_team_files_globs(&self) -> Vec<String> {
+        self.team_file_globs
+            .iter()
+            .map(|glob| format!("{}/{}", self.project_root.display(), glob))
+            .collect()
+    }
+}
+
+#[memoize]
+fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Team> {
+    dbg!("in teams_by_github_team_name");
+    let mut teams = HashMap::new();
+    for glob in team_file_glob {
+        let paths = glob::glob(&glob).expect("Failed to read glob pattern").filter_map(Result::ok);
+
+        for path in paths {
+            let team = match Team::from_team_file_path(path) {
+                Ok(team) => team,
+                Err(e) => {
+                    eprintln!("Error parsing team file: {}", e);
+                    continue;
+                }
+            };
+            teams.insert(team.github_team.clone(), team);
+        }
+    }
+
+    teams
+}
+
+#[memoize]
+fn build_codeowners_lines_in_priority(codeowners_file_path: String) -> Vec<String> {
+    dbg!("in build_codeowners_lines_in_priority");
+    dbg!(&codeowners_file_path);
+    let codeowners_file = match fs::read_to_string(codeowners_file_path) {
+        Ok(codeowners_file) => codeowners_file,
+        Err(e) => {
+            // we can't return the error because it's not clonable
+            eprintln!("Error reading codeowners file: {}", e);
+            return vec![];
+        }
+    };
+    stripped_lines_by_priority(&codeowners_file)
+}
+
+fn stripped_lines_by_priority(codeowners_file: &str) -> Vec<String> {
+    codeowners_file
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.trim().starts_with("#"))
+        .map(|line| line.trim().to_string())
+        .rev()
+        .collect()
+}
 
 pub fn parse_for_team(team_name: String, codeowners_file: &str) -> Result<Vec<TeamOwnership>, Box<dyn Error>> {
     let mut output = vec![];
@@ -210,6 +307,33 @@ mod tests {
                 },
             ],
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_stripped_lines_by_priority() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned @Foo
+        "};
+
+        let stripped_lines = stripped_lines_by_priority(codeownership_file);
+        assert_eq!(stripped_lines, vec!["/path/to/owned @Foo"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_stripped_lines_by_priority_with_multiple_sections() -> Result<(), Box<dyn Error>> {
+        let codeownership_file = indoc! {"
+            # First Section
+            /path/to/owned @Foo
+
+            # Second Section
+            /another/path/to/owned @Bar
+        "};
+
+        let stripped_lines = stripped_lines_by_priority(codeownership_file);
+        assert_eq!(stripped_lines, vec!["/another/path/to/owned @Bar", "/path/to/owned @Foo"]);
         Ok(())
     }
 }

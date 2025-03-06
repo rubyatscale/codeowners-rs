@@ -12,7 +12,7 @@ use tracing::{info, instrument};
 mod file_generator;
 mod file_owner_finder;
 pub(crate) mod mapper;
-mod parser;
+pub(crate) mod parser;
 mod validator;
 
 use crate::{

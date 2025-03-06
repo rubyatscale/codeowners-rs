@@ -2,6 +2,7 @@ use core::fmt;
 use std::{
     collections::HashMap,
     fmt::Display,
+    fs::File,
     path::{Path, PathBuf},
 };
 
@@ -15,6 +16,7 @@ pub struct Project {
     pub teams: Vec<Team>,
     pub codeowners_file_path: PathBuf,
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
+    pub teams_by_name: HashMap<String, Team>,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +39,21 @@ pub struct Team {
     pub owned_globs: Vec<String>,
     pub owned_gems: Vec<String>,
     pub avoid_ownership: bool,
+}
+
+impl Team {
+    pub fn from_team_file_path(absolute_path: PathBuf) -> Result<Self, Error> {
+        let file = File::open(&absolute_path).change_context(Error::Io)?;
+        let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
+        Ok(Self {
+            path: absolute_path.to_owned(),
+            name: deserializer.name,
+            github_team: deserializer.github.team,
+            owned_globs: deserializer.owned_globs,
+            owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or_default(),
+            avoid_ownership: deserializer.github.do_not_add_to_codeowners_file,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -162,17 +179,7 @@ impl Project {
     }
 
     pub fn get_team(&self, name: &str) -> Option<Team> {
-        self.team_by_name().get(name).cloned()
-    }
-
-    pub fn team_by_name(&self) -> HashMap<String, Team> {
-        let mut result: HashMap<String, Team> = HashMap::new();
-
-        for team in &self.teams {
-            result.insert(team.name.clone(), team.clone());
-        }
-
-        result
+        self.teams_by_name.get(name).cloned()
     }
 
     pub fn vendored_gem_by_name(&self) -> HashMap<String, VendoredGem> {
