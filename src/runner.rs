@@ -198,7 +198,11 @@ impl Runner {
     }
 
     pub fn generate(&self) -> RunResult {
-        match std::fs::write(&self.run_config.codeowners_file_path, self.ownership.generate_file()) {
+        let content = self.ownership.generate_file();
+        if let Some(parent) = &self.run_config.codeowners_file_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::write(&self.run_config.codeowners_file_path, content) {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
                 io_errors: vec![err.to_string()],

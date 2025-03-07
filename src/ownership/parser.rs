@@ -54,7 +54,6 @@ impl Parser {
 
 #[memoize]
 fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Team> {
-    dbg!("in teams_by_github_team_name");
     let mut teams = HashMap::new();
     for glob in team_file_glob {
         let paths = glob::glob(&glob).expect("Failed to read glob pattern").filter_map(Result::ok);
@@ -76,8 +75,6 @@ fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Tea
 
 #[memoize]
 fn build_codeowners_lines_in_priority(codeowners_file_path: String) -> Vec<String> {
-    dbg!("in build_codeowners_lines_in_priority");
-    dbg!(&codeowners_file_path);
     let codeowners_file = match fs::read_to_string(codeowners_file_path) {
         Ok(codeowners_file) => codeowners_file,
         Err(e) => {
