@@ -43,21 +43,23 @@ impl FileGenerator {
 
     fn to_sorted_lines(entries: &[Entry]) -> Vec<String> {
         let mut lines: Vec<String> = entries.iter().map(|entry| entry.to_row()).collect();
-        lines.sort_by(|a, b| {
-            if let Some((prefix, _)) = a.split_once("**") {
-                if b.starts_with(prefix) {
-                    return Ordering::Less;
-                }
-            }
-            if let Some((prefix, _)) = b.split_once("**") {
-                if a.starts_with(prefix) {
-                    return Ordering::Greater;
-                }
-            }
-            a.cmp(b)
-        });
+        lines.sort_by(compare_lines);
         lines
     }
+}
+
+pub fn compare_lines(a: &String, b: &String) -> Ordering {
+    if let Some((prefix, _)) = a.split_once("**") {
+        if b.starts_with(prefix) {
+            return Ordering::Less;
+        }
+    }
+    if let Some((prefix, _)) = b.split_once("**") {
+        if a.starts_with(prefix) {
+            return Ordering::Greater;
+        }
+    }
+    a.cmp(b)
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ use error_stack::{Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::WalkBuilder;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::{
     cache::Cache,
@@ -149,10 +149,14 @@ impl<'a> ProjectBuilder<'a> {
                                 owner,
                             });
                         }
-                        EntryType::TeamFile(absolute_path, _relative_path) => {
-                            let team = Team::from_team_file_path(absolute_path).unwrap();
-                            team_files.push(team);
-                        }
+                        EntryType::TeamFile(absolute_path, _relative_path) => match Team::from_team_file_path(absolute_path) {
+                            Ok(team) => {
+                                team_files.push(team);
+                            }
+                            Err(e) => {
+                                warn!("Error building team from team file path: {}", e);
+                            }
+                        },
                         EntryType::NullEntry() => {}
                     }
                     (project_files, pkgs, gems, codeowners, team_files)
@@ -169,7 +173,10 @@ impl<'a> ProjectBuilder<'a> {
                     acc
                 },
             );
-        let teams_by_name = teams.iter().map(|team| (team.name.clone(), team.clone())).collect();
+        let teams_by_name = teams
+            .iter()
+            .flat_map(|team| vec![(team.name.clone(), team.clone()), (team.github_team.clone(), team.clone())])
+            .collect();
 
         Ok(Project {
             base_path: self.base_path.to_owned(),
