@@ -125,8 +125,8 @@ impl Ownership {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub fn for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, ValidatorErrors> {
-        info!("getting file ownership for {}", file_path);
+    pub fn for_file(&self, file_path: &Path) -> Result<Vec<FileOwner>, ValidatorErrors> {
+        info!("getting file ownership for {}", file_path.display());
         let owner_matchers: Vec<OwnerMatcher> = self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect();
         let file_owner_finder = FileOwnerFinder {
             owner_matchers: &owner_matchers,
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn test_for_file_owner() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
-        let file_owners = ownership.for_file("app/consumers/directory_owned.rb").unwrap();
+        let file_owners = ownership.for_file(Path::new("app/consumers/directory_owned.rb")).unwrap();
         assert_eq!(file_owners.len(), 1);
         assert_eq!(file_owners[0].team.name, "Bar");
         assert_eq!(file_owners[0].team_config_file_path, "config/teams/bar.yml");
@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn test_for_file_no_owner() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
-        let file_owners = ownership.for_file("app/madeup/foo.rb").unwrap();
+        let file_owners = ownership.for_file(Path::new("app/madeup/foo.rb")).unwrap();
         assert_eq!(file_owners.len(), 0);
         Ok(())
     }

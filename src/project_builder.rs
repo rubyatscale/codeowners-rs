@@ -169,7 +169,12 @@ impl<'a> ProjectBuilder<'a> {
                     acc
                 },
             );
-        let teams_by_name = teams.iter().map(|team| (team.name.clone(), team.clone())).collect();
+        let teams_by_name = teams.iter().flat_map(|team| {
+            vec![
+                (team.name.clone(), team.clone()),
+                (team.github_team.clone(), team.clone())
+            ]
+        }).collect();
 
         Ok(Project {
             base_path: self.base_path.to_owned(),
