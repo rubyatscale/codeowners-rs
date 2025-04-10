@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use indoc::indoc;
 use predicates::prelude::predicate;
-use std::{error::Error, path::Path, process::Command};
+use std::{error::Error, fs, path::Path, process::Command};
 
 #[test]
 fn test_validate() -> Result<(), Box<dyn Error>> {
@@ -57,6 +57,29 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_for_file_full_path() -> Result<(), Box<dyn Error>> {
+    let project_root = Path::new("tests/fixtures/valid_project");
+    let for_file_absolute_path = fs::canonicalize(project_root.join("ruby/app/models/payroll.rb"))?;
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg(for_file_absolute_path.to_str().unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Github Team: @PayrollTeam
+            Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
@@ -65,6 +88,27 @@ fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
         .arg("for-file")
         .arg("--fast")
         .arg("ruby/app/models/payroll.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Payroll
+            Team YML: config/teams/payroll.yml
+        "}));
+    Ok(())
+}
+
+#[test]
+fn test_fast_for_file_full_path() -> Result<(), Box<dyn Error>> {
+    let project_root = Path::new("tests/fixtures/valid_project");
+    let for_file_absolute_path = fs::canonicalize(project_root.join("ruby/app/models/payroll.rb"))?;
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("--fast")
+        .arg(for_file_absolute_path.to_str().unwrap())
         .assert()
         .success()
         .stdout(predicate::eq(indoc! {"

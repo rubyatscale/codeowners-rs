@@ -69,6 +69,9 @@ fn for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> RunResul
 
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
     let config = config_from_path(&run_config.config_path)?;
+    let relative_file_path = Path::new(file_path)
+        .strip_prefix(&run_config.project_root)
+        .unwrap_or(Path::new(file_path));
 
     let parser = crate::ownership::parser::Parser {
         project_root: run_config.project_root.clone(),
@@ -76,7 +79,7 @@ pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) ->
         team_file_globs: config.team_file_glob.clone(),
     };
     Ok(parser
-        .team_from_file_path(Path::new(file_path))
+        .team_from_file_path(Path::new(relative_file_path))
         .map_err(|e| Error::Io(e.to_string()))?)
 }
 
@@ -198,7 +201,11 @@ impl Runner {
     }
 
     pub fn generate(&self) -> RunResult {
-        match std::fs::write(&self.run_config.codeowners_file_path, self.ownership.generate_file()) {
+        let content = self.ownership.generate_file();
+        if let Some(parent) = &self.run_config.codeowners_file_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::write(&self.run_config.codeowners_file_path, content) {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
                 io_errors: vec![err.to_string()],
@@ -216,7 +223,10 @@ impl Runner {
     }
 
     pub fn for_file(&self, file_path: &str) -> RunResult {
-        let file_owners = match self.ownership.for_file(file_path) {
+        let relative_file_path = Path::new(file_path)
+            .strip_prefix(&self.run_config.project_root)
+            .unwrap_or(Path::new(file_path));
+        let file_owners = match self.ownership.for_file(relative_file_path) {
             Ok(file_owners) => file_owners,
             Err(err) => {
                 return RunResult {
