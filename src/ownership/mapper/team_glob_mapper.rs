@@ -12,40 +12,36 @@ impl TeamGlobMapper {
     pub fn build(project: Arc<Project>) -> Self {
         Self { project }
     }
+
+    fn iter_team_globs(&self) -> impl Iterator<Item = (&str, &str, &str, bool)> + '_ {
+        self.project.teams.iter().flat_map(|team| {
+            team.owned_globs
+                .iter()
+                .map(move |glob| (glob.as_str(), team.github_team.as_str(), team.name.as_str(), team.avoid_ownership))
+        })
+    }
 }
 
 impl Mapper for TeamGlobMapper {
     fn entries(&self) -> Vec<Entry> {
-        let mut entries: Vec<Entry> = Vec::new();
-
-        for team in &self.project.teams {
-            for owned_glob in &team.owned_globs {
-                entries.push(Entry {
-                    path: owned_glob.to_owned(),
-                    github_team: team.github_team.to_owned(),
-                    team_name: team.name.to_owned(),
-                    disabled: team.avoid_ownership,
-                });
-            }
-        }
-
-        entries
+        self.iter_team_globs()
+            .map(|(glob, github_team, team_name, disabled)| Entry {
+                path: glob.to_owned(),
+                github_team: github_team.to_owned(),
+                team_name: team_name.to_owned(),
+                disabled,
+            })
+            .collect()
     }
 
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
-        let mut owner_matchers: Vec<OwnerMatcher> = Vec::new();
-
-        for team in &self.project.teams {
-            for owned_glob in &team.owned_globs {
-                owner_matchers.push(OwnerMatcher::Glob {
-                    glob: owned_glob.clone(),
-                    team_name: team.github_team.clone(),
-                    source: Source::TeamGlob(owned_glob.clone()),
-                })
-            }
-        }
-
-        owner_matchers
+        self.iter_team_globs()
+            .map(|(glob, github_team, _, _)| OwnerMatcher::Glob {
+                glob: glob.to_owned(),
+                team_name: github_team.to_owned(),
+                source: Source::TeamGlob(glob.to_owned()),
+            })
+            .collect()
     }
 
     fn name(&self) -> String {
