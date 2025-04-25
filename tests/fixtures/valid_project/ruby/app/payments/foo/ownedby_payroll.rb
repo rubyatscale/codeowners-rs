@@ -1,0 +1,3 @@
+class OwnedByPayroll
+  
+end
