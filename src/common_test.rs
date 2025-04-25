@@ -279,6 +279,13 @@ pub mod tests {
         })
     }
 
+    pub fn build_ownership_with_subtracted_globs_team_glob_codeowners() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(TestProjectFile {
+            relative_path: "config/teams/baz.yml".to_owned(),
+            content: "name: Baz\ngithub:\n  team: \"@Baz\"\n  members:\n    - Baz member\nowned_globs:\n  - \"packs/bar/**\"\nunowned_globs:\n  - \"packs/bar/excluded/**\"\n".to_owned(),
+        })
+    }
+
     pub fn build_ownership_with_team_yml_codeowners() -> Result<Ownership, Box<dyn Error>> {
         let temp_dir = tempdir()?;
 

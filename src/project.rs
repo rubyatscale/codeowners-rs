@@ -37,6 +37,7 @@ pub struct Team {
     pub name: String,
     pub github_team: String,
     pub owned_globs: Vec<String>,
+    pub subtracted_globs: Vec<String>,
     pub owned_gems: Vec<String>,
     pub avoid_ownership: bool,
 }
@@ -50,6 +51,7 @@ impl Team {
             name: deserializer.name,
             github_team: deserializer.github.team,
             owned_globs: deserializer.owned_globs,
+            subtracted_globs: deserializer.subtracted_globs,
             owned_gems: deserializer.ruby.map(|ruby| ruby.owned_gems).unwrap_or_default(),
             avoid_ownership: deserializer.github.do_not_add_to_codeowners_file,
         })
@@ -132,6 +134,9 @@ pub mod deserializers {
 
         #[serde(default = "empty_string_vec")]
         pub owned_globs: Vec<String>,
+
+        #[serde(alias = "unowned_globs", default = "empty_string_vec")]
+        pub subtracted_globs: Vec<String>,
     }
 
     fn empty_string_vec() -> Vec<String> {

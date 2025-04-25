@@ -36,12 +36,14 @@ impl Mapper for TeamGlobMapper {
         let mut owner_matchers: Vec<OwnerMatcher> = Vec::new();
 
         for team in &self.project.teams {
+            let team_subtracted_globs = team.subtracted_globs.clone();
             for owned_glob in &team.owned_globs {
-                owner_matchers.push(OwnerMatcher::Glob {
-                    glob: owned_glob.clone(),
-                    team_name: team.github_team.clone(),
-                    source: Source::TeamGlob(owned_glob.clone()),
-                })
+                owner_matchers.push(OwnerMatcher::new_glob_with_candidate_subtracted_globs(
+                    owned_glob.clone(),
+                    &team_subtracted_globs,
+                    team.github_team.clone(),
+                    Source::TeamGlob(owned_glob.clone()),
+                ))
             }
         }
 
@@ -57,7 +59,10 @@ impl Mapper for TeamGlobMapper {
 mod tests {
     use std::error::Error;
 
-    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_glob_codeowners, vecs_match};
+    use crate::common_test::tests::{
+        build_ownership_with_all_mappers, build_ownership_with_subtracted_globs_team_glob_codeowners,
+        build_ownership_with_team_glob_codeowners, vecs_match,
+    };
 
     use super::*;
     #[test]
@@ -82,11 +87,29 @@ mod tests {
         let mapper = TeamGlobMapper::build(ownership.project.clone());
         vecs_match(
             &mapper.owner_matchers(),
-            &vec![OwnerMatcher::Glob {
-                glob: "packs/bar/**".to_owned(),
-                team_name: "@Baz".to_owned(),
-                source: Source::TeamGlob("packs/bar/**".to_owned()),
-            }],
+            &vec![OwnerMatcher::new_glob_with_candidate_subtracted_globs(
+                "packs/bar/**".to_owned(),
+                &[],
+                "@Baz".to_owned(),
+                Source::TeamGlob("packs/bar/**".to_owned()),
+            )],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers_with_subtracted_globs() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_subtracted_globs_team_glob_codeowners()?;
+
+        let mapper = TeamGlobMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.owner_matchers(),
+            &vec![OwnerMatcher::new_glob_with_candidate_subtracted_globs(
+                "packs/bar/**".to_owned(),
+                &["packs/bar/excluded/**".to_owned()],
+                "@Baz".to_owned(),
+                Source::TeamGlob("packs/bar/**".to_owned()),
+            )],
         );
         Ok(())
     }

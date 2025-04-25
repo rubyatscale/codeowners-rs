@@ -40,11 +40,11 @@ impl Mapper for DirectoryMapper {
         let mut owner_matchers = Vec::new();
 
         for file in &self.project.directory_codeowner_files {
-            owner_matchers.push(OwnerMatcher::Glob {
-                glob: format!("{}/**/**", escape_brackets(&file.directory_root().to_string_lossy())),
-                team_name: file.owner.to_owned(),
-                source: Source::Directory(file.directory_root().to_string_lossy().to_string()),
-            });
+            owner_matchers.push(OwnerMatcher::new_glob(
+                format!("{}/**/**", escape_brackets(&file.directory_root().to_string_lossy())),
+                file.owner.to_owned(),
+                Source::Directory(file.directory_root().to_string_lossy().to_string()),
+            ));
         }
 
         owner_matchers
@@ -125,21 +125,21 @@ mod tests {
         vecs_match(
             &mapper.owner_matchers(),
             &vec![
-                OwnerMatcher::Glob {
-                    glob: "app/consumers/**/**".to_owned(),
-                    team_name: "Bar".to_owned(),
-                    source: Source::Directory("app/consumers".to_string()),
-                },
-                OwnerMatcher::Glob {
-                    glob: "app/services/**/**".to_owned(),
-                    team_name: "Foo".to_owned(),
-                    source: Source::Directory("app/services".to_owned()),
-                },
-                OwnerMatcher::Glob {
-                    glob: "app/services/exciting/**/**".to_owned(),
-                    team_name: "Bar".to_owned(),
-                    source: Source::Directory("app/services/exciting".to_owned()),
-                },
+                OwnerMatcher::new_glob(
+                    "app/consumers/**/**".to_owned(),
+                    "Bar".to_owned(),
+                    Source::Directory("app/consumers".to_string()),
+                ),
+                OwnerMatcher::new_glob(
+                    "app/services/**/**".to_owned(),
+                    "Foo".to_owned(),
+                    Source::Directory("app/services".to_owned()),
+                ),
+                OwnerMatcher::new_glob(
+                    "app/services/exciting/**/**".to_owned(),
+                    "Bar".to_owned(),
+                    Source::Directory("app/services/exciting".to_owned()),
+                ),
             ],
         );
         Ok(())
@@ -152,16 +152,16 @@ mod tests {
         vecs_match(
             &mapper.owner_matchers(),
             &vec![
-                OwnerMatcher::Glob {
-                    glob: "app/\\[consumers\\]/**/**".to_string(),
-                    team_name: "Bar".to_string(),
-                    source: Source::Directory("app/[consumers]".to_string()),
-                },
-                OwnerMatcher::Glob {
-                    glob: "app/\\[consumers\\]/deep/nesting/\\[nestdir\\]/**/**".to_string(),
-                    team_name: "Foo".to_string(),
-                    source: Source::Directory("app/[consumers]/deep/nesting/[nestdir]".to_string()),
-                },
+                OwnerMatcher::new_glob(
+                    "app/\\[consumers\\]/**/**".to_string(),
+                    "Bar".to_string(),
+                    Source::Directory("app/[consumers]".to_string()),
+                ),
+                OwnerMatcher::new_glob(
+                    "app/\\[consumers\\]/deep/nesting/\\[nestdir\\]/**/**".to_string(),
+                    "Foo".to_string(),
+                    Source::Directory("app/[consumers]/deep/nesting/[nestdir]".to_string()),
+                ),
             ],
         );
         Ok(())

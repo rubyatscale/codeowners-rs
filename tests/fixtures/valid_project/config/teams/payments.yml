@@ -3,3 +3,5 @@ github:
   team: '@PaymentsTeam'
 owned_globs:
   - ruby/app/payments/**/*
+unowned_globs:
+  - ruby/app/payments/foo/**/*
