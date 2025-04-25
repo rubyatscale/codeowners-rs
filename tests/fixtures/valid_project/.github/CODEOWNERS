@@ -18,6 +18,7 @@
 # Owner in .codeowner
 /javascript/packages/items/**/** @PayrollTeam
 /javascript/packages/items/(special)/**/** @PaymentsTeam
+/ruby/app/payments/foo/**/** @PayrollTeam
 /ruby/app/payroll/**/** @PayrollTeam
 
 # Owner metadata key in package.yml

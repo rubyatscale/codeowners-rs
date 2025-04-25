@@ -201,6 +201,7 @@ fn test_for_team() -> Result<(), Box<dyn Error>> {
 
             ## Owner in .codeowner
             /javascript/packages/items/**/**
+            /ruby/app/payments/foo/**/**
             /ruby/app/payroll/**/**
 
             ## Owner metadata key in package.yml
