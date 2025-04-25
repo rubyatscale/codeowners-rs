@@ -67,13 +67,49 @@ impl Source {
 #[derive(Debug, PartialEq)]
 pub enum OwnerMatcher {
     ExactMatches(HashMap<PathBuf, TeamName>, Source),
-    Glob { glob: String, team_name: TeamName, source: Source },
+    Glob {
+        glob: String,
+        subtracted_globs: Vec<String>,
+        team_name: TeamName,
+        source: Source,
+    },
 }
 
 impl OwnerMatcher {
+    pub fn new_glob_with_candidate_subtracted_globs(
+        glob: String,
+        candidate_subtracted_globs: Vec<String>,
+        team_name: TeamName,
+        source: Source,
+    ) -> Self {
+        let subtracted_globs = candidate_subtracted_globs.iter().filter(|candidate_subtracted_glob| {
+            glob_match(candidate_subtracted_glob, &glob) || glob_match(&glob, candidate_subtracted_glob)
+        }).cloned().collect();
+        OwnerMatcher::Glob {
+            glob,
+            subtracted_globs,
+            team_name,
+            source,
+        }
+    }
+
+    pub fn new_glob(glob: String, team_name: TeamName, source: Source) -> Self {
+        OwnerMatcher::Glob {
+            glob,
+            subtracted_globs: vec![],
+            team_name,
+            source,
+        }
+    }
+
     pub fn owner_for(&self, relative_path: &Path) -> (Option<&TeamName>, &Source) {
         match self {
-            OwnerMatcher::Glob { glob, team_name, source } => {
+            OwnerMatcher::Glob {
+                glob,
+                subtracted_globs,
+                team_name,
+                source,
+            } => {
                 if glob_match(glob, relative_path.to_str().unwrap()) {
                     (Some(team_name), source)
                 } else {
@@ -94,6 +130,7 @@ mod tests {
         let team_name = "team1".to_string();
         let owner_matcher = OwnerMatcher::Glob {
             glob: glob.to_string(),
+            subtracted_globs: vec![],
             team_name: team_name.clone(),
             source: source.clone(),
         };
@@ -149,5 +186,31 @@ mod tests {
             "Owner defined in `packs/bam/packag.yml` with implicity owned glob: `packs/bam/**/**`"
         );
         assert_eq!(Source::TeamYml.to_string(), "Teams own their configuration files");
+    }
+
+    #[test]
+    fn test_new_glob_with_candidate_subtracted_globs() {
+        assert_new_glob_with_candidate_subtracted_globs("packs/bam/**/**", &[], &[]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/bam/**/**", &["packs/bam/app/**/**"], &["packs/bam/app/**/**"]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/bam/**/**", &["packs/bam/app/an/exceptional/path/it.rb"], &["packs/bam/app/an/exceptional/path/it.rb"]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/bam/**/**", &["packs/bam.rb"], &[]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/bam/**/**", &["packs/nope/app/**/**"], &[]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/**", &["packs/yep/app/**/**"], &["packs/yep/app/**/**"]);
+        assert_new_glob_with_candidate_subtracted_globs("packs/foo.yml", &["packs/foo/**/**"], &[]);
+    }
+
+    fn assert_new_glob_with_candidate_subtracted_globs(glob: &str, candidate_subtracted_globs: &[&str], expected_subtracted_globs: &[&str]) {
+        let owner_matcher = OwnerMatcher::new_glob_with_candidate_subtracted_globs(
+            glob.to_string(),
+            candidate_subtracted_globs.iter().map(|s| s.to_string()).collect(),
+            "team1".to_string(),
+            Source::TeamGlob(glob.to_string()),
+        );
+
+        if let OwnerMatcher::Glob { subtracted_globs, .. } = owner_matcher {
+            assert_eq!(subtracted_globs, expected_subtracted_globs);
+        } else {
+            panic!("Expected a Glob matcher");
+        }
     }
 }

@@ -36,10 +36,13 @@ impl Mapper for TeamGlobMapper {
 
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
         self.iter_team_globs()
-            .map(|(glob, github_team, _, _)| OwnerMatcher::Glob {
-                glob: glob.to_owned(),
-                team_name: github_team.to_owned(),
-                source: Source::TeamGlob(glob.to_owned()),
+            .map(|(glob, github_team, _, _)| {
+                OwnerMatcher::new_glob_with_candidate_subtracted_globs(
+                    glob.to_owned(),
+                    vec![],
+                    github_team.to_owned(),
+                    Source::TeamGlob(glob.to_owned()),
+                )
             })
             .collect()
     }
@@ -78,11 +81,11 @@ mod tests {
         let mapper = TeamGlobMapper::build(ownership.project.clone());
         vecs_match(
             &mapper.owner_matchers(),
-            &vec![OwnerMatcher::Glob {
-                glob: "packs/bar/**".to_owned(),
-                team_name: "@Baz".to_owned(),
-                source: Source::TeamGlob("packs/bar/**".to_owned()),
-            }],
+            &vec![OwnerMatcher::new_glob(
+                "packs/bar/**".to_owned(),
+                "@Baz".to_owned(),
+                Source::TeamGlob("packs/bar/**".to_owned()),
+            )],
         );
         Ok(())
     }

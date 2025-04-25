@@ -46,11 +46,11 @@ impl Mapper for TeamGemMapper {
                 let vendored_gem = vendored_gem_by_name.get(owned_gem);
 
                 if let Some(vendored_gem) = vendored_gem {
-                    owner_matchers.push(OwnerMatcher::Glob {
-                        glob: format!("{}/**/*", self.project.relative_path(&vendored_gem.path).to_string_lossy()),
-                        team_name: team.name.clone(),
-                        source: Source::TeamGem,
-                    });
+                    owner_matchers.push(OwnerMatcher::new_glob(
+                        format!("{}/**/*", self.project.relative_path(&vendored_gem.path).to_string_lossy()),
+                        team.name.clone(),
+                        Source::TeamGem,
+                    ));
                 }
             }
         }
@@ -92,11 +92,11 @@ mod tests {
         let mapper = TeamGemMapper::build(ownership.project.clone());
         vecs_match(
             &mapper.owner_matchers(),
-            &vec![OwnerMatcher::Glob {
-                glob: "gems/globbing/**/*".to_owned(),
-                team_name: "Bam".to_owned(),
-                source: Source::TeamGem,
-            }],
+            &vec![OwnerMatcher::new_glob(
+                "gems/globbing/**/*".to_owned(),
+                "Bam".to_owned(),
+                Source::TeamGem,
+            )],
         );
         Ok(())
     }
