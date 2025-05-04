@@ -69,16 +69,18 @@ impl PackageMapper {
         let team_by_name = self.project.teams_by_name.clone();
 
         for package in self.project.packages.iter().filter(|package| &package.package_type == package_type) {
-            let package_root = package.package_root().to_string_lossy();
-            let team = team_by_name.get(&package.owner);
+            if let Some(package_root) = package.package_root() {
+                let package_root = package_root.to_string_lossy();
+                let team = team_by_name.get(&package.owner);
 
-            if let Some(team) = team {
-                entries.push(Entry {
-                    path: format!("{}/**/**", package_root),
-                    github_team: team.github_team.to_owned(),
-                    team_name: team.name.to_owned(),
-                    disabled: team.avoid_ownership,
-                });
+                if let Some(team) = team {
+                    entries.push(Entry {
+                        path: format!("{}/**/**", package_root),
+                        github_team: team.github_team.to_owned(),
+                        team_name: team.name.to_owned(),
+                        disabled: team.avoid_ownership,
+                    });
+                }
             }
         }
 
@@ -97,15 +99,17 @@ impl PackageMapper {
         let packages = remove_nested_packages(&packages);
 
         for package in packages {
-            let package_root = package.package_root().to_string_lossy();
-            let team = team_by_name.get(&package.owner);
+            if let Some(package_root) = package.package_root() {
+                let package_root = package_root.to_string_lossy();
+                let team = team_by_name.get(&package.owner);
 
-            if let Some(team) = team {
-                owner_matchers.push(OwnerMatcher::new_glob(
-                    format!("{}/**/**", package_root),
-                    team.name.to_owned(),
-                    Source::Package(package.path.to_string_lossy().to_string(), format!("{}/**/**", package_root)),
-                ));
+                if let Some(team) = team {
+                    owner_matchers.push(OwnerMatcher::new_glob(
+                        format!("{}/**/**", package_root),
+                        team.name.to_owned(),
+                        Source::Package(package.path.to_string_lossy().to_string(), format!("{}/**/**", package_root)),
+                    ));
+                }
             }
         }
 
@@ -118,9 +122,10 @@ fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
 
     for package in packages.iter().sorted_by_key(|package| package.package_root()) {
         if let Some(last_package) = top_level_packages.last() {
-            let last_package_root = last_package.package_root();
-            if !package.package_root().starts_with(last_package_root) {
-                top_level_packages.push(package);
+            if let (Some(current_root), Some(last_root)) = (package.package_root(), last_package.package_root()) {
+                if !current_root.starts_with(last_root) {
+                    top_level_packages.push(package);
+                }
             }
         } else {
             top_level_packages.push(package);

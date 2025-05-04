@@ -21,11 +21,13 @@ const DEFAULT_CACHE_CAPACITY: usize = 10000;
 
 impl Caching for GlobalCache {
     fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
-        if let Ok(cache) = self.file_owner_cache.as_ref().unwrap().lock() {
-            if let Some(cached_entry) = cache.get(path) {
-                let timestamp = get_file_timestamp(path)?;
-                if cached_entry.timestamp == timestamp {
-                    return Ok(Some(cached_entry.clone()));
+        if let Some(cache_mutex) = self.file_owner_cache.as_ref() {
+            if let Ok(cache) = cache_mutex.lock() {
+                if let Some(cached_entry) = cache.get(path) {
+                    let timestamp = get_file_timestamp(path)?;
+                    if cached_entry.timestamp == timestamp {
+                        return Ok(Some(cached_entry.clone()));
+                    }
                 }
             }
         }
@@ -33,9 +35,11 @@ impl Caching for GlobalCache {
     }
 
     fn write_file_owner(&self, path: &Path, owner: Option<String>) {
-        if let Ok(mut cache) = self.file_owner_cache.as_ref().unwrap().lock() {
-            if let Ok(timestamp) = get_file_timestamp(path) {
-                cache.insert(path.to_path_buf(), FileOwnerCacheEntry { timestamp, owner });
+        if let Some(cache_mutex) = self.file_owner_cache.as_ref() {
+            if let Ok(mut cache) = cache_mutex.lock() {
+                if let Ok(timestamp) = get_file_timestamp(path) {
+                    cache.insert(path.to_path_buf(), FileOwnerCacheEntry { timestamp, owner });
+                }
             }
         }
     }
@@ -50,8 +54,12 @@ impl Caching for GlobalCache {
             .change_context(Error::Io)?;
 
         let writer = BufWriter::new(file);
-        let cache = self.file_owner_cache.as_ref().unwrap().lock().map_err(|_| Error::Io)?;
-        serde_json::to_writer(writer, &*cache).change_context(Error::SerdeJson)
+        if let Some(cache_mutex) = self.file_owner_cache.as_ref() {
+            let cache = cache_mutex.lock().map_err(|_| Error::Io)?;
+            serde_json::to_writer(writer, &*cache).change_context(Error::SerdeJson)
+        } else {
+            Ok(())
+        }
     }
 
     fn delete_cache(&self) -> Result<(), Error> {
@@ -91,7 +99,7 @@ impl GlobalCache {
 
     fn get_cache_path(&self) -> PathBuf {
         let cache_dir = self.base_path.join(PathBuf::from(&self.cache_directory));
-        fs::create_dir_all(&cache_dir).unwrap();
+        let _ = fs::create_dir_all(&cache_dir);
 
         cache_dir.join("project-file-cache.json")
     }
