@@ -78,10 +78,18 @@ impl<'a> ProjectBuilder<'a> {
             .to_lowercase();
 
         match file_name.as_str() {
-            name if name == "package.yml" && matches_globs(relative_path.parent().unwrap(), &self.config.ruby_package_paths) => {
+            name if name == "package.yml"
+                && relative_path
+                    .parent()
+                    .is_some_and(|parent| matches_globs(parent, &self.config.ruby_package_paths)) =>
+            {
                 Ok(EntryType::RubyPackage(absolute_path.to_owned(), relative_path.to_owned()))
             }
-            name if name == "package.json" && matches_globs(relative_path.parent().unwrap(), &self.config.javascript_package_paths) => {
+            name if name == "package.json"
+                && relative_path
+                    .parent()
+                    .is_some_and(|parent| matches_globs(parent, &self.config.javascript_package_paths)) =>
+            {
                 Ok(EntryType::JavascriptPackage(absolute_path.to_owned(), relative_path.to_owned()))
             }
             ".codeowner" => Ok(EntryType::CodeownerFile(absolute_path.to_owned(), relative_path.to_owned())),
@@ -124,31 +132,47 @@ impl<'a> ProjectBuilder<'a> {
                             }
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
-                            if let Some(owner) = ruby_package_owner(&absolute_path).unwrap() {
-                                pkgs.push(Package {
-                                    path: relative_path.clone(),
-                                    owner,
-                                    package_type: PackageType::Ruby,
-                                });
+                            match ruby_package_owner(&absolute_path) {
+                                Ok(Some(owner)) => {
+                                    pkgs.push(Package {
+                                        path: relative_path.clone(),
+                                        owner,
+                                        package_type: PackageType::Ruby,
+                                    });
+                                }
+                                Ok(None) => { /* No owner, do nothing */ }
+                                Err(e) => {
+                                    warn!("Error reading ruby package owner for {:?}: {:?}", absolute_path, e);
+                                }
                             }
                         }
                         EntryType::JavascriptPackage(absolute_path, relative_path) => {
-                            if let Some(owner) = javascript_package_owner(&absolute_path).unwrap() {
-                                pkgs.push(Package {
-                                    path: relative_path.clone(),
-                                    owner,
-                                    package_type: PackageType::Javascript,
-                                });
+                            match javascript_package_owner(&absolute_path) {
+                                Ok(Some(owner)) => {
+                                    pkgs.push(Package {
+                                        path: relative_path.clone(),
+                                        owner,
+                                        package_type: PackageType::Javascript,
+                                    });
+                                }
+                                Ok(None) => { /* No owner, do nothing */ }
+                                Err(e) => {
+                                    warn!("Error reading javascript package owner for {:?}: {:?}", absolute_path, e);
+                                }
                             }
                         }
-                        EntryType::CodeownerFile(absolute_path, relative_path) => {
-                            let owner = std::fs::read_to_string(absolute_path).unwrap();
-                            let owner = owner.trim().to_owned();
-                            codeowners.push(DirectoryCodeownersFile {
-                                path: relative_path.clone(),
-                                owner,
-                            });
-                        }
+                        EntryType::CodeownerFile(absolute_path, relative_path) => match std::fs::read_to_string(&absolute_path) {
+                            Ok(owner) => {
+                                let owner = owner.trim().to_owned();
+                                codeowners.push(DirectoryCodeownersFile {
+                                    path: relative_path.clone(),
+                                    owner,
+                                });
+                            }
+                            Err(e) => {
+                                warn!("Error reading codeowner file for {:?}: {:?}", absolute_path, e);
+                            }
+                        },
                         EntryType::TeamFile(absolute_path, _relative_path) => match Team::from_team_file_path(absolute_path) {
                             Ok(team) => {
                                 team_files.push(team);

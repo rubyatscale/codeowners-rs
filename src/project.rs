@@ -66,8 +66,8 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn package_root(&self) -> &Path {
-        self.path.parent().unwrap()
+    pub fn package_root(&self) -> Option<&Path> {
+        self.path.parent()
     }
 }
 
@@ -78,8 +78,8 @@ pub struct DirectoryCodeownersFile {
 }
 
 impl DirectoryCodeownersFile {
-    pub fn directory_root(&self) -> &Path {
-        self.path.parent().unwrap()
+    pub fn directory_root(&self) -> Option<&Path> {
+        self.path.parent()
     }
 }
 
