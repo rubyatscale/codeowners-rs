@@ -1,30 +1,31 @@
 # Codeowners
+
 This is a CLI tool to generate [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) from an existing project assuming certain conventions around file annotations and Ruby/Javascript packages.
 It's also the [oxidation](https://wiki.mozilla.org/Oxidation) of an existing [CLI tool](https://github.com/rubyatscale/code_ownership) written in Ruby.
 
-Targeting a large project, `codeowners` can be signifcantly faster than `codeownership`:
+Targeting a large project, `codeowners` can be signifcantly faster than [code_ownership](https://github.com/rubyatscale/code_ownership):
 
 ``` text
 $ hyperfine 'codeownership validate' 'codeowners validate'
-Benchmark 1: codeownership validate
-  Time (mean ± σ):     44.389 s ±  0.219 s    [User: 4.034 s, System: 22.216 s]
-  Range (min … max):   44.014 s … 44.738 s    10 runs
+Benchmark 1: codeownership validate (ruby gem https://github.com/rubyatscale/code_ownership)
+  Time (mean ± σ):     47.991 s ±  1.220 s    [User: 4.590 s, System: 24.379 s]
+  Range (min … max):   46.777 s … 49.217 s    3 runs
 
-Benchmark 2: codeowners validate
-  Time (mean ± σ):      7.521 s ±  0.080 s    [User: 8.809 s, System: 44.343 s]
-  Range (min … max):    7.361 s …  7.603 s    10 runs
+Benchmark 2: codeowners gv (this repo)
+  Time (mean ± σ):      4.263 s ±  0.025 s    [User: 9.359 s, System: 3.273 s]
+  Range (min … max):    4.246 s …  4.292 s    3 runs
 
 Summary
-  codeowners validate ran
-    5.90 ± 0.07 times faster than codeownership validate
+  codeowners gv ran
+   11.26 ± 0.29 times faster than codeownership validate
 ```
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `codeownership validate` | 44.389 ± 0.219 | 44.014 | 44.738 | 5.90 ± 0.07 |
-| `codeowners validate` | 7.521 ± 0.080 | 7.361 | 7.603 | 1.00 |
+| `codeownership validate` | 47.991 ± 1.220 | 46.777 | 49.217 | 11.26 ± 0.29 |
+| `codeowners gv` | 4.263 ± 0.025 | 4.246 | 4.292 | 1.00 |
 
-### Documentation
+## Documentation
 
 ```text
 A CLI to validate and generate Github's CODEOWNERS file
@@ -52,9 +53,9 @@ Options:
           Print version
 ```
 
-#### Getting Started
+### Getting Started
 
-See the [CONFIGURATION.md](CONFIGURATION.md) file for more information on how to codeowners.
+See the [CONFIGURATION.md](CONFIGURATION.md) file for more information on how to configure codeowners.
 
 #### for-file
 
@@ -103,24 +104,8 @@ This team owns nothing in this category.
 /gems/payroll_calculator/**/**
 ```
 
-
-### Adoption
-This is an experimental port, use at your own risk and be prepared to fallback to the Ruby implementation if it stops working, if you still wish to adopt it, here are the instructions:
-
-```bash
-# sets up a Rust toolchain
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Compile and install locally
-gh repo clone rubyatscale/codeowners-rs
-cd codeowners-rs
-cargo install --path .
-
-# Set an environment variable that switches ZP's commit hook to use the globally installed binary
-echo USE_CODEOWNERS_RS=true >> ~/.zshrc
-```
-
 ### Development
+
 The CLI is written in Rust. Rust provides strong type gurantees and an great ecosystem of CLI libraries. To be able to compile the code locally, you'll need to setup a rust compiler (See https://rustup.rs/):
 
 ```bash
