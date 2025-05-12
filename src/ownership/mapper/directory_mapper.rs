@@ -21,7 +21,10 @@ impl Mapper for DirectoryMapper {
         let team_by_name = self.project.teams_by_name.clone();
 
         for directory_codeowner_file in &self.project.directory_codeowner_files {
-            let dir_root = directory_codeowner_file.directory_root().to_string_lossy();
+            let dir_root = directory_codeowner_file
+                .directory_root()
+                .map(|p| p.to_string_lossy())
+                .unwrap_or_default();
             let team = team_by_name.get(&directory_codeowner_file.owner);
             if let Some(team) = team {
                 entries.push(Entry {
@@ -41,9 +44,12 @@ impl Mapper for DirectoryMapper {
 
         for file in &self.project.directory_codeowner_files {
             owner_matchers.push(OwnerMatcher::new_glob(
-                format!("{}/**/**", escape_brackets(&file.directory_root().to_string_lossy())),
+                format!(
+                    "{}/**/**",
+                    escape_brackets(&file.directory_root().map(|p| p.to_string_lossy()).unwrap_or_default())
+                ),
                 file.owner.to_owned(),
-                Source::Directory(file.directory_root().to_string_lossy().to_string()),
+                Source::Directory(file.directory_root().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()),
             ));
         }
 
