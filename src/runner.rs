@@ -93,15 +93,18 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
             return RunResult {
                 io_errors: vec![err.to_string()],
                 ..Default::default()
-            }
+            };
         }
     };
 
-    use crate::ownership::fast::find_file_owners;
+    use crate::ownership::for_file_fast::find_file_owners;
     let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
         Ok(v) => v,
         Err(err) => {
-            return RunResult { io_errors: vec![err], ..Default::default() };
+            return RunResult {
+                io_errors: vec![err],
+                ..Default::default()
+            };
         }
     };
 
@@ -119,9 +122,11 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
             };
         }
     };
-    RunResult { info_messages, ..Default::default() }
+    RunResult {
+        info_messages,
+        ..Default::default()
+    }
 }
-
 
 pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
     run_with_runner(run_config, |runner| runner.for_team(team_name))

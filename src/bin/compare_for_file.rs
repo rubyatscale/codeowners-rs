@@ -1,3 +1,12 @@
+// This is a tool to compare the output of the original codeowners CLI with the optimized version.
+// It's useful for verifying that the optimized version is correct.
+//
+// It's not used in CI, but it's useful for debugging.
+//
+// To run it, use `cargo run --bin compare_for_file <absolute_project_root>`
+//
+// It will compare the output of the original codeowners CLI with the optimized version for all files in the project.
+
 use std::{
     fs::File,
     io::{self, Write},
@@ -6,15 +15,12 @@ use std::{
 };
 
 use codeowners::config::Config as OwnershipConfig;
+use codeowners::ownership::{FileOwner, for_file_fast};
 use codeowners::runner::{RunConfig, Runner};
-use codeowners::ownership::{fast, FileOwner};
 use ignore::WalkBuilder;
-use serde_yaml;
 
 fn main() {
-    let project_root = std::env::args()
-        .nth(1)
-        .expect("usage: compare_for_file <absolute_project_root>");
+    let project_root = std::env::args().nth(1).expect("usage: compare_for_file <absolute_project_root>");
     let project_root = PathBuf::from(project_root);
     if !project_root.is_absolute() {
         eprintln!("Project root must be absolute");
@@ -60,22 +66,24 @@ fn main() {
     let mut diff_count: usize = 0;
 
     // Prefer tracked files from git; fall back to walking the FS if git is unavailable
-    let tracked_files_output = Command::new("git")
-        .arg("-C")
-        .arg(&project_root)
-        .arg("ls-files")
-        .arg("-z")
-        .output();
+    let tracked_files_output = Command::new("git").arg("-C").arg(&project_root).arg("ls-files").arg("-z").output();
 
     match tracked_files_output {
         Ok(output) if output.status.success() => {
             let bytes = output.stdout;
             for rel in bytes.split(|b| *b == 0u8) {
-                if rel.is_empty() { continue; }
-                let rel_str = match std::str::from_utf8(rel) { Ok(s) => s, Err(_) => continue };
+                if rel.is_empty() {
+                    continue;
+                }
+                let rel_str = match std::str::from_utf8(rel) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
                 let abs_path = project_root.join(rel_str);
                 // Only process regular files that currently exist
-                if !abs_path.is_file() { continue; }
+                if !abs_path.is_file() {
+                    continue;
+                }
 
                 total_files += 1;
                 let original = run_original(&runner, &abs_path);
@@ -90,10 +98,7 @@ fn main() {
                 }
 
                 if total_files % 1000 == 0 {
-                    eprintln!(
-                        "Processed {} files... diffs so far: {}",
-                        total_files, diff_count
-                    );
+                    eprintln!("Processed {} files... diffs so far: {}", total_files, diff_count);
                 }
             }
         }
@@ -132,10 +137,7 @@ fn main() {
                 }
 
                 if total_files % 1000 == 0 {
-                    eprintln!(
-                        "Processed {} files... diffs so far: {}",
-                        total_files, diff_count
-                    );
+                    eprintln!("Processed {} files... diffs so far: {}", total_files, diff_count);
                 }
             }
         }
@@ -159,7 +161,7 @@ fn run_original(runner: &Runner, file_path: &Path) -> String {
 }
 
 fn run_optimized(project_root: &Path, config: &OwnershipConfig, file_path: &Path) -> String {
-    let owners: Vec<FileOwner> = match fast::find_file_owners(project_root, config, file_path) {
+    let owners: Vec<FileOwner> = match for_file_fast::find_file_owners(project_root, config, file_path) {
         Ok(v) => v,
         Err(e) => return format!("IO_ERROR: {}", e),
     };
@@ -175,5 +177,3 @@ fn run_optimized(project_root: &Path, config: &OwnershipConfig, file_path: &Path
         }
     }
 }
-
-

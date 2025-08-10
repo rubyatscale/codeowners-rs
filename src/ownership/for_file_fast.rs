@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use fast_glob::glob_match;
 use glob::glob;
@@ -20,10 +24,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         .unwrap_or(&absolute_file_path)
         .to_path_buf();
 
-    let teams = match load_teams(project_root, &config.team_file_glob) {
-        Ok(t) => t,
-        Err(e) => return Err(e),
-    };
+    let teams = load_teams(project_root, &config.team_file_glob)?;
     let teams_by_name = build_teams_by_name_map(&teams);
 
     let mut sources_by_team: HashMap<String, Vec<Source>> = HashMap::new();
@@ -68,11 +69,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     }
 
     for team in &teams {
-        let team_rel = team
-            .path
-            .strip_prefix(project_root)
-            .unwrap_or(&team.path)
-            .to_path_buf();
+        let team_rel = team.path.strip_prefix(project_root).unwrap_or(&team.path).to_path_buf();
         if team_rel == relative_file_path {
             sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamYml);
         }
@@ -99,18 +96,8 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     // This is simply matching the order of behavior of the original codeowners CLI
     if file_owners.len() > 1 {
         file_owners.sort_by(|a, b| {
-            let priority_a = a
-                .sources
-                .iter()
-                .map(|s| source_priority(s))
-                .min()
-                .unwrap_or(u8::MAX);
-            let priority_b = b
-                .sources
-                .iter()
-                .map(|s| source_priority(s))
-                .min()
-                .unwrap_or(u8::MAX);
+            let priority_a = a.sources.iter().map(source_priority).min().unwrap_or(u8::MAX);
+            let priority_b = b.sources.iter().map(source_priority).min().unwrap_or(u8::MAX);
             priority_a.cmp(&priority_b).then_with(|| a.team.name.cmp(&b.team.name))
         });
     }
@@ -204,7 +191,9 @@ fn most_specific_directory_owner(
                 }
             }
         }
-        if parent == project_root { break; }
+        if parent == project_root {
+            break;
+        }
         current = parent.clone();
     }
     best
@@ -229,10 +218,10 @@ fn nearest_package_owner(
                         if let Some(team) = teams_by_name.get(&owner) {
                             let package_path = parent_rel.join("package.yml");
                             let package_glob = format!("{}/**/**", rel_str);
-                            return Some((team.name.clone(), Source::Package(
-                                package_path.to_string_lossy().to_string(),
-                                package_glob,
-                            )));
+                            return Some((
+                                team.name.clone(),
+                                Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                            ));
                         }
                     }
                 }
@@ -244,16 +233,18 @@ fn nearest_package_owner(
                         if let Some(team) = teams_by_name.get(&owner) {
                             let package_path = parent_rel.join("package.json");
                             let package_glob = format!("{}/**/**", rel_str);
-                            return Some((team.name.clone(), Source::Package(
-                                package_path.to_string_lossy().to_string(),
-                                package_glob,
-                            )));
+                            return Some((
+                                team.name.clone(),
+                                Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                            ));
                         }
                     }
                 }
             }
         }
-        if parent == project_root { break; }
+        if parent == project_root {
+            break;
+        }
         current = parent;
     }
     None
@@ -285,18 +276,22 @@ fn read_js_package_owner(path: &Path) -> std::result::Result<String, String> {
         .ok_or_else(|| "Missing owner".to_string())
 }
 
-fn vendored_gem_owner(
-    relative_file_path: &Path,
-    config: &Config,
-    teams: &[Team],
-) -> Option<(String, Source)> {
+fn vendored_gem_owner(relative_file_path: &Path, config: &Config, teams: &[Team]) -> Option<(String, Source)> {
     use std::path::Component;
     let mut comps = relative_file_path.components();
     let first = comps.next()?;
     let second = comps.next()?;
-    let first_str = match first { Component::Normal(s) => s.to_string_lossy(), _ => return None };
-    if first_str != config.vendored_gems_path { return None; }
-    let gem_name = match second { Component::Normal(s) => s.to_string_lossy().to_string(), _ => return None };
+    let first_str = match first {
+        Component::Normal(s) => s.to_string_lossy(),
+        _ => return None,
+    };
+    if first_str != config.vendored_gems_path {
+        return None;
+    }
+    let gem_name = match second {
+        Component::Normal(s) => s.to_string_lossy().to_string(),
+        _ => return None,
+    };
     for team in teams {
         if team.owned_gems.iter().any(|g| g == &gem_name) {
             return Some((team.name.clone(), Source::TeamGem));
@@ -316,5 +311,3 @@ fn source_priority(source: &Source) -> u8 {
         Source::TeamYml => 5,
     }
 }
-
-

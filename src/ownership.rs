@@ -11,10 +11,10 @@ use tracing::{info, instrument};
 
 mod file_generator;
 mod file_owner_finder;
+pub mod for_file_fast;
 pub(crate) mod mapper;
 pub(crate) mod parser;
 mod validator;
-pub mod fast;
 
 use crate::{
     ownership::mapper::DirectoryMapper,
