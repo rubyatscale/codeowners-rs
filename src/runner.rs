@@ -39,6 +39,7 @@ pub fn for_file(run_config: &RunConfig, file_path: &str, fast: bool) -> RunResul
     if fast {
         for_file_from_codeowners(run_config, file_path)
     } else {
+       // run_with_runner(run_config, |runner| runner.for_file(file_path))
         for_file_optimized(run_config, file_path)
     }
 }
@@ -97,7 +98,12 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
     };
 
     use crate::ownership::fast::find_file_owners;
-    let file_owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path));
+    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
+        Ok(v) => v,
+        Err(err) => {
+            return RunResult { io_errors: vec![err], ..Default::default() };
+        }
+    };
 
     let info_messages: Vec<String> = match file_owners.len() {
         0 => vec![format!("{}", FileOwner::default())],

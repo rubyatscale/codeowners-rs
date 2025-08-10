@@ -9,7 +9,7 @@ use crate::{config::Config, project::Team};
 
 use super::{FileOwner, mapper::Source};
 
-pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) -> Vec<FileOwner> {
+pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) -> Result<Vec<FileOwner>, String> {
     let absolute_file_path = if file_path.is_absolute() {
         file_path.to_path_buf()
     } else {
@@ -22,15 +22,22 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
 
     let teams = match load_teams(project_root, &config.team_file_glob) {
         Ok(t) => t,
-        Err(_) => return vec![],
+        Err(e) => return Err(e),
     };
     let teams_by_name = build_teams_by_name_map(&teams);
 
     let mut sources_by_team: HashMap<String, Vec<Source>> = HashMap::new();
 
     if let Some(team_name) = read_top_of_file_team(&absolute_file_path) {
-        if let Some(team) = teams_by_name.get(&team_name) {
-            sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamFile);
+        // Only consider top-of-file annotations for files included by config.owned_globs and not excluded by config.unowned_globs
+        if let Some(rel_str) = relative_file_path.to_str() {
+            let is_config_owned = glob_list_matches(rel_str, &config.owned_globs);
+            let is_config_unowned = glob_list_matches(rel_str, &config.unowned_globs);
+            if is_config_owned && !is_config_unowned {
+                if let Some(team) = teams_by_name.get(&team_name) {
+                    sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamFile);
+                }
+            }
         }
     }
 
@@ -106,7 +113,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         });
     }
 
-    file_owners
+    Ok(file_owners)
 }
 
 fn build_teams_by_name_map(teams: &[Team]) -> HashMap<String, Team> {
@@ -137,23 +144,25 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
 }
 
 lazy_static! {
-    static ref TOP_OF_FILE_TEAM_AT_REGEX: Regex = Regex::new(r#"^(?:#|//)\s*@team\s+(.+)$"#)
-        .expect("error compiling regular expression");
-    static ref TOP_OF_FILE_TEAM_COLON_REGEX: Regex = Regex::new(r#"(?i)^(?:#|//)\s*team\s*:\s*(.+)$"#)
-        .expect("error compiling regular expression");
+    static ref TOP_OF_FILE_TEAM_AT_REGEX: Option<Regex> = Regex::new(r#"^(?:#|//)\s*@team\s+(.+)$"#).ok();
+    static ref TOP_OF_FILE_TEAM_COLON_REGEX: Option<Regex> = Regex::new(r#"(?i)^(?:#|//)\s*team\s*:\s*(.+)$"#).ok();
 }
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
     let content = fs::read_to_string(path).ok()?;
     for line in content.lines().take(15) {
-        if let Some(cap) = TOP_OF_FILE_TEAM_AT_REGEX.captures(line) {
-            if let Some(m) = cap.get(1) {
-                return Some(m.as_str().to_string());
+        if let Some(re) = &*TOP_OF_FILE_TEAM_AT_REGEX {
+            if let Some(cap) = re.captures(line) {
+                if let Some(m) = cap.get(1) {
+                    return Some(m.as_str().to_string());
+                }
             }
         }
-        if let Some(cap) = TOP_OF_FILE_TEAM_COLON_REGEX.captures(line) {
-            if let Some(m) = cap.get(1) {
-                return Some(m.as_str().to_string());
+        if let Some(re) = &*TOP_OF_FILE_TEAM_COLON_REGEX {
+            if let Some(cap) = re.captures(line) {
+                if let Some(m) = cap.get(1) {
+                    return Some(m.as_str().to_string());
+                }
             }
         }
         let trimmed = line.trim_start();

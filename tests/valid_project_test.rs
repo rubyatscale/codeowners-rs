@@ -98,6 +98,26 @@ fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_fast_for_file_with_ignored_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("should_be_ignored/an_ignored_file.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: Unowned
+            Github Team: Unowned
+            Team YML: 
+            Description:
+            - Unowned
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_fast_for_file_full_path() -> Result<(), Box<dyn Error>> {
     let project_root = Path::new("tests/fixtures/valid_project");
     let for_file_absolute_path = fs::canonicalize(project_root.join("ruby/app/models/payroll.rb"))?;

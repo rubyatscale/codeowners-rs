@@ -216,7 +216,10 @@ impl<'a> ProjectBuilder<'a> {
 }
 
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
+        None => false,
+    }
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {

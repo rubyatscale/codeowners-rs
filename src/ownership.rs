@@ -14,7 +14,7 @@ mod file_owner_finder;
 pub(crate) mod mapper;
 pub(crate) mod parser;
 mod validator;
-pub(crate) mod fast;
+pub mod fast;
 
 use crate::{
     ownership::mapper::DirectoryMapper,
