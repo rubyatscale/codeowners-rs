@@ -178,9 +178,7 @@ impl Project {
     }
 
     pub fn relative_path<'a>(&'a self, absolute_path: &'a Path) -> &'a Path {
-        absolute_path
-            .strip_prefix(&self.base_path)
-            .expect("Could not generate relative path")
+        absolute_path.strip_prefix(&self.base_path).unwrap_or(absolute_path)
     }
 
     pub fn get_team(&self, name: &str) -> Option<Team> {
