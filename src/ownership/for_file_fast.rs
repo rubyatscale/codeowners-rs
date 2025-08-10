@@ -123,7 +123,7 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
             match Team::from_team_file_path(path.clone()) {
                 Ok(team) => teams.push(team),
                 Err(e) => {
-                    eprintln!("Error parsing team file: {}", e);
+                    eprintln!("Error parsing team file: {}, path: {}", e, path.display());
                     continue;
                 }
             }
@@ -309,5 +309,154 @@ fn source_priority(source: &Source) -> u8 {
         Source::TeamGlob(_) => 3,
         Source::TeamGem => 4,
         Source::TeamYml => 5,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::project::Team;
+    use std::collections::HashMap;
+    use tempfile::tempdir;
+
+    fn build_config_for_temp(frontend_glob: &str, ruby_glob: &str, vendored_path: &str) -> crate::config::Config {
+        crate::config::Config {
+            owned_globs: vec!["**/*".to_string()],
+            ruby_package_paths: vec![ruby_glob.to_string()],
+            javascript_package_paths: vec![frontend_glob.to_string()],
+            team_file_glob: vec!["config/teams/**/*.yml".to_string()],
+            unowned_globs: vec![],
+            vendored_gems_path: vendored_path.to_string(),
+            cache_directory: "tmp/cache/codeowners".to_string(),
+        }
+    }
+
+    fn team_named(name: &str) -> Team {
+        Team {
+            path: Path::new("config/teams/foo.yml").to_path_buf(),
+            name: name.to_string(),
+            github_team: format!("@{}Team", name),
+            owned_globs: vec![],
+            subtracted_globs: vec![],
+            owned_gems: vec![],
+            avoid_ownership: false,
+        }
+    }
+
+    #[test]
+    fn test_read_top_of_file_team_parses_at_and_colon_forms() {
+        let td = tempdir().unwrap();
+
+        // @team form
+        let file_at = td.path().join("at_form.rb");
+        std::fs::write(&file_at, "# @team Payroll\nputs 'x'\n").unwrap();
+        assert_eq!(read_top_of_file_team(&file_at), Some("Payroll".to_string()));
+
+        // team: form (case-insensitive, allows spaces)
+        let file_colon = td.path().join("colon_form.rb");
+        std::fs::write(&file_colon, "# Team: Payments\nputs 'y'\n").unwrap();
+        assert_eq!(read_top_of_file_team(&file_colon), Some("Payments".to_string()));
+    }
+
+    #[test]
+    fn test_most_specific_directory_owner_prefers_deeper() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+
+        // Build directories
+        let deep_dir = project_root.join("a/b/c");
+        std::fs::create_dir_all(&deep_dir).unwrap();
+        let mid_dir = project_root.join("a/b");
+        let top_dir = project_root.join("a");
+
+        // Write .codeowner files
+        std::fs::write(top_dir.join(".codeowner"), "TopTeam").unwrap();
+        std::fs::write(mid_dir.join(".codeowner"), "MidTeam").unwrap();
+        std::fs::write(deep_dir.join(".codeowner"), "DeepTeam").unwrap();
+
+        // Build teams_by_name
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["TopTeam", "MidTeam", "DeepTeam"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        let rel_file = Path::new("a/b/c/file.rb");
+        let result = most_specific_directory_owner(project_root, rel_file, &tbn).unwrap();
+        match result.1 {
+            Source::Directory(path) => {
+                assert!(path.ends_with("a/b/c"), "expected deepest directory, got {}", path);
+            }
+            _ => panic!("expected Directory source"),
+        }
+        assert_eq!(result.0, "DeepTeam");
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_and_js() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        // Ruby package
+        let ruby_pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(
+            ruby_pkg.join("package.yml"),
+            "---\nowner: Payroll\n",
+        )
+        .unwrap();
+
+        // JS package
+        let js_pkg = project_root.join("frontend/flow");
+        std::fs::create_dir_all(&js_pkg).unwrap();
+        std::fs::write(
+            js_pkg.join("package.json"),
+            r#"{"metadata": {"owner": "UX"}}"#,
+        )
+        .unwrap();
+
+        // Teams map
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "UX"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        // Ruby nearest
+        let rel_ruby = Path::new("packs/payroll/app/models/thing.rb");
+        let ruby_owner = nearest_package_owner(project_root, rel_ruby, &config, &tbn).unwrap();
+        assert_eq!(ruby_owner.0, "Payroll");
+        match ruby_owner.1 {
+            Source::Package(pkg_path, glob) => {
+                assert!(pkg_path.ends_with("packs/payroll/package.yml"));
+                assert_eq!(glob, "packs/payroll/**/**");
+            }
+            _ => panic!("expected Package source for ruby"),
+        }
+
+        // JS nearest
+        let rel_js = Path::new("frontend/flow/src/index.ts");
+        let js_owner = nearest_package_owner(project_root, rel_js, &config, &tbn).unwrap();
+        assert_eq!(js_owner.0, "UX");
+        match js_owner.1 {
+            Source::Package(pkg_path, glob) => {
+                assert!(pkg_path.ends_with("frontend/flow/package.json"));
+                assert_eq!(glob, "frontend/flow/**/**");
+            }
+            _ => panic!("expected Package source for js"),
+        }
+    }
+
+    #[test]
+    fn test_vendored_gem_owner() {
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let mut teams: Vec<Team> = vec![team_named("Payroll")];
+        teams[0].owned_gems = vec!["awesome_gem".to_string()];
+
+        let path = Path::new("vendored/awesome_gem/lib/a.rb");
+        let result = vendored_gem_owner(path, &config, &teams).unwrap();
+        assert_eq!(result.0, "Payroll");
+        matches!(result.1, Source::TeamGem);
     }
 }
