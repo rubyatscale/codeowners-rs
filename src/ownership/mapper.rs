@@ -69,6 +69,9 @@ pub enum OwnerMatcher {
     ExactMatches(HashMap<PathBuf, TeamName>, Source),
     Glob {
         glob: String,
+        // Optional literal prefix before any glob metacharacters. Used to short-circuit
+        // obvious non-matches without invoking glob matching.
+        literal_prefix: Option<String>,
         subtracted_globs: Vec<String>,
         team_name: TeamName,
         source: Source,
@@ -82,6 +85,7 @@ impl OwnerMatcher {
         team_name: TeamName,
         source: Source,
     ) -> Self {
+        let literal_prefix = compute_literal_prefix(&glob);
         let subtracted_globs = candidate_subtracted_globs
             .iter()
             .filter(|candidate_subtracted_glob| {
@@ -91,6 +95,7 @@ impl OwnerMatcher {
             .collect();
         OwnerMatcher::Glob {
             glob,
+            literal_prefix,
             subtracted_globs,
             team_name,
             source,
@@ -98,28 +103,59 @@ impl OwnerMatcher {
     }
 
     pub fn new_glob(glob: String, team_name: TeamName, source: Source) -> Self {
-        OwnerMatcher::Glob {
-            glob,
-            subtracted_globs: vec![],
-            team_name,
-            source,
-        }
+        OwnerMatcher::Glob { glob: glob.clone(), literal_prefix: compute_literal_prefix(&glob), subtracted_globs: vec![], team_name, source }
     }
 
     pub fn owner_for(&self, relative_path: &Path) -> (Option<&TeamName>, &Source) {
         match self {
             OwnerMatcher::Glob {
                 glob,
+                literal_prefix,
                 subtracted_globs,
                 team_name,
                 source,
             } => relative_path
                 .to_str()
-                .filter(|path| glob_match(glob, path) && !subtracted_globs.iter().any(|subtracted| glob_match(subtracted, path)))
+                .and_then(|path| {
+                    if let Some(prefix) = literal_prefix {
+                        if !path.starts_with(prefix) {
+                            return None;
+                        }
+                    }
+                    if glob_match(glob, path)
+                        && !subtracted_globs.iter().any(|subtracted| glob_match(subtracted, path))
+                    {
+                        Some(())
+                    } else {
+                        None
+                    }
+                })
                 .map_or((None, source), |_| (Some(team_name), source)),
             OwnerMatcher::ExactMatches(path_to_team, source) => (path_to_team.get(relative_path), source),
         }
     }
+}
+
+// Returns the leading literal prefix of a glob pattern before any metacharacters.
+// Handles simple escapes (e.g., `\[` -> `[`) used in our patterns.
+fn compute_literal_prefix(glob: &str) -> Option<String> {
+    let mut prefix = String::new();
+    let mut chars = glob.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            // Stop at first glob metacharacter
+            '*' | '?' | '{' | '[' => break,
+            '\\' => {
+                if let Some(next_ch) = chars.peek().copied() {
+                    // Consume next char and append it literally
+                    prefix.push(next_ch);
+                    chars.next();
+                }
+            }
+            _ => prefix.push(ch),
+        }
+    }
+    if prefix.is_empty() { None } else { Some(prefix) }
 }
 
 #[cfg(test)]
