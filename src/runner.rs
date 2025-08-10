@@ -39,7 +39,7 @@ pub fn for_file(run_config: &RunConfig, file_path: &str, fast: bool) -> RunResul
     if fast {
         for_file_from_codeowners(run_config, file_path)
     } else {
-       // run_with_runner(run_config, |runner| runner.for_file(file_path))
+        //run_with_runner(run_config, |runner| runner.for_file(file_path))
         for_file_optimized(run_config, file_path)
     }
 }

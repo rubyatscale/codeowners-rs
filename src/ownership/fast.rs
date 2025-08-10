@@ -144,30 +144,27 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
 }
 
 lazy_static! {
-    static ref TOP_OF_FILE_TEAM_AT_REGEX: Option<Regex> = Regex::new(r#"^(?:#|//)\s*@team\s+(.+)$"#).ok();
-    static ref TOP_OF_FILE_TEAM_COLON_REGEX: Option<Regex> = Regex::new(r#"(?i)^(?:#|//)\s*team\s*:\s*(.+)$"#).ok();
+    // Allow optional leading whitespace before the comment marker
+    static ref TOP_OF_FILE_TEAM_AT_REGEX: Option<Regex> = Regex::new(r#"^\s*(?:#|//)\s*@team\s+(.+)$"#).ok();
+    static ref TOP_OF_FILE_TEAM_COLON_REGEX: Option<Regex> = Regex::new(r#"(?i)^\s*(?:#|//)\s*team\s*:\s*(.+)$"#).ok();
 }
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
     let content = fs::read_to_string(path).ok()?;
-    for line in content.lines().take(15) {
-        if let Some(re) = &*TOP_OF_FILE_TEAM_AT_REGEX {
-            if let Some(cap) = re.captures(line) {
-                if let Some(m) = cap.get(1) {
-                    return Some(m.as_str().to_string());
-                }
+    let line = content.lines().next()?;
+
+    if let Some(re) = &*TOP_OF_FILE_TEAM_AT_REGEX {
+        if let Some(cap) = re.captures(line) {
+            if let Some(m) = cap.get(1) {
+                return Some(m.as_str().to_string());
             }
         }
-        if let Some(re) = &*TOP_OF_FILE_TEAM_COLON_REGEX {
-            if let Some(cap) = re.captures(line) {
-                if let Some(m) = cap.get(1) {
-                    return Some(m.as_str().to_string());
-                }
+    }
+    if let Some(re) = &*TOP_OF_FILE_TEAM_COLON_REGEX {
+        if let Some(cap) = re.captures(line) {
+            if let Some(m) = cap.get(1) {
+                return Some(m.as_str().to_string());
             }
-        }
-        let trimmed = line.trim_start();
-        if !(trimmed.starts_with('#') || trimmed.starts_with("//") || trimmed.is_empty()) {
-            break;
         }
     }
     None

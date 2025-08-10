@@ -139,6 +139,26 @@ fn test_fast_for_file_full_path() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_for_file_with_components() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg("gems/pets/dog.rb")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Team: UX
+            Github Team: @UX
+            Team YML: config/teams/ux.yml
+            Description:
+            - Owner specified in Team YML's `owned_gems`
+        "}));
+    Ok(())
+}
+
+#[test]
 fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
