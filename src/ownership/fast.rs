@@ -95,6 +95,8 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         }
     }
 
+    // TODO: remove this once we've verified the fast path is working
+    // This is simply matching the order of behavior of the original codeowners CLI
     if file_owners.len() > 1 {
         file_owners.sort_by(|a, b| {
             let priority_a = a

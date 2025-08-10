@@ -262,6 +262,8 @@ impl Runner {
         self.validate()
     }
 
+    // TODO: remove this once we've verified the fast path is working
+    #[allow(dead_code)]
     pub fn for_file(&self, file_path: &str) -> RunResult {
         let relative_file_path = Path::new(file_path)
             .strip_prefix(&self.run_config.project_root)
