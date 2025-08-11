@@ -1,11 +1,12 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use error_stack::{Result, ResultExt};
 use fast_glob::glob_match;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
@@ -53,12 +54,29 @@ impl<'a> ProjectBuilder<'a> {
         let mut entry_types = Vec::with_capacity(INITIAL_VECTOR_CAPACITY);
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
-        let walkdir = builder.build();
+        let walk_parallel: WalkParallel = builder.build_parallel();
 
-        for entry in walkdir {
-            let entry = entry.change_context(Error::Io)?;
+        let collected = Arc::new(Mutex::new(Vec::with_capacity(INITIAL_VECTOR_CAPACITY)));
+        let collected_for_threads = Arc::clone(&collected);
+
+        walk_parallel.run(move || {
+            let collected = Arc::clone(&collected_for_threads);
+            Box::new(move |res| {
+                if let Ok(entry) = res {
+                    if let Ok(mut v) = collected.lock() {
+                        v.push(entry);
+                    }
+                }
+                WalkState::Continue
+            })
+        });
+
+        // Process sequentially with &mut self
+        let collected_entries = Arc::try_unwrap(collected).unwrap().into_inner().unwrap();
+        for entry in collected_entries {
             entry_types.push(self.build_entry_type(entry)?);
         }
+
         self.build_project_from_entry_types(entry_types)
     }
 

@@ -244,11 +244,9 @@ impl Runner {
         })
     }
 
-    pub fn validate(&self ) -> RunResult {
+    pub fn validate(&self) -> RunResult {
         match self.ownership.validate() {
-            Ok(_) => {
-                RunResult::default()
-            },
+            Ok(_) => RunResult::default(),
             Err(err) => RunResult {
                 validation_errors: vec![format!("{}", err)],
                 ..Default::default()
@@ -267,7 +265,7 @@ impl Runner {
                     self.git_stage();
                 }
                 RunResult::default()
-            },
+            }
             Err(err) => RunResult {
                 io_errors: vec![err.to_string()],
                 ..Default::default()

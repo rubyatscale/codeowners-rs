@@ -27,7 +27,7 @@ enum Command {
         visible_alias = "g"
     )]
     Generate {
-        #[arg(long, short,default_value = "false", help = "Skip staging the CODEOWNERS file")]
+        #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
     },
 
@@ -39,7 +39,7 @@ enum Command {
 
     #[clap(about = "Chains both `generate` and `validate` commands.", visible_alias = "gv")]
     GenerateAndValidate {
-        #[arg(long, short,default_value = "false", help = "Skip staging the CODEOWNERS file")]
+        #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
     },
 
