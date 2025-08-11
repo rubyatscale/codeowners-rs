@@ -2,6 +2,7 @@ use core::fmt;
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use error_stack::{Context, Result, ResultExt};
@@ -91,12 +92,12 @@ pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
     run_with_runner(run_config, |runner| runner.validate())
 }
 
-pub fn generate(run_config: &RunConfig) -> RunResult {
-    run_with_runner(run_config, |runner| runner.generate())
+pub fn generate(run_config: &RunConfig, git_stage: bool) -> RunResult {
+    run_with_runner(run_config, |runner| runner.generate(git_stage))
 }
 
-pub fn generate_and_validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
-    run_with_runner(run_config, |runner| runner.generate_and_validate())
+pub fn generate_and_validate(run_config: &RunConfig, _file_paths: Vec<String>, git_stage: bool) -> RunResult {
+    run_with_runner(run_config, |runner| runner.generate_and_validate(git_stage))
 }
 
 pub fn delete_cache(run_config: &RunConfig) -> RunResult {
@@ -199,14 +200,18 @@ impl Runner {
             },
         }
     }
-
-    pub fn generate(&self) -> RunResult {
+    pub fn generate(&self, git_stage: bool) -> RunResult {
         let content = self.ownership.generate_file();
         if let Some(parent) = &self.run_config.codeowners_file_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
         match std::fs::write(&self.run_config.codeowners_file_path, content) {
-            Ok(_) => RunResult::default(),
+            Ok(_) => {
+                if git_stage {
+                    self.git_stage();
+                }
+                RunResult::default()
+            }
             Err(err) => RunResult {
                 io_errors: vec![err.to_string()],
                 ..Default::default()
@@ -214,12 +219,20 @@ impl Runner {
         }
     }
 
-    pub fn generate_and_validate(&self) -> RunResult {
-        let run_result = self.generate();
+    pub fn generate_and_validate(&self, git_stage: bool) -> RunResult {
+        let run_result = self.generate(git_stage);
         if run_result.has_errors() {
             return run_result;
         }
         self.validate()
+    }
+
+    fn git_stage(&self) {
+        let _ = Command::new("git")
+            .arg("add")
+            .arg(&self.run_config.codeowners_file_path)
+            .current_dir(&self.run_config.project_root)
+            .output();
     }
 
     pub fn for_file(&self, file_path: &str) -> RunResult {

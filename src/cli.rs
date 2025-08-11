@@ -26,7 +26,10 @@ enum Command {
         about = "Generate the CODEOWNERS file and save it to '--codeowners-file-path'.",
         visible_alias = "g"
     )]
-    Generate,
+    Generate {
+        #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
+        skip_stage: bool,
+    },
 
     #[clap(
         about = "Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.",
@@ -35,7 +38,10 @@ enum Command {
     Validate,
 
     #[clap(about = "Chains both `generate` and `validate` commands.", visible_alias = "gv")]
-    GenerateAndValidate,
+    GenerateAndValidate {
+        #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
+        skip_stage: bool,
+    },
 
     #[clap(about = "Delete the cache file.", visible_alias = "d")]
     DeleteCache,
@@ -101,8 +107,8 @@ pub fn cli() -> Result<RunResult, RunnerError> {
 
     let runner_result = match args.command {
         Command::Validate => runner::validate(&run_config, vec![]),
-        Command::Generate => runner::generate(&run_config),
-        Command::GenerateAndValidate => runner::generate_and_validate(&run_config, vec![]),
+        Command::Generate { skip_stage } => runner::generate(&run_config, !skip_stage),
+        Command::GenerateAndValidate { skip_stage } => runner::generate_and_validate(&run_config, vec![], !skip_stage),
         Command::ForFile { name, fast } => runner::for_file(&run_config, &name, fast),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
