@@ -17,6 +17,7 @@ pub fn teardown() {
         });
 }
 
+#[allow(dead_code)]
 pub fn copy_dir_recursive(from: &Path, to: &Path) {
     fs::create_dir_all(to).expect("failed to create destination root");
     for entry in fs::read_dir(from).expect("failed to read source dir") {
@@ -35,6 +36,7 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
     }
 }
 
+#[allow(dead_code)]
 pub fn init_git_repo(path: &Path) {
     let status = Command::new("git")
         .arg("init")
@@ -61,6 +63,7 @@ pub fn init_git_repo(path: &Path) {
         .output();
 }
 
+#[allow(dead_code)]
 pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
     let output = Command::new("git")
         .arg("diff")
@@ -78,6 +81,7 @@ pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
     stdout.lines().any(|line| line.trim() == rel_path)
 }
 
+#[allow(dead_code)]
 pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunConfig {
     let project_root = project_root.canonicalize().expect("failed to canonicalize project root");
     let codeowners_file_path = project_root.join(codeowners_rel_path);
@@ -90,6 +94,7 @@ pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunCo
     }
 }
 
+#[allow(dead_code)]
 pub fn setup_fixture_repo(fixture_root: &Path) -> TempDir {
     let temp_dir = tempfile::tempdir().expect("failed to create tempdir");
     copy_dir_recursive(fixture_root, temp_dir.path());
@@ -97,6 +102,7 @@ pub fn setup_fixture_repo(fixture_root: &Path) -> TempDir {
     temp_dir
 }
 
+#[allow(dead_code)]
 pub fn assert_no_run_errors(result: &runner::RunResult) {
     assert!(result.io_errors.is_empty(), "io_errors: {:?}", result.io_errors);
     assert!(
