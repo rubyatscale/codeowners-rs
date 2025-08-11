@@ -47,7 +47,7 @@ impl<'a> ProjectFileBuilder<'a> {
     }
 }
 
-pub(crate)fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
+pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
     let content = match std::fs::read_to_string(path) {
         Ok(content) => content,
         Err(_) => {
