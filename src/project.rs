@@ -178,9 +178,7 @@ impl Project {
     }
 
     pub fn relative_path<'a>(&'a self, absolute_path: &'a Path) -> &'a Path {
-        absolute_path
-            .strip_prefix(&self.base_path)
-            .expect("Could not generate relative path")
+        absolute_path.strip_prefix(&self.base_path).unwrap_or(absolute_path)
     }
 
     pub fn get_team(&self, name: &str) -> Option<Team> {
@@ -195,5 +193,37 @@ impl Project {
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vendored_gem_by_name_maps_all_gems() {
+        let vg1 = VendoredGem {
+            path: PathBuf::from("vendored/a"),
+            name: "a".to_string(),
+        };
+        let vg2 = VendoredGem {
+            path: PathBuf::from("vendored/b"),
+            name: "b".to_string(),
+        };
+        let project = Project {
+            base_path: PathBuf::from("."),
+            files: vec![],
+            packages: vec![],
+            vendored_gems: vec![vg1.clone(), vg2.clone()],
+            teams: vec![],
+            codeowners_file_path: PathBuf::from(".github/CODEOWNERS"),
+            directory_codeowner_files: vec![],
+            teams_by_name: HashMap::new(),
+        };
+
+        let map = project.vendored_gem_by_name();
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get("a").unwrap().name, vg1.name);
+        assert_eq!(map.get("b").unwrap().name, vg2.name);
     }
 }
