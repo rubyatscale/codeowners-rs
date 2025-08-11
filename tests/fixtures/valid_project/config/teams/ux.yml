@@ -1,0 +1,6 @@
+name: UX
+github:
+  team: '@UX'
+ruby:
+  owned_gems:
+    - pets 
