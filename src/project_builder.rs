@@ -1,11 +1,12 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use error_stack::{Result, ResultExt};
 use fast_glob::glob_match;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
@@ -53,12 +54,29 @@ impl<'a> ProjectBuilder<'a> {
         let mut entry_types = Vec::with_capacity(INITIAL_VECTOR_CAPACITY);
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
-        let walkdir = builder.build();
+        let walk_parallel: WalkParallel = builder.build_parallel();
 
-        for entry in walkdir {
-            let entry = entry.change_context(Error::Io)?;
+        let collected = Arc::new(Mutex::new(Vec::with_capacity(INITIAL_VECTOR_CAPACITY)));
+        let collected_for_threads = Arc::clone(&collected);
+
+        walk_parallel.run(move || {
+            let collected = Arc::clone(&collected_for_threads);
+            Box::new(move |res| {
+                if let Ok(entry) = res {
+                    if let Ok(mut v) = collected.lock() {
+                        v.push(entry);
+                    }
+                }
+                WalkState::Continue
+            })
+        });
+
+        // Process sequentially with &mut self
+        let collected_entries = Arc::try_unwrap(collected).unwrap().into_inner().unwrap();
+        for entry in collected_entries {
             entry_types.push(self.build_entry_type(entry)?);
         }
+
         self.build_project_from_entry_types(entry_types)
     }
 
@@ -216,7 +234,10 @@ impl<'a> ProjectBuilder<'a> {
 }
 
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    globs.iter().any(|glob| glob_match(glob, path.to_str().unwrap()))
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
+        None => false,
+    }
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
@@ -241,14 +262,11 @@ mod tests {
 
     #[test]
     fn test_matches_globs() {
-        // should fail because hidden directories are ignored by glob patterns unless explicitly included
         assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
     }
 
     #[test]
     fn test_glob_match() {
-        // Exposes bug in glob-match https://github.com/devongovett/glob-match/issues/9
-        // should fail because hidden directories are ignored by glob patterns unless explicitly included
         assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
     }
 }
