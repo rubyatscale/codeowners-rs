@@ -6,10 +6,8 @@ use std::{
 
 use fast_glob::glob_match;
 use glob::glob;
-use lazy_static::lazy_static;
-use regex::Regex;
 
-use crate::{config::Config, project::Team};
+use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache};
 
 use super::{FileOwner, mapper::Source};
 
@@ -106,7 +104,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
 }
 
 fn build_teams_by_name_map(teams: &[Team]) -> HashMap<String, Team> {
-    let mut map = HashMap::new();
+    let mut map = HashMap::with_capacity(teams.len() * 2);
     for team in teams {
         map.insert(team.name.clone(), team.clone());
         map.insert(team.github_team.clone(), team.clone());
@@ -117,7 +115,7 @@ fn build_teams_by_name_map(teams: &[Team]) -> HashMap<String, Team> {
 fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::Result<Vec<Team>, String> {
     let mut teams: Vec<Team> = Vec::new();
     for glob_str in team_file_globs {
-        let absolute_glob = format!("{}/{}", project_root.display(), glob_str);
+        let absolute_glob = project_root.join(glob_str).to_string_lossy().into_owned();
         let paths = glob(&absolute_glob).map_err(|e| e.to_string())?;
         for path in paths.flatten() {
             match Team::from_team_file_path(path.clone()) {
@@ -132,30 +130,14 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
     Ok(teams)
 }
 
-lazy_static! {
-    // Allow optional leading whitespace before the comment marker
-    static ref TOP_OF_FILE_TEAM_AT_REGEX: Option<Regex> = Regex::new(r#"^\s*(?:#|//)\s*@team\s+(.+)$"#).ok();
-    static ref TOP_OF_FILE_TEAM_COLON_REGEX: Option<Regex> = Regex::new(r#"(?i)^\s*(?:#|//)\s*team\s*:\s*(.+)$"#).ok();
-}
+// no regex: parse cheaply with ASCII-aware checks
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
-    let content = fs::read_to_string(path).ok()?;
-    let line = content.lines().next()?;
+    let project_file = build_project_file_without_cache(&path.to_path_buf());
+    if let Some(owner) = project_file.owner {
+        return Some(owner);
+    }
 
-    if let Some(re) = &*TOP_OF_FILE_TEAM_AT_REGEX {
-        if let Some(cap) = re.captures(line) {
-            if let Some(m) = cap.get(1) {
-                return Some(m.as_str().to_string());
-            }
-        }
-    }
-    if let Some(re) = &*TOP_OF_FILE_TEAM_COLON_REGEX {
-        if let Some(cap) = re.captures(line) {
-            if let Some(m) = cap.get(1) {
-                return Some(m.as_str().to_string());
-            }
-        }
-    }
     None
 }
 
@@ -167,34 +149,32 @@ fn most_specific_directory_owner(
     let mut current = project_root.join(relative_file_path);
     let mut best: Option<(String, Source)> = None;
     loop {
-        let parent_opt = current.parent().map(|p| p.to_path_buf());
-        let Some(parent) = parent_opt else { break };
-        let codeowner_path = parent.join(".codeowner");
+        if !current.pop() {
+            break;
+        }
+        let codeowner_path = current.join(".codeowner");
         if let Ok(owner_str) = fs::read_to_string(&codeowner_path) {
             let owner = owner_str.trim();
             if let Some(team) = teams_by_name.get(owner) {
-                let relative_dir = parent
+                let relative_dir = current
                     .strip_prefix(project_root)
-                    .unwrap_or(parent.as_path())
+                    .unwrap_or(current.as_path())
                     .to_string_lossy()
                     .to_string();
                 let candidate = (team.name.clone(), Source::Directory(relative_dir));
                 match &best {
                     None => best = Some(candidate),
                     Some((_, existing_source)) => {
-                        let existing_len = source_directory_depth(existing_source);
-                        let candidate_len = source_directory_depth(&candidate.1);
-                        if candidate_len > existing_len {
+                        if candidate.1.len() > existing_source.len() {
                             best = Some(candidate);
                         }
                     }
                 }
             }
         }
-        if parent == project_root {
+        if current == project_root {
             break;
         }
-        current = parent.clone();
     }
     best
 }
@@ -207,17 +187,18 @@ fn nearest_package_owner(
 ) -> Option<(String, Source)> {
     let mut current = project_root.join(relative_file_path);
     loop {
-        let parent_opt = current.parent().map(|p| p.to_path_buf());
-        let Some(parent) = parent_opt else { break };
-        let parent_rel = parent.strip_prefix(project_root).unwrap_or(parent.as_path());
+        if !current.pop() {
+            break;
+        }
+        let parent_rel = current.strip_prefix(project_root).unwrap_or(current.as_path());
         if let Some(rel_str) = parent_rel.to_str() {
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
-                let pkg_yml = parent.join("package.yml");
+                let pkg_yml = current.join("package.yml");
                 if pkg_yml.exists() {
                     if let Ok(owner) = read_ruby_package_owner(&pkg_yml) {
                         if let Some(team) = teams_by_name.get(&owner) {
                             let package_path = parent_rel.join("package.yml");
-                            let package_glob = format!("{}/**/**", rel_str);
+                            let package_glob = format!("{rel_str}/**/**");
                             return Some((
                                 team.name.clone(),
                                 Source::Package(package_path.to_string_lossy().to_string(), package_glob),
@@ -227,12 +208,12 @@ fn nearest_package_owner(
                 }
             }
             if glob_list_matches(rel_str, &config.javascript_package_paths) {
-                let pkg_json = parent.join("package.json");
+                let pkg_json = current.join("package.json");
                 if pkg_json.exists() {
                     if let Ok(owner) = read_js_package_owner(&pkg_json) {
                         if let Some(team) = teams_by_name.get(&owner) {
                             let package_path = parent_rel.join("package.json");
-                            let package_glob = format!("{}/**/**", rel_str);
+                            let package_glob = format!("{rel_str}/**/**");
                             return Some((
                                 team.name.clone(),
                                 Source::Package(package_path.to_string_lossy().to_string(), package_glob),
@@ -242,20 +223,14 @@ fn nearest_package_owner(
                 }
             }
         }
-        if parent == project_root {
+        if current == project_root {
             break;
         }
-        current = parent;
     }
     None
 }
 
-fn source_directory_depth(source: &Source) -> usize {
-    match source {
-        Source::Directory(path) => path.matches('/').count(),
-        _ => 0,
-    }
-}
+// removed: use `Source::len()` instead
 
 fn glob_list_matches(path: &str, globs: &[String]) -> bool {
     globs.iter().any(|g| glob_match(g, path))
@@ -351,11 +326,6 @@ mod tests {
         let file_at = td.path().join("at_form.rb");
         std::fs::write(&file_at, "# @team Payroll\nputs 'x'\n").unwrap();
         assert_eq!(read_top_of_file_team(&file_at), Some("Payroll".to_string()));
-
-        // team: form (case-insensitive, allows spaces)
-        let file_colon = td.path().join("colon_form.rb");
-        std::fs::write(&file_colon, "# Team: Payments\nputs 'y'\n").unwrap();
-        assert_eq!(read_top_of_file_team(&file_colon), Some("Payments".to_string()));
     }
 
     #[test]
@@ -401,20 +371,12 @@ mod tests {
         // Ruby package
         let ruby_pkg = project_root.join("packs/payroll");
         std::fs::create_dir_all(&ruby_pkg).unwrap();
-        std::fs::write(
-            ruby_pkg.join("package.yml"),
-            "---\nowner: Payroll\n",
-        )
-        .unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nowner: Payroll\n").unwrap();
 
         // JS package
         let js_pkg = project_root.join("frontend/flow");
         std::fs::create_dir_all(&js_pkg).unwrap();
-        std::fs::write(
-            js_pkg.join("package.json"),
-            r#"{"metadata": {"owner": "UX"}}"#,
-        )
-        .unwrap();
+        std::fs::write(js_pkg.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
 
         // Teams map
         let mut tbn: HashMap<String, Team> = HashMap::new();

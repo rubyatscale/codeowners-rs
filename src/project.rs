@@ -202,8 +202,14 @@ mod tests {
 
     #[test]
     fn test_vendored_gem_by_name_maps_all_gems() {
-        let vg1 = VendoredGem { path: PathBuf::from("vendored/a"), name: "a".to_string() };
-        let vg2 = VendoredGem { path: PathBuf::from("vendored/b"), name: "b".to_string() };
+        let vg1 = VendoredGem {
+            path: PathBuf::from("vendored/a"),
+            name: "a".to_string(),
+        };
+        let vg2 = VendoredGem {
+            path: PathBuf::from("vendored/b"),
+            name: "b".to_string(),
+        };
         let project = Project {
             base_path: PathBuf::from("."),
             files: vec![],
