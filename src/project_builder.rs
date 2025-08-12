@@ -71,8 +71,25 @@ impl<'a> ProjectBuilder<'a> {
             })
         });
 
-        // Process sequentially with &mut self
-        let collected_entries = Arc::try_unwrap(collected).unwrap().into_inner().unwrap();
+        // Process sequentially with &mut self without panicking on Arc/Mutex unwraps
+        let collected_entries = match Arc::try_unwrap(collected) {
+            // We are the sole owner of the Arc
+            Ok(mutex) => match mutex.into_inner() {
+                // Mutex not poisoned
+                Ok(entries) => entries,
+                // Recover entries even if the mutex was poisoned
+                Err(poisoned) => poisoned.into_inner(),
+            },
+            // There are still other Arc references; lock and take the contents
+            Err(arc) => match arc.lock() {
+                Ok(mut guard) => std::mem::take(&mut *guard),
+                // Recover guard even if poisoned, then take contents
+                Err(poisoned) => {
+                    let mut guard = poisoned.into_inner();
+                    std::mem::take(&mut *guard)
+                }
+            },
+        };
         for entry in collected_entries {
             entry_types.push(self.build_entry_type(entry)?);
         }
@@ -89,11 +106,10 @@ impl<'a> ProjectBuilder<'a> {
         if is_dir {
             return Ok(EntryType::Directory(absolute_path.to_owned(), relative_path.to_owned()));
         }
-        let file_name = relative_path
-            .file_name()
-            .expect("expected a file_name")
-            .to_string_lossy()
-            .to_lowercase();
+        let file_name = match relative_path.file_name() {
+            Some(name) => name.to_string_lossy().to_lowercase(),
+            None => return Ok(EntryType::NullEntry()),
+        };
 
         match file_name.as_str() {
             name if name == "package.yml"
@@ -142,11 +158,14 @@ impl<'a> ProjectBuilder<'a> {
                         }
                         EntryType::Directory(absolute_path, relative_path) => {
                             if relative_path.parent() == Some(Path::new(&self.config.vendored_gems_path)) {
-                                let file_name = relative_path.file_name().expect("expected a file_name");
-                                gems.push(VendoredGem {
-                                    path: absolute_path,
-                                    name: file_name.to_string_lossy().to_string(),
-                                });
+                                if let Some(file_name) = relative_path.file_name() {
+                                    gems.push(VendoredGem {
+                                        path: absolute_path,
+                                        name: file_name.to_string_lossy().to_string(),
+                                    });
+                                } else {
+                                    warn!("Vendored gem path without file name: {:?}", relative_path);
+                                }
                             }
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
