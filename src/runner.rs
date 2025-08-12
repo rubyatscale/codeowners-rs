@@ -40,7 +40,8 @@ pub fn for_file(run_config: &RunConfig, file_path: &str, fast: bool) -> RunResul
     if fast {
         for_file_from_codeowners(run_config, file_path)
     } else {
-        run_with_runner(run_config, |runner| runner.for_file(file_path))
+        //run_with_runner(run_config, |runner| runner.for_file(file_path))
+        for_file_optimized(run_config, file_path)
     }
 }
 
@@ -82,6 +83,58 @@ pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) ->
     Ok(parser
         .team_from_file_path(Path::new(relative_file_path))
         .map_err(|e| Error::Io(e.to_string()))?)
+}
+
+pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+    let config = config_from_path(&run_config.config_path)?;
+    use crate::ownership::for_file_fast::find_file_owners;
+    let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
+
+    Ok(owners.first().map(|fo| fo.team.clone()))
+}
+
+// (imports below intentionally trimmed after refactor)
+
+fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
+    let config = match config_from_path(&run_config.config_path) {
+        Ok(c) => c,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            };
+        }
+    };
+
+    use crate::ownership::for_file_fast::find_file_owners;
+    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
+        Ok(v) => v,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err],
+                ..Default::default()
+            };
+        }
+    };
+
+    let info_messages: Vec<String> = match file_owners.len() {
+        0 => vec![format!("{}", FileOwner::default())],
+        1 => vec![format!("{}", file_owners[0])],
+        _ => {
+            let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
+            for file_owner in file_owners {
+                error_messages.push(format!("\n{}", file_owner));
+            }
+            return RunResult {
+                validation_errors: error_messages,
+                ..Default::default()
+            };
+        }
+    };
+    RunResult {
+        info_messages,
+        ..Default::default()
+    }
 }
 
 pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
@@ -200,6 +253,7 @@ impl Runner {
             },
         }
     }
+
     pub fn generate(&self, git_stage: bool) -> RunResult {
         let content = self.ownership.generate_file();
         if let Some(parent) = &self.run_config.codeowners_file_path.parent() {
@@ -235,6 +289,8 @@ impl Runner {
             .output();
     }
 
+    // TODO: remove this once we've verified the fast path is working
+    #[allow(dead_code)]
     pub fn for_file(&self, file_path: &str) -> RunResult {
         let relative_file_path = Path::new(file_path)
             .strip_prefix(&self.run_config.project_root)

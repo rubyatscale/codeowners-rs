@@ -11,6 +11,7 @@ use tracing::{info, instrument};
 
 mod file_generator;
 mod file_owner_finder;
+pub mod for_file_fast;
 pub(crate) mod mapper;
 pub(crate) mod parser;
 mod validator;
@@ -32,7 +33,7 @@ use self::{
 pub struct Ownership {
     project: Arc<Project>,
 }
-
+#[derive(Debug)]
 pub struct FileOwner {
     pub team: Team,
     pub team_config_file_path: String,

@@ -30,6 +30,8 @@
 # Team YML ownership
 /config/teams/payments.yml @PaymentsTeam
 /config/teams/payroll.yml @PayrollTeam
+/config/teams/ux.yml @UX
 
 # Team owned gems
 /gems/payroll_calculator/**/** @PayrollTeam
+/gems/pets/**/** @UX
