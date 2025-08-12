@@ -29,6 +29,7 @@ serde_yaml = "0.9.34"
 tempfile = "3.13.0"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+crossbeam-channel = "0.5.15"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"

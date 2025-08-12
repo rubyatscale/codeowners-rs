@@ -6,7 +6,7 @@ use std::{
 
 use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
-use ignore::{WalkBuilder, WalkParallel, WalkState};
+use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
@@ -53,25 +53,36 @@ impl<'a> ProjectBuilder<'a> {
     pub fn build(&mut self) -> Result<Project, Error> {
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
+        builder.follow_links(false);
+        // Prune traversal early: skip heavy and irrelevant directories
+        let skip_dirs = ["node_modules", ".git", ".hg", ".svn", "target", ".idea", ".vscode", "tmp"];
+        builder.filter_entry(move |entry: &DirEntry| {
+            let _path = entry.path();
+            let file_name = entry.file_name().to_str().unwrap_or("");
+            if let Some(ft) = entry.file_type() {
+                if ft.is_dir() && skip_dirs.iter().any(|d| *d == file_name) {
+                    return false;
+                }
+            }
+            true
+        });
+
         let walk_parallel: WalkParallel = builder.build_parallel();
 
-        let collected_entry_types = Arc::new(Mutex::new(Vec::with_capacity(INITIAL_VECTOR_CAPACITY)));
-        let collected_for_threads = Arc::clone(&collected_entry_types);
+        let (tx, rx) = crossbeam_channel::unbounded::<EntryType>();
         let error_holder: Arc<Mutex<Option<Report<Error>>>> = Arc::new(Mutex::new(None));
         let error_holder_for_threads = Arc::clone(&error_holder);
 
         let this: &ProjectBuilder<'a> = self;
 
         walk_parallel.run(move || {
-            let collected = Arc::clone(&collected_for_threads);
             let error_holder = Arc::clone(&error_holder_for_threads);
+            let tx = tx.clone();
             Box::new(move |res| {
                 if let Ok(entry) = res {
                     match this.build_entry_type(entry) {
                         Ok(entry_type) => {
-                            if let Ok(mut v) = collected.lock() {
-                                v.push(entry_type);
-                            }
+                            let _ = tx.send(entry_type);
                         }
                         Err(report) => {
                             if let Ok(mut slot) = error_holder.lock() {
@@ -87,19 +98,7 @@ impl<'a> ProjectBuilder<'a> {
         });
 
         // Take ownership of the collected entry types
-        let entry_types = match Arc::try_unwrap(collected_entry_types) {
-            Ok(mutex) => match mutex.into_inner() {
-                Ok(entries) => entries,
-                Err(poisoned) => poisoned.into_inner(),
-            },
-            Err(arc) => match arc.lock() {
-                Ok(mut guard) => std::mem::take(&mut *guard),
-                Err(poisoned) => {
-                    let mut guard = poisoned.into_inner();
-                    std::mem::take(&mut *guard)
-                }
-            },
-        };
+        let entry_types: Vec<EntryType> = rx.iter().collect();
 
         // If any error occurred while building entry types, return it
         let maybe_error = match Arc::try_unwrap(error_holder) {
@@ -179,16 +178,16 @@ impl<'a> ProjectBuilder<'a> {
                             project_files.push(project_file);
                         }
                         EntryType::Directory(absolute_path, relative_path) => {
-                             if relative_path.parent() == Some(Path::new(&self.config.vendored_gems_path)) {
-                                 if let Some(file_name) = relative_path.file_name() {
-                                     gems.push(VendoredGem {
-                                         path: absolute_path,
-                                         name: file_name.to_string_lossy().to_string(),
-                                     });
-                                 } else {
-                                     warn!("Vendored gem path without file name: {:?}", relative_path);
-                                 }
-                             }
+                            if relative_path.parent() == Some(Path::new(&self.config.vendored_gems_path)) {
+                                if let Some(file_name) = relative_path.file_name() {
+                                    gems.push(VendoredGem {
+                                        path: absolute_path,
+                                        name: file_name.to_string_lossy().to_string(),
+                                    });
+                                } else {
+                                    warn!("Vendored gem path without file name: {:?}", relative_path);
+                                }
+                            }
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
                             match ruby_package_owner(&absolute_path) {
