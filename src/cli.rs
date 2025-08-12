@@ -6,6 +6,7 @@ use path_clean::PathClean;
 use std::path::{Path, PathBuf};
 
 #[derive(Subcommand, Debug)]
+#[command(version)]
 enum Command {
     #[clap(about = "Finds the owner of a given file.", visible_alias = "f")]
     ForFile {
