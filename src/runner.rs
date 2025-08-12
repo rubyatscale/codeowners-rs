@@ -36,37 +36,8 @@ pub struct Runner {
     cache: Cache,
 }
 
-pub fn for_file(run_config: &RunConfig, file_path: &str, fast: bool) -> RunResult {
-    if fast {
-        for_file_from_codeowners(run_config, file_path)
-    } else {
-        //run_with_runner(run_config, |runner| runner.for_file(file_path))
-        for_file_optimized(run_config, file_path)
-    }
-}
-
-fn for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> RunResult {
-    match team_for_file_from_codeowners(run_config, file_path) {
-        Ok(Some(team)) => {
-            let relative_team_yml_path = team.path.strip_prefix(&run_config.project_root).unwrap_or(&team.path);
-
-            RunResult {
-                info_messages: vec![
-                    format!("Team: {}", team.name),
-                    format!("Team YML: {}", relative_team_yml_path.display()),
-                ],
-                ..Default::default()
-            }
-        }
-        Ok(None) => RunResult {
-            info_messages: vec!["Team: Unowned".to_string(), "Team YML:".to_string()],
-            ..Default::default()
-        },
-        Err(err) => RunResult {
-            io_errors: vec![err.to_string()],
-            ..Default::default()
-        },
-    }
+pub fn for_file(run_config: &RunConfig, file_path: &str) -> RunResult {
+    for_file_optimized(run_config, file_path)
 }
 
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
@@ -287,41 +258,6 @@ impl Runner {
             .arg(&self.run_config.codeowners_file_path)
             .current_dir(&self.run_config.project_root)
             .output();
-    }
-
-    // TODO: remove this once we've verified the fast path is working
-    #[allow(dead_code)]
-    pub fn for_file(&self, file_path: &str) -> RunResult {
-        let relative_file_path = Path::new(file_path)
-            .strip_prefix(&self.run_config.project_root)
-            .unwrap_or(Path::new(file_path));
-        let file_owners = match self.ownership.for_file(relative_file_path) {
-            Ok(file_owners) => file_owners,
-            Err(err) => {
-                return RunResult {
-                    io_errors: vec![err.to_string()],
-                    ..Default::default()
-                };
-            }
-        };
-        let info_messages: Vec<String> = match file_owners.len() {
-            0 => vec![format!("{}", FileOwner::default())],
-            1 => vec![format!("{}", file_owners[0])],
-            _ => {
-                let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
-                for file_owner in file_owners {
-                    error_messages.push(format!("\n{}", file_owner));
-                }
-                return RunResult {
-                    validation_errors: error_messages,
-                    ..Default::default()
-                };
-            }
-        };
-        RunResult {
-            info_messages,
-            ..Default::default()
-        }
     }
 
     pub fn for_team(&self, team_name: &str) -> RunResult {

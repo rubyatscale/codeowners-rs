@@ -109,7 +109,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::Validate => runner::validate(&run_config, vec![]),
         Command::Generate { skip_stage } => runner::generate(&run_config, !skip_stage),
         Command::GenerateAndValidate { skip_stage } => runner::generate_and_validate(&run_config, vec![], !skip_stage),
-        Command::ForFile { name, fast } => runner::for_file(&run_config, &name, fast),
+        Command::ForFile { name, fast: _ } => runner::for_file(&run_config, &name),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
     };

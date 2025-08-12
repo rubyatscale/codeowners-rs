@@ -86,13 +86,15 @@ fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--fast")
         .arg("ruby/app/models/payroll.rb")
         .assert()
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
         "}));
     Ok(())
 }
@@ -127,13 +129,15 @@ fn test_fast_for_file_full_path() -> Result<(), Box<dyn Error>> {
         .arg(project_root)
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--fast")
         .arg(for_file_absolute_path.to_str().unwrap())
         .assert()
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
         "}));
     Ok(())
 }
@@ -186,13 +190,16 @@ fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Erro
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
-        .arg("--fast")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()
         .stdout(predicate::eq(indoc! {"
             Team: Payroll
+            Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
+            Description:
+            - Owner annotation at the top of the file
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
         "}));
     Ok(())
 }
