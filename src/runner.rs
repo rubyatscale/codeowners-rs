@@ -108,6 +108,10 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
     }
 }
 
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
     run_with_runner(run_config, |runner| runner.for_team(team_name))
 }
@@ -294,5 +298,15 @@ impl Runner {
                 ..Default::default()
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version() {
+        assert_eq!(version(), env!("CARGO_PKG_VERSION").to_string());
     }
 }
