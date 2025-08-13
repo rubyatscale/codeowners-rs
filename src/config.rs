@@ -21,6 +21,9 @@ pub struct Config {
 
     #[serde(default = "default_cache_directory")]
     pub cache_directory: String,
+
+    #[serde(default = "default_skip_dirs")]
+    pub skip_dirs: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -40,6 +43,26 @@ fn team_file_glob() -> Vec<String> {
 
 fn default_cache_directory() -> String {
     String::from("tmp/cache/codeowners")
+}
+
+fn default_skip_dirs() -> Vec<String> {
+    vec![
+        ".artillery".to_owned(),
+        ".buildkite".to_owned(),
+        ".cursor".to_owned(),
+        ".git".to_owned(),
+        ".idea".to_owned(),
+        ".semgrep".to_owned(),
+        ".vscode".to_owned(),
+        ".yarn".to_owned(),
+        "ar_doc".to_owned(),
+        "db".to_owned(),
+        "helm".to_owned(),
+        "log".to_owned(),
+        "node_modules".to_owned(),
+        "sorbet".to_owned(),
+        "tmp".to_owned(),
+    ]
 }
 
 fn javascript_package_paths() -> Vec<String> {
