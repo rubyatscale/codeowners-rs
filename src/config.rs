@@ -22,8 +22,8 @@ pub struct Config {
     #[serde(default = "default_cache_directory")]
     pub cache_directory: String,
 
-    #[serde(default = "default_ignore_globs")]
-    pub ignore_globs: Vec<String>,
+    #[serde(default = "default_ignore_dirs")]
+    pub ignore_dirs: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -60,20 +60,20 @@ fn vendored_gems_path() -> String {
     "vendored/".to_string()
 }
 
-fn default_ignore_globs() -> Vec<String> {
+fn default_ignore_dirs() -> Vec<String> {
     vec![
-        "/.cursor".to_owned(),
-        "/.git".to_owned(),
-        "/.idea".to_owned(),
-        "/.vscode".to_owned(),
-        "/.yarn".to_owned(),
-        "/ar_doc".to_owned(),
-        "/db".to_owned(),
-        "/helm".to_owned(),
-        "/log".to_owned(),
-        "/node_modules".to_owned(),
-        "/sorbet".to_owned(),
-        "/tmp".to_owned(),
+        ".cursor".to_owned(),
+        ".git".to_owned(),
+        ".idea".to_owned(),
+        ".vscode".to_owned(),
+        ".yarn".to_owned(),
+        "ar_doc".to_owned(),
+        "db".to_owned(),
+        "helm".to_owned(),
+        "log".to_owned(),
+        "node_modules".to_owned(),
+        "sorbet".to_owned(),
+        "tmp".to_owned(),
     ]
 }
 

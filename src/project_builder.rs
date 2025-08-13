@@ -55,14 +55,18 @@ impl<'a> ProjectBuilder<'a> {
         builder.hidden(false);
         builder.follow_links(false);
         // Prune traversal early: skip heavy and irrelevant directories
-        let ignore_globs = self.config.ignore_globs.clone();
+        let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
 
         builder.filter_entry(move |entry: &DirEntry| {
-            if let Ok(relative_path) =  entry.path().strip_prefix(&base_path) {
-                if let Some(relative_path_str) = relative_path.to_str() {
-                    if crate::ignore::matches_path(&ignore_globs, relative_path_str) {
-                        return false;
+            let path = entry.path();
+            let file_name = entry.file_name().to_str().unwrap_or("");
+            if let Some(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    if let Ok(rel) = path.strip_prefix(&base_path) {
+                        if rel.components().count() == 1 && ignore_dirs.iter().any(|d| *d == file_name) {
+                            return false;
+                        }
                     }
                 }
             }
