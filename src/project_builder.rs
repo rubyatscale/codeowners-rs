@@ -6,7 +6,7 @@ use std::{
 
 use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
-use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
+use ignore::{WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
@@ -48,31 +48,34 @@ impl<'a> ProjectBuilder<'a> {
             codeowners_file_path,
         }
     }
+    fn build_walk_builder(&self) -> WalkBuilder {
+        let walk_dirs = ["./app", "./components", "./config", "./frontend", "./lib", "./packs", "./plop","./spec", "./danger", "./script", "./js"];
+
+        // Restrict traversal to only the configured directories relative to base_path
+        let mut roots: Vec<PathBuf> = Vec::new();
+        for dir in walk_dirs {
+            let candidate = self.base_path.join(dir);
+            if candidate.exists() {
+                roots.push(candidate);
+            }
+        }
+        let mut builder = if let Some(first_root) = roots.first() {
+            WalkBuilder::new(first_root)
+        } else {
+            // Fallback: walk base_path if none of the target dirs exist
+            WalkBuilder::new(&self.base_path)
+        };
+        for root in roots.iter().skip(1) {
+            builder.add(root);
+        }
+        builder.hidden(false);
+        builder.follow_links(false);
+        builder
+    }
 
     #[instrument(level = "debug", skip_all)]
     pub fn build(&mut self) -> Result<Project, Error> {
-        let mut builder = WalkBuilder::new(&self.base_path);
-        builder.hidden(false);
-        builder.follow_links(false);
-        // Prune traversal early: skip heavy and irrelevant directories
-        let skip_dirs = self.config.skip_dirs.clone();
-        let base_path = self.base_path.clone();
-
-        builder.filter_entry(move |entry: &DirEntry| {
-            let path = entry.path();
-            let file_name = entry.file_name().to_str().unwrap_or("");
-            if let Some(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    if let Ok(rel) = path.strip_prefix(&base_path) {
-                        if rel.components().count() == 1 && skip_dirs.iter().any(|d| *d == file_name) {
-                            return false;
-                        }
-                    }
-                }
-            }
-            true
-        });
-
+        let builder = self.build_walk_builder();
         let walk_parallel: WalkParallel = builder.build_parallel();
 
         let (tx, rx) = crossbeam_channel::unbounded::<EntryType>();
