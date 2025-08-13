@@ -4,9 +4,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
-use ignore::{WalkBuilder, WalkParallel, WalkState};
+use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
@@ -51,53 +51,81 @@ impl<'a> ProjectBuilder<'a> {
 
     #[instrument(level = "debug", skip_all)]
     pub fn build(&mut self) -> Result<Project, Error> {
-        let mut entry_types = Vec::with_capacity(INITIAL_VECTOR_CAPACITY);
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
+        builder.follow_links(false);
+        // Prune traversal early: skip heavy and irrelevant directories
+        let ignore_dirs = self.config.ignore_dirs.clone();
+        let base_path = self.base_path.clone();
+
+        builder.filter_entry(move |entry: &DirEntry| {
+            let path = entry.path();
+            let file_name = entry.file_name().to_str().unwrap_or("");
+            if let Some(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    if let Ok(rel) = path.strip_prefix(&base_path) {
+                        if rel.components().count() == 1 && ignore_dirs.iter().any(|d| *d == file_name) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            true
+        });
+
         let walk_parallel: WalkParallel = builder.build_parallel();
 
-        let collected = Arc::new(Mutex::new(Vec::with_capacity(INITIAL_VECTOR_CAPACITY)));
-        let collected_for_threads = Arc::clone(&collected);
+        let (tx, rx) = crossbeam_channel::unbounded::<EntryType>();
+        let error_holder: Arc<Mutex<Option<Report<Error>>>> = Arc::new(Mutex::new(None));
+        let error_holder_for_threads = Arc::clone(&error_holder);
+
+        let this: &ProjectBuilder<'a> = self;
 
         walk_parallel.run(move || {
-            let collected = Arc::clone(&collected_for_threads);
+            let error_holder = Arc::clone(&error_holder_for_threads);
+            let tx = tx.clone();
             Box::new(move |res| {
                 if let Ok(entry) = res {
-                    if let Ok(mut v) = collected.lock() {
-                        v.push(entry);
+                    match this.build_entry_type(entry) {
+                        Ok(entry_type) => {
+                            let _ = tx.send(entry_type);
+                        }
+                        Err(report) => {
+                            if let Ok(mut slot) = error_holder.lock() {
+                                if slot.is_none() {
+                                    *slot = Some(report);
+                                }
+                            }
+                        }
                     }
                 }
                 WalkState::Continue
             })
         });
 
-        // Process sequentially with &mut self without panicking on Arc/Mutex unwraps
-        let collected_entries = match Arc::try_unwrap(collected) {
-            // We are the sole owner of the Arc
+        // Take ownership of the collected entry types
+        let entry_types: Vec<EntryType> = rx.iter().collect();
+
+        // If any error occurred while building entry types, return it
+        let maybe_error = match Arc::try_unwrap(error_holder) {
             Ok(mutex) => match mutex.into_inner() {
-                // Mutex not poisoned
-                Ok(entries) => entries,
-                // Recover entries even if the mutex was poisoned
+                Ok(err_opt) => err_opt,
                 Err(poisoned) => poisoned.into_inner(),
             },
-            // There are still other Arc references; lock and take the contents
             Err(arc) => match arc.lock() {
-                Ok(mut guard) => std::mem::take(&mut *guard),
-                // Recover guard even if poisoned, then take contents
-                Err(poisoned) => {
-                    let mut guard = poisoned.into_inner();
-                    std::mem::take(&mut *guard)
-                }
+                Ok(mut guard) => guard.take(),
+                Err(poisoned) => poisoned.into_inner().take(),
             },
         };
-        for entry in collected_entries {
-            entry_types.push(self.build_entry_type(entry)?);
+        if let Some(report) = maybe_error {
+            return Err(report);
         }
 
         self.build_project_from_entry_types(entry_types)
     }
 
-    fn build_entry_type(&mut self, entry: ignore::DirEntry) -> Result<EntryType, Error> {
+    fn build_entry_type(&self, entry: ignore::DirEntry) -> Result<EntryType, Error> {
         let absolute_path = entry.path();
 
         let is_dir = entry.file_type().ok_or(Error::Io).change_context(Error::Io)?.is_dir();

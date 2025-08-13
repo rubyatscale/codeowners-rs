@@ -303,6 +303,7 @@ mod tests {
             unowned_globs: vec![],
             vendored_gems_path: vendored_path.to_string(),
             cache_directory: "tmp/cache/codeowners".to_string(),
+            ignore_dirs: vec![],
         }
     }
 

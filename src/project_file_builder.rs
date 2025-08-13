@@ -21,7 +21,7 @@ impl<'a> ProjectFileBuilder<'a> {
         Self { global_cache }
     }
 
-    pub(crate) fn build(&mut self, path: PathBuf) -> ProjectFile {
+    pub(crate) fn build(&self, path: PathBuf) -> ProjectFile {
         if let Ok(Some(cached_project_file)) = self.get_project_file_from_cache(&path) {
             return cached_project_file;
         }
