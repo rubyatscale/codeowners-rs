@@ -59,17 +59,23 @@ impl Parser {
 fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Team> {
     let mut teams = HashMap::new();
     for glob in team_file_glob {
-        let paths = glob::glob(&glob).expect("Failed to read glob pattern").filter_map(Result::ok);
-
-        for path in paths {
-            let team = match Team::from_team_file_path(path) {
-                Ok(team) => team,
-                Err(e) => {
-                    eprintln!("Error parsing team file: {}", e);
-                    continue;
+        match glob::glob(&glob) {
+            Ok(paths) => {
+                for path in paths.filter_map(Result::ok) {
+                    let team = match Team::from_team_file_path(path) {
+                        Ok(team) => team,
+                        Err(e) => {
+                            eprintln!("Error parsing team file: {}", e);
+                            continue;
+                        }
+                    };
+                    teams.insert(team.github_team.clone(), team);
                 }
-            };
-            teams.insert(team.github_team.clone(), team);
+            }
+            Err(e) => {
+                eprintln!("Failed to read glob pattern '{}': {}", glob, e);
+                continue;
+            }
         }
     }
 
