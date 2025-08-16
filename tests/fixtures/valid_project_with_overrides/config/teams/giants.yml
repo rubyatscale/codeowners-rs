@@ -1,0 +1,5 @@
+name: Giants
+github:
+  team: '@GiantsTeam'
+owned_globs:
+  - ruby/app/giants/**/*

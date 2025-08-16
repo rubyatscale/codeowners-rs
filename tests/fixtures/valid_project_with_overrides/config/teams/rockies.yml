@@ -1,0 +1,5 @@
+name: Rockies
+github:
+  team: '@RockiesTeam'
+owned_globs:
+  - ruby/app/rockies/**/*
