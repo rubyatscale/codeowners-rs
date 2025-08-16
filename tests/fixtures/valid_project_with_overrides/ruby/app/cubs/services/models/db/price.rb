@@ -1,5 +1,2 @@
-# @team Brewers
 
-class Price
-end
-
+class Price; end
