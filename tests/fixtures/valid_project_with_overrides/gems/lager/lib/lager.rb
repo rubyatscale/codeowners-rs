@@ -1,5 +1,6 @@
 # @team Brewers
 
-class Price
+module Lager
 end
+
 
