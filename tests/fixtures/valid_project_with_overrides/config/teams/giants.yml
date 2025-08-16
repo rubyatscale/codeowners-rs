@@ -3,3 +3,6 @@ github:
   team: '@GiantsTeam'
 owned_globs:
   - ruby/app/giants/**/*
+ruby:
+  owned_gems:
+    - apollo

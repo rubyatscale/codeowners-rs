@@ -3,3 +3,9 @@ github:
   team: '@BrewersTeam'
 owned_globs:
   - ruby/app/brewers/**/*
+  - frontend/packages/components/**
+subtracted_globs:
+  - frontend/packages/components/textfield/**
+ruby:
+  owned_gems:
+    - lager
