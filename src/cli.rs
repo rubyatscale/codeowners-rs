@@ -46,6 +46,9 @@ enum Command {
 
     #[clap(about = "Delete the cache file.", visible_alias = "d")]
     DeleteCache,
+
+    #[clap(about = "Compare the CODEOWNERS file to the for-file command.")]
+    VerifyCompareForFile,
 }
 
 /// A CLI to validate and generate Github's CODEOWNERS file.
@@ -113,6 +116,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::ForFile { name, fast: _ } => runner::for_file(&run_config, &name),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
+        Command::VerifyCompareForFile => runner::verify_compare_for_file(&run_config),
     };
 
     Ok(runner_result)

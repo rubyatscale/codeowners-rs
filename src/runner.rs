@@ -132,6 +132,10 @@ pub fn delete_cache(run_config: &RunConfig) -> RunResult {
     run_with_runner(run_config, |runner| runner.delete_cache())
 }
 
+pub fn verify_compare_for_file(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.verify_compare_for_file())
+}
+
 pub type Runnable = fn(Runner) -> RunResult;
 
 pub fn run_with_runner<F>(run_config: &RunConfig, runnable: F) -> RunResult
@@ -172,7 +176,7 @@ impl fmt::Display for Error {
     }
 }
 
-fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
+pub(crate) fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
     let config_file = File::open(path)
         .change_context(Error::Io(format!("Can't open config file: {}", &path.to_string_lossy())))
         .attach_printable(format!("Can't open config file: {}", &path.to_string_lossy()))?;
@@ -298,6 +302,10 @@ impl Runner {
                 ..Default::default()
             },
         }
+    }
+
+    pub fn verify_compare_for_file(&self) -> RunResult {
+        crate::verify::verify_compare_for_file(&self.run_config, &self.cache)
     }
 }
 

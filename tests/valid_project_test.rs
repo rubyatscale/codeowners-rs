@@ -37,6 +37,22 @@ fn test_generate() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_verify_compare_for_file() -> Result<(), Box<dyn Error>> {
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg("tests/fixtures/valid_project")
+        .arg("--no-cache")
+        .arg("verify-compare-for-file")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {"
+            Success! All files match between CODEOWNERS and for-file command.
+        "}));
+
+    Ok(())
+}
+
+#[test]
 fn test_for_file() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
