@@ -31,7 +31,9 @@ fn test_verify_compare_for_file_reports_team_mismatch() -> Result<(), Box<dyn Er
         .arg("verify-compare-for-file")
         .assert()
         .failure()
-        .stdout(predicate::str::contains(indoc! {"- ruby/app/models/payroll.rb: CODEOWNERS=Payments fast=Payroll"}));
+        .stdout(predicate::str::contains(
+            indoc! {"- ruby/app/models/payroll.rb: CODEOWNERS=Payments fast=Payroll"},
+        ));
 
     Ok(())
 }
@@ -60,9 +62,9 @@ fn test_verify_compare_for_file_reports_unowned_mismatch() -> Result<(), Box<dyn
         .arg("verify-compare-for-file")
         .assert()
         .failure()
-        .stdout(predicate::str::contains("- ruby/app/models/bank_account.rb: CODEOWNERS=Unowned fast=Payments"));
+        .stdout(predicate::str::contains(
+            "- ruby/app/models/bank_account.rb: CODEOWNERS=Unowned fast=Payments",
+        ));
 
     Ok(())
 }
-
-
