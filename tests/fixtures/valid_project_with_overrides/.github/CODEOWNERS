@@ -8,15 +8,26 @@
 
 
 # Annotations at the top of file
+/frontend/packages/components/datepicker/src/picks/dp.tsx @RockiesTeam
+/frontend/packages/components/list/src/item.tsx @BrewersTeam
+/frontend/packages/components/textfield/src/field.tsx @GiantsTeam
+/frontend/packages/components/textfield/src/fields/small.tsx @GiantsTeam
+/gems/apollo/lib/apollo.rb @GiantsTeam
+/gems/ivy/lib/ivy.rb @CubsTeam
+/gems/lager/lib/lager.rb @BrewersTeam
+/gems/summit/lib/summit.rb @RockiesTeam
+/ruby/app/cubs/services/models/db/price.rb @RockiesTeam
 /ruby/app/cubs/services/play.rb @CubsTeam
 
 # Team-specific owned globs
+/frontend/packages/components/** @BrewersTeam
 /ruby/app/brewers/**/* @BrewersTeam
+/ruby/app/cubs/**/* @CubsTeam
 /ruby/app/giants/**/* @GiantsTeam
 /ruby/app/rockies/**/* @RockiesTeam
 
 # Owner in .codeowner
-/ruby/app/cubs/services/models/**/** @RockiesTeam
+/ruby/app/cubs/**/** @CubsTeam
 
 # Owner metadata key in package.yml
 /packs/games/**/** @RockiesTeam
@@ -33,3 +44,9 @@
 /config/teams/cubs.yml @CubsTeam
 /config/teams/giants.yml @GiantsTeam
 /config/teams/rockies.yml @RockiesTeam
+
+# Team owned gems
+/gems/apollo/**/** @GiantsTeam
+/gems/ivy/**/** @CubsTeam
+/gems/lager/**/** @BrewersTeam
+/gems/summit/**/** @RockiesTeam

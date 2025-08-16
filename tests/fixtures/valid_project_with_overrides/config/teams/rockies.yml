@@ -3,3 +3,6 @@ github:
   team: '@RockiesTeam'
 owned_globs:
   - ruby/app/rockies/**/*
+ruby:
+  owned_gems:
+    - summit

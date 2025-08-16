@@ -87,23 +87,29 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
         }
     };
 
-    let info_messages: Vec<String> = match file_owners.len() {
-        0 => vec![format!("{}", FileOwner::default())],
-        1 => vec![format!("{}", file_owners[0])],
+    run_result_for_file_owners(file_owners)
+}
+
+fn run_result_for_file_owners(file_owners: Vec<FileOwner>) -> RunResult {
+    match file_owners.len() {
+        0 => RunResult {
+            info_messages: vec![format!("{}", FileOwner::default())],
+            ..Default::default()
+        },
+        1 => RunResult {
+            info_messages: vec![format!("{}", file_owners[0])],
+            ..Default::default()
+        },
         _ => {
             let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
             for file_owner in file_owners {
                 error_messages.push(format!("\n{}", file_owner));
             }
-            return RunResult {
+            RunResult {
                 validation_errors: error_messages,
                 ..Default::default()
-            };
+            }
         }
-    };
-    RunResult {
-        info_messages,
-        ..Default::default()
     }
 }
 
