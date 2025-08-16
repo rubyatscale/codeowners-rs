@@ -4,6 +4,7 @@ use crate::{
     cache::Cache,
     config::Config,
     ownership::for_file_fast::find_file_owners,
+    ownership::mapper::Source,
     project::Project,
     project_builder::ProjectBuilder,
     runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
@@ -64,12 +65,40 @@ fn owners_for_file(path: &Path, run_config: &RunConfig, config: &Config) -> Resu
         .map(|t| t.name);
 
     let fast_owners = find_file_owners(&run_config.project_root, config, Path::new(&file_path_str))?;
-    let fast_display = match fast_owners.len() {
-        0 => "Unowned".to_string(),
-        1 => fast_owners[0].team.name.clone(),
-        _ => {
-            let names: Vec<String> = fast_owners.into_iter().map(|fo| fo.team.name).collect();
+
+    // Determine highest-priority owner(s)
+    let min_priority = |fo: &crate::ownership::FileOwner| -> u8 {
+        fo.sources
+            .iter()
+            .map(|s| match s {
+                Source::TeamFile => 0,
+                Source::Directory(_) => 1,
+                Source::Package(_, _) => 2,
+                Source::TeamGlob(_) => 3,
+                Source::TeamGem => 4,
+                Source::TeamYml => 5,
+            })
+            .min()
+            .unwrap_or(u8::MAX)
+    };
+
+    let fast_display = if fast_owners.is_empty() {
+        "Unowned".to_string()
+    } else {
+        let top_priority = fast_owners.iter().map(min_priority).min().unwrap_or(u8::MAX);
+
+        let winners: Vec<&crate::ownership::FileOwner> = fast_owners.iter().filter(|fo| min_priority(fo) == top_priority).collect();
+
+        if winners.len() > 1 && top_priority == 3 {
+            let names: Vec<String> = winners.into_iter().map(|fo| fo.team.name.clone()).collect();
             format!("Multiple: {}", names.join(", "))
+        } else {
+            let winner_name = fast_owners
+                .iter()
+                .min_by_key(|fo| (min_priority(fo), fo.team.name.clone()))
+                .map(|fo| fo.team.name.clone())
+                .unwrap_or_else(|| "Unowned".to_string());
+            winner_name
         }
     };
 

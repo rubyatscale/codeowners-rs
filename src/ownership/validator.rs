@@ -2,6 +2,7 @@ use crate::project::{Project, ProjectFile};
 use core::fmt;
 use std::collections::HashSet;
 use std::fmt::Display;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,7 +16,7 @@ use tracing::instrument;
 use super::file_generator::FileGenerator;
 use super::file_owner_finder::FileOwnerFinder;
 use super::file_owner_finder::Owner;
-use super::mapper::{Mapper, OwnerMatcher, TeamName, Source};
+use super::mapper::{Mapper, OwnerMatcher, Source, TeamName};
 
 pub struct Validator {
     pub project: Arc<Project>,
@@ -160,9 +161,7 @@ impl Error {
         match self {
             Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
             Error::MultipleTeamYmls { path: _, owners: _ } => "Team yml file globs should not overlap".to_owned(),
-            Error::CodeownershipFileIsStale => {
-                "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file".to_owned()
-            }
+            Error::CodeownershipFileIsStale => "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file".to_owned(),
             Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
         }
     }
@@ -190,7 +189,7 @@ impl Error {
     }
 }
 
-fn multiple_team_file_owners(owners: &Vec<Owner>, relative_path: &PathBuf) -> Option<Error> {
+fn multiple_team_file_owners(owners: &[Owner], relative_path: &Path) -> Option<Error> {
     if owners.len() <= 1 {
         return None;
     }
@@ -205,7 +204,7 @@ fn multiple_team_file_owners(owners: &Vec<Owner>, relative_path: &PathBuf) -> Op
 
     if team_file_owners.len() > 1 {
         Some(Error::MultipleTeamYmls {
-            path: relative_path.clone(),
+            path: relative_path.to_path_buf(),
             owners: team_file_owners,
         })
     } else {
@@ -300,7 +299,10 @@ mod tests {
 
         let result = multiple_team_file_owners(&owners, &path);
         match result {
-            Some(Error::MultipleTeamYmls { path: p, owners: conflicting }) => {
+            Some(Error::MultipleTeamYmls {
+                path: p,
+                owners: conflicting,
+            }) => {
                 assert_eq!(p, path);
                 assert_eq!(conflicting.len(), 2);
                 let mut names: Vec<&str> = conflicting.iter().map(|o| o.team_name.as_str()).collect();

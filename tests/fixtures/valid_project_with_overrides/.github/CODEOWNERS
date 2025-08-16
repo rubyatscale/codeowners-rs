@@ -16,7 +16,7 @@
 /gems/ivy/lib/ivy.rb @CubsTeam
 /gems/lager/lib/lager.rb @BrewersTeam
 /gems/summit/lib/summit.rb @RockiesTeam
-/ruby/app/cubs/services/models/db/price.rb @RockiesTeam
+/ruby/app/cubs/services/models/db/price.rb @BrewersTeam
 /ruby/app/cubs/services/play.rb @CubsTeam
 
 # Team-specific owned globs
@@ -28,6 +28,7 @@
 
 # Owner in .codeowner
 /ruby/app/cubs/**/** @CubsTeam
+/ruby/app/cubs/services/models/**/** @RockiesTeam
 
 # Owner metadata key in package.yml
 /packs/games/**/** @RockiesTeam

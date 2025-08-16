@@ -151,9 +151,50 @@ fn codeowner_sections(codeowners_file: &str) -> Result<Vec<Section>, Box<dyn Err
 fn stripped_lines_by_priority(codeowners_file: &str) -> Vec<String> {
     let mut lines = Vec::new();
     let sections = codeowner_sections(codeowners_file).unwrap_or_default();
-    for section in sections {
+
+    // Reorder sections to reflect resolution priority
+    // Highest priority should end up last (so when we reverse below, it comes first)
+    let mut unknown_sections: Vec<Section> = Vec::new();
+    let mut team_yml_sections: Vec<Section> = Vec::new();
+    let mut team_gem_sections: Vec<Section> = Vec::new();
+    let mut team_glob_sections: Vec<Section> = Vec::new();
+    let mut package_sections: Vec<Section> = Vec::new();
+    let mut directory_sections: Vec<Section> = Vec::new();
+    let mut annotations_sections: Vec<Section> = Vec::new();
+
+    for section in sections.into_iter() {
+        let heading = section.heading.as_str();
+        if heading.contains("Annotations at the top of file") {
+            annotations_sections.push(section);
+        } else if heading.contains("Owner in .codeowner") {
+            directory_sections.push(section);
+        } else if heading.contains("Owner metadata key in package") {
+            package_sections.push(section);
+        } else if heading.contains("Team-specific owned globs") {
+            team_glob_sections.push(section);
+        } else if heading.contains("Team owned gems") {
+            team_gem_sections.push(section);
+        } else if heading.contains("Team YML ownership") {
+            team_yml_sections.push(section);
+        } else {
+            unknown_sections.push(section);
+        }
+    }
+
+    // Build in increasing priority so reverse() makes highest priority first
+    let mut ordered_sections: Vec<Section> = Vec::new();
+    ordered_sections.extend(unknown_sections);
+    ordered_sections.extend(team_yml_sections);
+    ordered_sections.extend(team_gem_sections);
+    ordered_sections.extend(team_glob_sections);
+    ordered_sections.extend(package_sections);
+    ordered_sections.extend(directory_sections);
+    ordered_sections.extend(annotations_sections);
+
+    for section in ordered_sections {
         lines.extend(section.lines);
     }
+
     lines.reverse();
     lines
 }
@@ -461,6 +502,9 @@ mod tests {
         assert_eq!(
             stripped_lines,
             vec![
+                "/config/i18n-tasks.yml.erb @Prefix/language-team",
+                "/config/application.rb @Prefix/team-bar",
+                "/app/assets/config/manifest.js @Prefix/team-foo",
                 "/config/brakeman.ignore @Prefix/security",
                 "/components/create.rb @Prefix/component-team",
                 "/bin/brakeman @Prefix/psecurity",
@@ -468,10 +512,7 @@ mod tests {
                 "/.vscode/extensions/z/**/* @Prefix/zteam",
                 "/.github/workflows/push-sources.yml @Prefix/infra",
                 "/.github/workflows/pull-translations.yml @Prefix/infra",
-                "/.codeclimate.yml @Prefix/climate-team",
-                "/config/i18n-tasks.yml.erb @Prefix/language-team",
-                "/config/application.rb @Prefix/team-bar",
-                "/app/assets/config/manifest.js @Prefix/team-foo"
+                "/.codeclimate.yml @Prefix/climate-team"
             ]
         );
         Ok(())

@@ -8,6 +8,7 @@ use std::{
 use error_stack::{Context, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
+use crate::ownership::mapper::Source;
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
@@ -64,7 +65,6 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<T
     Ok(owners.first().map(|fo| fo.team.clone()))
 }
 
-
 fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
     let config = match config_from_path(&run_config.config_path) {
         Ok(c) => c,
@@ -91,25 +91,54 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
 }
 
 fn run_result_for_file_owners(file_owners: Vec<FileOwner>) -> RunResult {
-    match file_owners.len() {
-        0 => RunResult {
+    if file_owners.is_empty() {
+        return RunResult {
             info_messages: vec![format!("{}", FileOwner::default())],
             ..Default::default()
-        },
-        1 => RunResult {
-            info_messages: vec![format!("{}", file_owners[0])],
-            ..Default::default()
-        },
-        _ => {
-            let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
-            for file_owner in file_owners {
-                error_messages.push(format!("\n{}", file_owner));
-            }
-            RunResult {
-                validation_errors: error_messages,
-                ..Default::default()
-            }
+        };
+    }
+
+    // Compute per-owner minimal source priority
+    let min_priority = |fo: &FileOwner| -> u8 {
+        fo.sources
+            .iter()
+            .map(|s| match s {
+                Source::TeamFile => 0,
+                Source::Directory(_) => 1,
+                Source::Package(_, _) => 2,
+                Source::TeamGlob(_) => 3,
+                Source::TeamGem => 4,
+                Source::TeamYml => 5,
+            })
+            .min()
+            .unwrap_or(u8::MAX)
+    };
+
+    let top_priority = file_owners.iter().map(min_priority).min().unwrap_or(u8::MAX);
+
+    let winners: Vec<&FileOwner> = file_owners.iter().filter(|fo| min_priority(fo) == top_priority).collect();
+
+    // Only an error if multiple Team YML globs match at the highest priority
+    if winners.len() > 1 && top_priority == 3 {
+        let mut error_messages = vec!["Error: multiple Team YML globs match this file!".to_string()];
+        for fo in winners {
+            error_messages.push(format!("\n{}", fo));
         }
+        return RunResult {
+            validation_errors: error_messages,
+            ..Default::default()
+        };
+    }
+
+    // Otherwise, select the highest-priority owner (ties broken by team name)
+    let winner = file_owners
+        .iter()
+        .min_by_key(|fo| (min_priority(fo), fo.team.name.clone()))
+        .unwrap();
+
+    RunResult {
+        info_messages: vec![format!("{}", winner)],
+        ..Default::default()
     }
 }
 
