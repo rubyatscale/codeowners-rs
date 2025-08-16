@@ -37,8 +37,36 @@ pub struct Runner {
     cache: Cache,
 }
 
-pub fn for_file(run_config: &RunConfig, file_path: &str) -> RunResult {
+pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) -> RunResult {
+    if from_codeowners {
+        return for_file_codeowners_only(run_config, file_path);
+    }
     for_file_optimized(run_config, file_path)
+}
+
+fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
+    match team_for_file_from_codeowners(run_config, file_path) {
+        Ok(Some(team)) => {
+            let relative_team_path = team
+                .path
+                .strip_prefix(&run_config.project_root)
+                .unwrap_or(team.path.as_path())
+                .to_string_lossy()
+                .to_string();
+            RunResult {
+                info_messages: vec![format!(
+                    "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
+                    team.name, team.github_team, relative_team_path
+                )],
+                ..Default::default()
+            }
+        }
+        Ok(None) => RunResult::default(),
+        Err(err) => RunResult {
+            io_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
 }
 
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {

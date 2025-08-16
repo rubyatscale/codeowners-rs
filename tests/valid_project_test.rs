@@ -200,12 +200,13 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
+fn test_for_file_from_codeowners() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
         .arg("for-file")
+        .arg("--from-codeowners")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
         .success()
@@ -214,31 +215,8 @@ fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Erro
             Github Team: @PayrollTeam
             Team YML: config/teams/payroll.yml
             Description:
-            - Owner annotation at the top of the file
-            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+            - Owner inferred from codeowners file
         "}));
-    Ok(())
-}
-
-#[test]
-fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
-    Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
-        .arg("for-file")
-        .arg("javascript/packages/PayrollFlow/index.tsx")
-        .assert()
-        .success()
-        .stdout(predicate::eq(indoc! {"
-            Team: Payroll
-            Github Team: @PayrollTeam
-            Team YML: config/teams/payroll.yml
-            Description:
-            - Owner annotation at the top of the file
-            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
-        "}));
-
     Ok(())
 }
 
