@@ -90,8 +90,6 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         }
     }
 
-    // TODO: remove this once we've verified the fast path is working
-    // This is simply matching the order of behavior of the original codeowners CLI
     if file_owners.len() > 1 {
         file_owners.sort_by(|a, b| {
             let priority_a = a.sources.iter().map(source_priority).min().unwrap_or(u8::MAX);
@@ -129,8 +127,6 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
     }
     Ok(teams)
 }
-
-// no regex: parse cheaply with ASCII-aware checks
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
     let project_file = build_project_file_without_cache(&path.to_path_buf());
@@ -229,8 +225,6 @@ fn nearest_package_owner(
     }
     None
 }
-
-// removed: use `Source::len()` instead
 
 fn glob_list_matches(path: &str, globs: &[String]) -> bool {
     globs.iter().any(|g| glob_match(g, path))

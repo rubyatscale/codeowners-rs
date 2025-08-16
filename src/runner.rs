@@ -64,7 +64,6 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<T
     Ok(owners.first().map(|fo| fo.team.clone()))
 }
 
-// (imports below intentionally trimmed after refactor)
 
 fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
     let config = match config_from_path(&run_config.config_path) {

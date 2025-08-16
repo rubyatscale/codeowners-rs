@@ -15,7 +15,7 @@ use tracing::instrument;
 use super::file_generator::FileGenerator;
 use super::file_owner_finder::FileOwnerFinder;
 use super::file_owner_finder::Owner;
-use super::mapper::{Mapper, OwnerMatcher, TeamName};
+use super::mapper::{Mapper, OwnerMatcher, TeamName, Source};
 
 pub struct Validator {
     pub project: Arc<Project>,
@@ -27,7 +27,7 @@ pub struct Validator {
 enum Error {
     InvalidTeam { name: String, path: PathBuf },
     FileWithoutOwner { path: PathBuf },
-    FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
+    MultipleTeamYmls { path: PathBuf, owners: Vec<Owner> },
     CodeownershipFileIsStale,
 }
 
@@ -113,11 +113,8 @@ impl Validator {
 
             if owners.is_empty() {
                 validation_errors.push(Error::FileWithoutOwner { path: relative_path })
-            } else if owners.len() > 1 {
-                validation_errors.push(Error::FileWithMultipleOwners {
-                    path: relative_path,
-                    owners,
-                })
+            } else if let Some(multiple_team_file_owners_error) = multiple_team_file_owners(&owners, &relative_path) {
+                validation_errors.push(multiple_team_file_owners_error);
             }
         }
 
@@ -162,7 +159,7 @@ impl Error {
     pub fn category(&self) -> String {
         match self {
             Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
-            Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
+            Error::MultipleTeamYmls { path: _, owners: _ } => "Team yml file globs should not overlap".to_owned(),
             Error::CodeownershipFileIsStale => {
                 "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file".to_owned()
             }
@@ -173,7 +170,7 @@ impl Error {
     pub fn messages(&self) -> Vec<String> {
         match self {
             Error::FileWithoutOwner { path } => vec![format!("- {}", path.to_string_lossy())],
-            Error::FileWithMultipleOwners { path, owners } => {
+            Error::MultipleTeamYmls { path, owners } => {
                 let path_display = path.to_string_lossy();
                 let mut messages = vec![format!("\n{path_display}")];
 
@@ -190,6 +187,29 @@ impl Error {
             Error::CodeownershipFileIsStale => vec![],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }
+    }
+}
+
+fn multiple_team_file_owners(owners: &Vec<Owner>, relative_path: &PathBuf) -> Option<Error> {
+    if owners.len() <= 1 {
+        return None;
+    }
+    let team_file_owners: Vec<Owner> = owners
+        .iter()
+        .filter(|owner| owner.sources.iter().any(|source| matches!(source, Source::TeamFile)))
+        .map(|owner| Owner {
+            sources: owner.sources.clone(),
+            team_name: owner.team_name.clone(),
+        })
+        .collect();
+
+    if team_file_owners.len() > 1 {
+        Some(Error::MultipleTeamYmls {
+            path: relative_path.clone(),
+            owners: team_file_owners,
+        })
+    } else {
+        None
     }
 }
 
@@ -216,3 +236,80 @@ impl Display for Errors {
 }
 
 impl Context for Errors {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn owner_with_sources(team: &str, sources: Vec<Source>) -> Owner {
+        Owner {
+            team_name: team.to_string(),
+            sources,
+        }
+    }
+
+    #[test]
+    fn multiple_team_file_owners_with_no_owners_returns_none() {
+        let owners: Vec<Owner> = vec![];
+        let path = PathBuf::from("app/models/user.rb");
+
+        let result = multiple_team_file_owners(&owners, &path);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn multiple_team_file_owners_with_single_owner_returns_none() {
+        let owners = vec![owner_with_sources("Foo", vec![Source::TeamFile])];
+        let path = PathBuf::from("app/models/user.rb");
+
+        let result = multiple_team_file_owners(&owners, &path);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn multiple_team_file_owners_with_multiple_non_teamfile_owners_returns_none() {
+        let owners = vec![
+            owner_with_sources("Foo", vec![Source::Directory("app".to_string())]),
+            owner_with_sources("Bar", vec![Source::TeamGlob("packs/bar/**".to_string())]),
+        ];
+        let path = PathBuf::from("app/models/user.rb");
+
+        let result = multiple_team_file_owners(&owners, &path);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn multiple_team_file_owners_with_one_teamfile_owner_returns_none() {
+        let owners = vec![
+            owner_with_sources("Foo", vec![Source::TeamFile]),
+            owner_with_sources("Bar", vec![Source::Directory("app/services".to_string())]),
+        ];
+        let path = PathBuf::from("app/services/service.rb");
+
+        let result = multiple_team_file_owners(&owners, &path);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn multiple_team_file_owners_with_two_teamfile_owners_returns_error() {
+        let owners = vec![
+            owner_with_sources("Foo", vec![Source::TeamFile]),
+            owner_with_sources("Bar", vec![Source::TeamFile]),
+        ];
+        let path = PathBuf::from("packs/payroll/services/runner.rb");
+
+        let result = multiple_team_file_owners(&owners, &path);
+        match result {
+            Some(Error::MultipleTeamYmls { path: p, owners: conflicting }) => {
+                assert_eq!(p, path);
+                assert_eq!(conflicting.len(), 2);
+                let mut names: Vec<&str> = conflicting.iter().map(|o| o.team_name.as_str()).collect();
+                names.sort_unstable();
+                assert_eq!(names, vec!["Bar", "Foo"]);
+                // Ensure sources are preserved as TeamFile for both
+                assert!(conflicting.iter().all(|o| o.sources.iter().any(|s| matches!(s, Source::TeamFile))));
+            }
+            _ => panic!("Expected MultipleTeamFiles error"),
+        }
+    }
+}
