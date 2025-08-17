@@ -9,6 +9,7 @@
 
 # Annotations at the top of file
 /javascript/packages/PayrollFlow/index.tsx @PayrollTeam
+/javascript/packages/list/page-admin.tsx @PaymentsTeam
 /ruby/app/models/bank_account.rb @PaymentsTeam
 /ruby/app/models/payroll.rb @PayrollTeam
 
