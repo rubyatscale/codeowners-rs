@@ -47,7 +47,7 @@ enum Command {
     #[clap(about = "Delete the cache file.", visible_alias = "d")]
     DeleteCache,
 
-    #[clap(about = "Compare the CODEOWNERS file to the for-file command.")]
+    #[clap(about = "Compare the CODEOWNERS file to the for-file command.", hide = true)]
     VerifyCompareForFile,
 }
 
