@@ -48,7 +48,7 @@ enum Command {
     DeleteCache,
 
     #[clap(about = "Compare the CODEOWNERS file to the for-file command.", hide = true)]
-    VerifyCompareForFile,
+    CrosscheckOwners,
 }
 
 /// A CLI to validate and generate Github's CODEOWNERS file.
@@ -116,7 +116,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::ForFile { name, from_codeowners } => runner::for_file(&run_config, &name, from_codeowners),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
-        Command::VerifyCompareForFile => runner::verify_compare_for_file(&run_config),
+        Command::CrosscheckOwners => runner::crosscheck_owners(&run_config),
     };
 
     Ok(runner_result)

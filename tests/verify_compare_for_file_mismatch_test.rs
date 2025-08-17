@@ -9,7 +9,7 @@ use common::setup_fixture_repo;
 const FIXTURE: &str = "tests/fixtures/valid_project";
 
 #[test]
-fn test_verify_compare_for_file_reports_team_mismatch() -> Result<(), Box<dyn Error>> {
+fn test_crosscheck_owners_reports_team_mismatch() -> Result<(), Box<dyn Error>> {
     // Arrange: copy fixture to temp dir and change a single CODEOWNERS mapping
     let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
     let project_root = temp_dir.path();
@@ -28,7 +28,7 @@ fn test_verify_compare_for_file_reports_team_mismatch() -> Result<(), Box<dyn Er
         .arg("--project-root")
         .arg(project_root)
         .arg("--no-cache")
-        .arg("verify-compare-for-file")
+        .arg("crosscheck-owners")
         .assert()
         .failure()
         .stdout(predicate::str::contains(
@@ -39,7 +39,7 @@ fn test_verify_compare_for_file_reports_team_mismatch() -> Result<(), Box<dyn Er
 }
 
 #[test]
-fn test_verify_compare_for_file_reports_unowned_mismatch() -> Result<(), Box<dyn Error>> {
+fn test_crosscheck_owners_reports_unowned_mismatch() -> Result<(), Box<dyn Error>> {
     // Arrange: copy fixture to temp dir and remove a CODEOWNERS rule for an owned file
     let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
     let project_root = temp_dir.path();
@@ -59,7 +59,7 @@ fn test_verify_compare_for_file_reports_unowned_mismatch() -> Result<(), Box<dyn
         .arg("--project-root")
         .arg(project_root)
         .arg("--no-cache")
-        .arg("verify-compare-for-file")
+        .arg("crosscheck-owners")
         .assert()
         .failure()
         .stdout(predicate::str::contains(

@@ -9,8 +9,8 @@ use crate::{
     runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
 };
 
-pub fn verify_compare_for_file(run_config: &RunConfig, cache: &Cache) -> RunResult {
-    match do_verify_compare_for_file(run_config, cache) {
+pub fn crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> RunResult {
+    match do_crosscheck_owners(run_config, cache) {
         Ok(mismatches) if mismatches.is_empty() => RunResult {
             info_messages: vec!["Success! All files match between CODEOWNERS and for-file command.".to_string()],
             ..Default::default()
@@ -26,7 +26,7 @@ pub fn verify_compare_for_file(run_config: &RunConfig, cache: &Cache) -> RunResu
     }
 }
 
-fn do_verify_compare_for_file(run_config: &RunConfig, cache: &Cache) -> Result<Vec<String>, String> {
+fn do_crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> Result<Vec<String>, String> {
     let config = load_config(run_config)?;
     let project = build_project(&config, run_config, cache)?;
 

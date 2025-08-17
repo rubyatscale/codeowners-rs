@@ -159,8 +159,8 @@ pub fn delete_cache(run_config: &RunConfig) -> RunResult {
     run_with_runner(run_config, |runner| runner.delete_cache())
 }
 
-pub fn verify_compare_for_file(run_config: &RunConfig) -> RunResult {
-    run_with_runner(run_config, |runner| runner.verify_compare_for_file())
+pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.crosscheck_owners())
 }
 
 pub type Runnable = fn(Runner) -> RunResult;
@@ -331,8 +331,8 @@ impl Runner {
         }
     }
 
-    pub fn verify_compare_for_file(&self) -> RunResult {
-        crate::verify::verify_compare_for_file(&self.run_config, &self.cache)
+    pub fn crosscheck_owners(&self) -> RunResult {
+        crate::crosscheck::crosscheck_owners(&self.run_config, &self.cache)
     }
 }
 

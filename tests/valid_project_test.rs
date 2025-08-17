@@ -37,12 +37,12 @@ fn test_generate() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_verify_compare_for_file() -> Result<(), Box<dyn Error>> {
+fn test_crosscheck_owners() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
         .arg("--no-cache")
-        .arg("verify-compare-for-file")
+        .arg("crosscheck-owners")
         .assert()
         .success()
         .stdout(predicate::eq(indoc! {"
