@@ -247,12 +247,20 @@ pub mod tests {
                     content: "// @team Foo\n".to_owned(),
                 },
                 TestProjectFile {
+                    relative_path: "packs/jscomponents/comp-colon.ts".to_owned(),
+                    content: "// @team: FooColon\n".to_owned(),
+                },
+                TestProjectFile {
                     relative_path: "packs/[admin]/comp.ts".to_owned(),
                     content: "// @team Bar\n".to_owned(),
                 },
                 TestProjectFile {
                     relative_path: "packs/bar/comp.rb".to_owned(),
-                    content: "// @team Bar\n".to_owned(),
+                    content: "# @team Bar\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "packs/bar/comp-colon.rb".to_owned(),
+                    content: "# @team: BarColon\n".to_owned(),
                 },
             ],
         );

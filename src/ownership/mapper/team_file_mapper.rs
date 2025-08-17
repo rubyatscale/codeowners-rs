@@ -50,12 +50,12 @@ impl Mapper for TeamFileMapper {
 
         for owned_file in &self.project.files {
             if let Some(ref owner) = owned_file.owner {
-                let team = team_by_name.get(owner);
-
-                if let Some(team) = team {
-                    let relative_path = self.project.relative_path(&owned_file.path);
-                    path_to_team.insert(relative_path.to_owned(), team.name.clone());
-                }
+                let relative_path = self.project.relative_path(&owned_file.path);
+                let team_name = team_by_name
+                    .get(owner)
+                    .map(|team| team.name.clone())
+                    .unwrap_or_else(|| owner.clone());
+                path_to_team.insert(relative_path.to_owned(), team_name);
             }
         }
 
@@ -114,6 +114,8 @@ mod tests {
                 (PathBuf::from("packs/[admin]/comp.ts"), "Bar".to_owned()),
                 (PathBuf::from("packs/bar/comp.rb"), "Bar".to_owned()),
                 (PathBuf::from("packs/jscomponents/comp.ts"), "Foo".to_owned()),
+                (PathBuf::from("packs/jscomponents/comp-colon.ts"), "FooColon".to_owned()),
+                (PathBuf::from("packs/bar/comp-colon.rb"), "BarColon".to_owned()),
             ]),
             Source::TeamFile,
         )];

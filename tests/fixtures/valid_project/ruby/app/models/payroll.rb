@@ -1,3 +1,3 @@
-# @team Payroll
+# @team: Payroll
 
 class Payroll; end
