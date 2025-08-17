@@ -7,11 +7,8 @@
 # https://help.github.com/en/articles/about-code-owners
 
 
-# Owner in .codeowner
 /app/consumers/**/** @barteam
 /app/services/**/** @footeam
 /app/services/exciting/**/** @barteam
-
-# Team YML ownership
 /config/teams/bar.yml @barteam
 /config/teams/foo.yml @footeam

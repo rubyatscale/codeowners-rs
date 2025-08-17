@@ -7,31 +7,18 @@
 # https://help.github.com/en/articles/about-code-owners
 
 
-# Annotations at the top of file
-/javascript/packages/PayrollFlow/index.tsx @PayrollTeam
-/ruby/app/models/bank_account.rb @PaymentsTeam
-/ruby/app/models/payroll.rb @PayrollTeam
-
-# Team-specific owned globs
-/ruby/app/payments/**/* @PaymentsTeam
-
-# Owner in .codeowner
-/javascript/packages/items/**/** @PayrollTeam
-/javascript/packages/items/(special)/**/** @PaymentsTeam
-/ruby/app/payments/foo/**/** @PayrollTeam
-/ruby/app/payroll/**/** @PayrollTeam
-
-# Owner metadata key in package.yml
-/ruby/packages/payroll_flow/**/** @PayrollTeam
-
-# Owner metadata key in package.json
-/javascript/packages/PayrollFlow/**/** @PayrollTeam
-
-# Team YML ownership
 /config/teams/payments.yml @PaymentsTeam
 /config/teams/payroll.yml @PayrollTeam
 /config/teams/ux.yml @UX
-
-# Team owned gems
 /gems/payroll_calculator/**/** @PayrollTeam
 /gems/pets/**/** @UX
+/javascript/packages/PayrollFlow/**/** @PayrollTeam
+/javascript/packages/PayrollFlow/index.tsx @PayrollTeam
+/javascript/packages/items/**/** @PayrollTeam
+/javascript/packages/items/(special)/**/** @PaymentsTeam
+/ruby/app/models/bank_account.rb @PaymentsTeam
+/ruby/app/models/payroll.rb @PayrollTeam
+/ruby/app/payments/**/* @PaymentsTeam
+/ruby/app/payments/foo/**/** @PayrollTeam
+/ruby/app/payroll/**/** @PayrollTeam
+/ruby/packages/payroll_flow/**/** @PayrollTeam

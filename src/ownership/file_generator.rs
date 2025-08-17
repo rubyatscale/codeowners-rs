@@ -11,15 +11,16 @@ impl FileGenerator {
         let mut lines: Vec<String> = Vec::new();
         lines.append(&mut Self::disclaimer());
 
+        let mut all_mapper_entries: Vec<Entry> = Vec::new();
         for mapper in &self.mappers {
             if mapper.entries().is_empty() {
                 continue;
             }
 
-            lines.push(format!("# {}", mapper.name()));
-            lines.append(&mut Self::to_sorted_lines(&mapper.entries()));
-            lines.push("".to_owned());
+            all_mapper_entries.extend(mapper.entries());
         }
+
+        lines.append(&mut Self::to_sorted_lines(&all_mapper_entries));
 
         lines.join("\n")
     }
