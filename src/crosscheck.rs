@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::{
     cache::Cache,
     config::Config,
-    ownership::for_file_fast::find_file_owners,
+    ownership::for_file::find_file_owners,
     project::Project,
     project_builder::ProjectBuilder,
     runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
@@ -32,10 +32,10 @@ fn do_crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> Result<Vec<Str
 
     let mut mismatches: Vec<String> = Vec::new();
     for file in &project.files {
-        let (codeowners_team, fast_display) = owners_for_file(&file.path, run_config, &config)?;
+        let (codeowners_team, derived_display) = owners_for_file(&file.path, run_config, &config)?;
         let codeowners_display = codeowners_team.clone().unwrap_or_else(|| "Unowned".to_string());
-        if !is_match(codeowners_team.as_deref(), &fast_display) {
-            mismatches.push(format_mismatch(&project, &file.path, &codeowners_display, &fast_display));
+        if !is_match(codeowners_team.as_deref(), &derived_display) {
+            mismatches.push(format_mismatch(&project, &file.path, &codeowners_display, &derived_display));
         }
     }
 
@@ -63,28 +63,28 @@ fn owners_for_file(path: &Path, run_config: &RunConfig, config: &Config) -> Resu
         .map_err(|e| e.to_string())?
         .map(|t| t.name);
 
-    let fast_owners = find_file_owners(&run_config.project_root, config, Path::new(&file_path_str))?;
-    let fast_display = match fast_owners.len() {
+    let derived_owners = find_file_owners(&run_config.project_root, config, Path::new(&file_path_str))?;
+    let derived_display = match derived_owners.len() {
         0 => "Unowned".to_string(),
-        1 => fast_owners[0].team.name.clone(),
+        1 => derived_owners[0].team.name.clone(),
         _ => {
-            let names: Vec<String> = fast_owners.into_iter().map(|fo| fo.team.name).collect();
+            let names: Vec<String> = derived_owners.into_iter().map(|fo| fo.team.name).collect();
             format!("Multiple: {}", names.join(", "))
         }
     };
 
-    Ok((codeowners_team, fast_display))
+    Ok((codeowners_team, derived_display))
 }
 
-fn is_match(codeowners_team: Option<&str>, fast_display: &str) -> bool {
-    match (codeowners_team, fast_display) {
+fn is_match(codeowners_team: Option<&str>, derived_display: &str) -> bool {
+    match (codeowners_team, derived_display) {
         (None, "Unowned") => true,
         (Some(t), fd) if fd == t => true,
         _ => false,
     }
 }
 
-fn format_mismatch(project: &Project, file_path: &Path, codeowners_display: &str, fast_display: &str) -> String {
+fn format_mismatch(project: &Project, file_path: &Path, codeowners_display: &str, derived_display: &str) -> String {
     let rel = project.relative_path(file_path).to_string_lossy().to_string();
-    format!("- {}: CODEOWNERS={} fast={}", rel, codeowners_display, fast_display)
+    format!("- {}: CODEOWNERS={} derived={}", rel, codeowners_display, derived_display)
 }

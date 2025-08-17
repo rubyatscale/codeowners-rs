@@ -85,7 +85,7 @@ pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) ->
 
 pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
     let config = config_from_path(&run_config.config_path)?;
-    use crate::ownership::for_file_fast::find_file_owners;
+    use crate::ownership::for_file::find_file_owners;
     let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
 
     Ok(owners.first().map(|fo| fo.team.clone()))
@@ -104,7 +104,7 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
         }
     };
 
-    use crate::ownership::for_file_fast::find_file_owners;
+    use crate::ownership::for_file::find_file_owners;
     let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
         Ok(v) => v,
         Err(err) => {

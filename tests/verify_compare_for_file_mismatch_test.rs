@@ -32,7 +32,7 @@ fn test_crosscheck_owners_reports_team_mismatch() -> Result<(), Box<dyn Error>> 
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            indoc! {"- ruby/app/models/payroll.rb: CODEOWNERS=Payments fast=Payroll"},
+            indoc! {"- ruby/app/models/payroll.rb: CODEOWNERS=Payments derived=Payroll"},
         ));
 
     Ok(())
@@ -63,7 +63,7 @@ fn test_crosscheck_owners_reports_unowned_mismatch() -> Result<(), Box<dyn Error
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "- ruby/app/models/bank_account.rb: CODEOWNERS=Unowned fast=Payments",
+            "- ruby/app/models/bank_account.rb: CODEOWNERS=Unowned derived=Payments",
         ));
 
     Ok(())

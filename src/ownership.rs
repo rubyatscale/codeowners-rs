@@ -11,7 +11,7 @@ use tracing::{info, instrument};
 
 mod file_generator;
 mod file_owner_finder;
-pub mod for_file_fast;
+pub mod for_file;
 pub(crate) mod mapper;
 pub(crate) mod parser;
 mod validator;
