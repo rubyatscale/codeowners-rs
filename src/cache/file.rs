@@ -21,26 +21,24 @@ const DEFAULT_CACHE_CAPACITY: usize = 10000;
 
 impl Caching for GlobalCache {
     fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
-        if let Some(cache_mutex) = self.file_owner_cache.as_ref() {
-            if let Ok(cache) = cache_mutex.lock() {
-                if let Some(cached_entry) = cache.get(path) {
-                    let timestamp = get_file_timestamp(path)?;
-                    if cached_entry.timestamp == timestamp {
-                        return Ok(Some(cached_entry.clone()));
-                    }
-                }
+        if let Some(cache_mutex) = self.file_owner_cache.as_ref()
+            && let Ok(cache) = cache_mutex.lock()
+            && let Some(cached_entry) = cache.get(path)
+        {
+            let timestamp = get_file_timestamp(path)?;
+            if cached_entry.timestamp == timestamp {
+                return Ok(Some(cached_entry.clone()));
             }
         }
         Ok(None)
     }
 
     fn write_file_owner(&self, path: &Path, owner: Option<String>) {
-        if let Some(cache_mutex) = self.file_owner_cache.as_ref() {
-            if let Ok(mut cache) = cache_mutex.lock() {
-                if let Ok(timestamp) = get_file_timestamp(path) {
-                    cache.insert(path.to_path_buf(), FileOwnerCacheEntry { timestamp, owner });
-                }
-            }
+        if let Some(cache_mutex) = self.file_owner_cache.as_ref()
+            && let Ok(mut cache) = cache_mutex.lock()
+            && let Ok(timestamp) = get_file_timestamp(path)
+        {
+            cache.insert(path.to_path_buf(), FileOwnerCacheEntry { timestamp, owner });
         }
     }
 
