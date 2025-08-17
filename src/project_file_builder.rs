@@ -13,7 +13,8 @@ pub struct ProjectFileBuilder<'a> {
 }
 
 lazy_static! {
-    static ref TEAM_REGEX: Regex = Regex::new(r#"^(?:#|//) @team:? (.*)$"#).expect("error compiling regular expression");
+    static ref TEAM_REGEX: Regex =
+        Regex::new(r#"^(?:#|//|<!--|<%#)\s*@team:?\s*(.*?)\s*(?:-->|%>)?$"#).expect("error compiling regular expression");
 }
 
 impl<'a> ProjectFileBuilder<'a> {
@@ -100,6 +101,24 @@ mod tests {
 
         let owner = TEAM_REGEX
             .captures("# @team: Foo")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("<!-- @team: Foo -->")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("<%# @team: Foo %>")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("<!-- @team Foo -->")
             .and_then(|cap| cap.get(1))
             .map(|m| m.as_str().to_string());
         assert_eq!(owner, Some("Foo".to_string()));
