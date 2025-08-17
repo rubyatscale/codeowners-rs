@@ -262,6 +262,18 @@ pub mod tests {
                     relative_path: "packs/bar/comp-colon.rb".to_owned(),
                     content: "# @team: BarColon\n".to_owned(),
                 },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/edit.erb".to_owned(),
+                    content: "<%# @team: Foo %>\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/show.html.erb".to_owned(),
+                    content: "<!-- @team: Bar -->\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/_row.html.erb".to_owned(),
+                    content: "<!-- @team Bam -->\n".to_owned(),
+                },
             ],
         );
         build_ownership(test_config)
