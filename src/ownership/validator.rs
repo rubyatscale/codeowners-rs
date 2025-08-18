@@ -74,13 +74,13 @@ impl Validator {
             .files
             .par_iter()
             .flat_map(|file| {
-                if let Some(owner) = &file.owner {
-                    if !team_names.contains(owner) {
-                        return Some(Error::InvalidTeam {
-                            name: owner.clone(),
-                            path: project.relative_path(&file.path).to_owned(),
-                        });
-                    }
+                if let Some(owner) = &file.owner
+                    && !team_names.contains(owner)
+                {
+                    return Some(Error::InvalidTeam {
+                        name: owner.clone(),
+                        path: project.relative_path(&file.path).to_owned(),
+                    });
                 }
 
                 None

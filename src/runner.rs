@@ -36,10 +36,37 @@ pub struct Runner {
     cache: Cache,
 }
 
-pub fn for_file(run_config: &RunConfig, file_path: &str) -> RunResult {
+pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) -> RunResult {
+    if from_codeowners {
+        return for_file_codeowners_only(run_config, file_path);
+    }
     for_file_optimized(run_config, file_path)
 }
 
+fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
+    match team_for_file_from_codeowners(run_config, file_path) {
+        Ok(Some(team)) => {
+            let relative_team_path = team
+                .path
+                .strip_prefix(&run_config.project_root)
+                .unwrap_or(team.path.as_path())
+                .to_string_lossy()
+                .to_string();
+            RunResult {
+                info_messages: vec![format!(
+                    "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
+                    team.name, team.github_team, relative_team_path
+                )],
+                ..Default::default()
+            }
+        }
+        Ok(None) => RunResult::default(),
+        Err(err) => RunResult {
+            io_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
+}
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
     let config = config_from_path(&run_config.config_path)?;
     let relative_file_path = Path::new(file_path)
@@ -132,6 +159,10 @@ pub fn delete_cache(run_config: &RunConfig) -> RunResult {
     run_with_runner(run_config, |runner| runner.delete_cache())
 }
 
+pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
+    run_with_runner(run_config, |runner| runner.crosscheck_owners())
+}
+
 pub type Runnable = fn(Runner) -> RunResult;
 
 pub fn run_with_runner<F>(run_config: &RunConfig, runnable: F) -> RunResult
@@ -172,7 +203,7 @@ impl fmt::Display for Error {
     }
 }
 
-fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
+pub(crate) fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
     let config_file = File::open(path)
         .change_context(Error::Io(format!("Can't open config file: {}", &path.to_string_lossy())))
         .attach_printable(format!("Can't open config file: {}", &path.to_string_lossy()))?;
@@ -298,6 +329,10 @@ impl Runner {
                 ..Default::default()
             },
         }
+    }
+
+    pub fn crosscheck_owners(&self) -> RunResult {
+        crate::crosscheck::crosscheck_owners(&self.run_config, &self.cache)
     }
 }
 

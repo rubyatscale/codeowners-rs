@@ -32,10 +32,11 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         if let Some(rel_str) = relative_file_path.to_str() {
             let is_config_owned = glob_list_matches(rel_str, &config.owned_globs);
             let is_config_unowned = glob_list_matches(rel_str, &config.unowned_globs);
-            if is_config_owned && !is_config_unowned {
-                if let Some(team) = teams_by_name.get(&team_name) {
-                    sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamFile);
-                }
+            if is_config_owned
+                && !is_config_unowned
+                && let Some(team) = teams_by_name.get(&team_name)
+            {
+                sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamFile);
             }
         }
     }
@@ -194,32 +195,30 @@ fn nearest_package_owner(
         if let Some(rel_str) = parent_rel.to_str() {
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");
-                if pkg_yml.exists() {
-                    if let Ok(owner) = read_ruby_package_owner(&pkg_yml) {
-                        if let Some(team) = teams_by_name.get(&owner) {
-                            let package_path = parent_rel.join("package.yml");
-                            let package_glob = format!("{rel_str}/**/**");
-                            return Some((
-                                team.name.clone(),
-                                Source::Package(package_path.to_string_lossy().to_string(), package_glob),
-                            ));
-                        }
-                    }
+                if pkg_yml.exists()
+                    && let Ok(owner) = read_ruby_package_owner(&pkg_yml)
+                    && let Some(team) = teams_by_name.get(&owner)
+                {
+                    let package_path = parent_rel.join("package.yml");
+                    let package_glob = format!("{rel_str}/**/**");
+                    return Some((
+                        team.name.clone(),
+                        Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                    ));
                 }
             }
             if glob_list_matches(rel_str, &config.javascript_package_paths) {
                 let pkg_json = current.join("package.json");
-                if pkg_json.exists() {
-                    if let Ok(owner) = read_js_package_owner(&pkg_json) {
-                        if let Some(team) = teams_by_name.get(&owner) {
-                            let package_path = parent_rel.join("package.json");
-                            let package_glob = format!("{rel_str}/**/**");
-                            return Some((
-                                team.name.clone(),
-                                Source::Package(package_path.to_string_lossy().to_string(), package_glob),
-                            ));
-                        }
-                    }
+                if pkg_json.exists()
+                    && let Ok(owner) = read_js_package_owner(&pkg_json)
+                    && let Some(team) = teams_by_name.get(&owner)
+                {
+                    let package_path = parent_rel.join("package.json");
+                    let package_glob = format!("{rel_str}/**/**");
+                    return Some((
+                        team.name.clone(),
+                        Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                    ));
                 }
             }
         }

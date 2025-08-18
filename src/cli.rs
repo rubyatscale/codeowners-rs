@@ -16,7 +16,7 @@ enum Command {
             default_value = "false",
             help = "Find the owner from the CODEOWNERS file and just return the team name and yml path"
         )]
-        fast: bool,
+        from_codeowners: bool,
         name: String,
     },
 
@@ -46,6 +46,9 @@ enum Command {
 
     #[clap(about = "Delete the cache file.", visible_alias = "d")]
     DeleteCache,
+
+    #[clap(about = "Compare the CODEOWNERS file to the for-file command.", hide = true)]
+    CrosscheckOwners,
 }
 
 /// A CLI to validate and generate Github's CODEOWNERS file.
@@ -110,9 +113,10 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::Validate => runner::validate(&run_config, vec![]),
         Command::Generate { skip_stage } => runner::generate(&run_config, !skip_stage),
         Command::GenerateAndValidate { skip_stage } => runner::generate_and_validate(&run_config, vec![], !skip_stage),
-        Command::ForFile { name, fast: _ } => runner::for_file(&run_config, &name),
+        Command::ForFile { name, from_codeowners } => runner::for_file(&run_config, &name, from_codeowners),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
+        Command::CrosscheckOwners => runner::crosscheck_owners(&run_config),
     };
 
     Ok(runner_result)

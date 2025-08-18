@@ -61,14 +61,13 @@ impl<'a> ProjectBuilder<'a> {
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
-            if let Some(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    if let Ok(rel) = path.strip_prefix(&base_path) {
-                        if rel.components().count() == 1 && ignore_dirs.iter().any(|d| *d == file_name) {
-                            return false;
-                        }
-                    }
-                }
+            if let Some(ft) = entry.file_type()
+                && ft.is_dir()
+                && let Ok(rel) = path.strip_prefix(&base_path)
+                && rel.components().count() == 1
+                && ignore_dirs.iter().any(|d| *d == file_name)
+            {
+                return false;
             }
 
             true
@@ -92,10 +91,10 @@ impl<'a> ProjectBuilder<'a> {
                             let _ = tx.send(entry_type);
                         }
                         Err(report) => {
-                            if let Ok(mut slot) = error_holder.lock() {
-                                if slot.is_none() {
-                                    *slot = Some(report);
-                                }
+                            if let Ok(mut slot) = error_holder.lock()
+                                && slot.is_none()
+                            {
+                                *slot = Some(report);
                             }
                         }
                     }
