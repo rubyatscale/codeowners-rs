@@ -34,7 +34,6 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
             - ruby/app/models/blockchain.rb is referencing an invalid team - 'Web3'
 
             Some files are missing ownership
-            - ruby/app/models/blockchain.rb
             - ruby/app/unowned.rb
 
         "}));

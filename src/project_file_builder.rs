@@ -13,7 +13,7 @@ pub struct ProjectFileBuilder<'a> {
 }
 
 lazy_static! {
-    static ref TEAM_REGEX: Regex = Regex::new(r#"^(?:#|//) @team (.*)$"#).expect("error compiling regular expression");
+    static ref TEAM_REGEX: Regex = Regex::new(r#"^(?:#|//) @team:? (.*)$"#).expect("error compiling regular expression");
 }
 
 impl<'a> ProjectFileBuilder<'a> {
@@ -72,4 +72,36 @@ pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
         .map(|m| m.as_str().to_string());
 
     ProjectFile { path: path.clone(), owner }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_team_regex() {
+        let owner = TEAM_REGEX
+            .captures("// @team Foo")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("// @team Foo")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("// @team: Foo")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+
+        let owner = TEAM_REGEX
+            .captures("# @team: Foo")
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string());
+        assert_eq!(owner, Some("Foo".to_string()));
+    }
 }
