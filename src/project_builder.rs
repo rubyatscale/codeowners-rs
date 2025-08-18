@@ -61,13 +61,17 @@ impl<'a> ProjectBuilder<'a> {
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
-        let untracked_files = files::untracked_files(&base_path).unwrap_or_default();
+        let untracked_files = if self.config.skip_untracked_files {
+            files::untracked_files(&base_path).unwrap_or_default()
+        } else {
+            vec![]
+        };
 
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
             if !untracked_files.is_empty() && untracked_files.contains(&path.to_path_buf()) {
-                //return false;
+                return false;
             }
             if let Some(ft) = entry.file_type()
                 && ft.is_dir()

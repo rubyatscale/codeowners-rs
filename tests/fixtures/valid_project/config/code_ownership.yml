@@ -8,3 +8,4 @@ team_file_glob:
   - config/teams/**/*.yml
 unbuilt_gems_path: gems
 unowned_globs:
+skip_untracked_files: false
