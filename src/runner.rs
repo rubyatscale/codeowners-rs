@@ -84,28 +84,31 @@ pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) ->
 }
 
 pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
-    let config = config_from_path(&run_config.config_path)?;
-    use crate::ownership::for_file_fast::find_file_owners;
-    let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
+    match find_owners_for_path(run_config, file_path) {
+        Ok(owners) => Ok(owners.into_iter().next().map(|fo| fo.team)),
+        Err(err) => Err(error_stack::Report::new(Error::Io(err))),
+    }
+}
 
-    Ok(owners.first().map(|fo| fo.team.clone()))
+pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<FileOwner>, Error> {
+    match find_owners_for_path(run_config, file_path) {
+        Ok(owners) => Ok(owners.into_iter().next()),
+        Err(err) => Err(error_stack::Report::new(Error::Io(err))),
+    }
 }
 
 // (imports below intentionally trimmed after refactor)
 
-fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
+fn find_owners_for_path(run_config: &RunConfig, file_path: &str) -> std::result::Result<Vec<FileOwner>, String> {
     let config = match config_from_path(&run_config.config_path) {
         Ok(c) => c,
-        Err(err) => {
-            return RunResult {
-                io_errors: vec![err.to_string()],
-                ..Default::default()
-            };
-        }
+        Err(err) => return Err(err.to_string()),
     };
+    crate::ownership::for_file_fast::find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path))
+}
 
-    use crate::ownership::for_file_fast::find_file_owners;
-    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
+fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
+    let file_owners = match find_owners_for_path(run_config, file_path) {
         Ok(v) => v,
         Err(err) => {
             return RunResult {
@@ -338,10 +341,63 @@ impl Runner {
 
 #[cfg(test)]
 mod tests {
+    use crate::ownership::mapper::Source;
+
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_version() {
         assert_eq!(version(), env!("CARGO_PKG_VERSION").to_string());
+    }
+    #[test]
+    fn test_file_owner_for_file() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+
+        let config_path = project_root.join("config/code_ownership.yml");
+        std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        std::fs::write(&config_path, crate::common_test::tests::DEFAULT_CODE_OWNERSHIP_YML).unwrap();
+        let codeowners_file_path = project_root.join(".github/CODEOWNERS");
+        std::fs::create_dir_all(codeowners_file_path.parent().unwrap()).unwrap();
+        std::fs::write(&codeowners_file_path, "**/* @penny").unwrap();
+        let teams_path = project_root.join("config/teams");
+        std::fs::create_dir_all(&teams_path).unwrap();
+        std::fs::write(
+            teams_path.join("penny.yml"),
+            "name: penny\ngithub:\n  team: \"@penny\"\n  members:\n    - penny\n",
+        )
+        .unwrap();
+        let file_path = project_root.join("frontend/packages/penny/index.tsx");
+        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        std::fs::write(&file_path, "// @team penny").unwrap();
+        let no_owner_file_path = project_root.join("frontend/packages/penny/no-owner-index.tsx");
+        std::fs::create_dir_all(no_owner_file_path.parent().unwrap()).unwrap();
+        std::fs::write(&no_owner_file_path, "").unwrap();
+
+        let run_config = RunConfig {
+            project_root: project_root.to_path_buf(),
+            codeowners_file_path: project_root.join(".github/CODEOWNERS"),
+            config_path,
+            no_cache: true,
+        };
+
+        let file_owner = file_owner_for_file(&run_config, "frontend/packages/penny/index.tsx")
+            .unwrap()
+            .unwrap();
+        assert_eq!(&file_owner.team.name, "penny");
+        assert_eq!(&file_owner.sources, &[Source::TeamFile]);
+        let team = team_for_file(&run_config, "frontend/packages/penny/index.tsx").unwrap().unwrap();
+        assert_eq!(&team.name, "penny");
+
+        let file_owner = file_owner_for_file(&run_config, "frontend/packages/penny/no-owner-index.tsx").unwrap();
+        assert!(file_owner.is_none());
+        let team = team_for_file(&run_config, "frontend/packages/penny/no-owner-index.tsx").unwrap();
+        assert!(team.is_none());
+
+        let file_owner = file_owner_for_file(&run_config, "madeup/file.tsx").unwrap();
+        assert!(file_owner.is_none());
+        let team = team_for_file(&run_config, "madeup/file.tsx").unwrap();
+        assert!(team.is_none());
     }
 }
