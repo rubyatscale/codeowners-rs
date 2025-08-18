@@ -1,5 +1,5 @@
 owned_globs:
-  - "{gems,config,javascript,ruby,components}/**/*.{rb,tsx}"
+  - "{gems,config,javascript,ruby,components}/**/*.{rb,tsx,erb}"
 ruby_package_paths:
   - ruby/packages/**/*
 javascript_package_paths:

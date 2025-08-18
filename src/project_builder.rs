@@ -19,6 +19,8 @@ use crate::{
 
 type AbsolutePath = PathBuf;
 type RelativePath = PathBuf;
+
+#[derive(Debug)]
 enum EntryType {
     Directory(AbsolutePath, RelativePath),
     RubyPackage(AbsolutePath, RelativePath),
@@ -120,7 +122,6 @@ impl<'a> ProjectBuilder<'a> {
         if let Some(report) = maybe_error {
             return Err(report);
         }
-
         self.build_project_from_entry_types(entry_types)
     }
 

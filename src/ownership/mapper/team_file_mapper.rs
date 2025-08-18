@@ -99,6 +99,36 @@ mod tests {
                     team_name: "Bar".to_owned(),
                     disabled: false,
                 },
+                Entry {
+                    path: "packs/bar/comp_colon.rb".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "packs/jscomponents/comp-colon.ts".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "ruby/app/views/foos/edit.erb".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "ruby/app/views/foos/show.html.erb".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "ruby/app/views/foos/_row.html.erb".to_owned(),
+                    github_team: "@Bam".to_owned(),
+                    team_name: "Bam".to_owned(),
+                    disabled: false,
+                },
             ],
         );
         Ok(())
@@ -114,8 +144,11 @@ mod tests {
                 (PathBuf::from("packs/[admin]/comp.ts"), "Bar".to_owned()),
                 (PathBuf::from("packs/bar/comp.rb"), "Bar".to_owned()),
                 (PathBuf::from("packs/jscomponents/comp.ts"), "Foo".to_owned()),
-                (PathBuf::from("packs/jscomponents/comp-colon.ts"), "FooColon".to_owned()),
-                (PathBuf::from("packs/bar/comp-colon.rb"), "BarColon".to_owned()),
+                (PathBuf::from("packs/jscomponents/comp-colon.ts"), "Foo".to_owned()),
+                (PathBuf::from("packs/bar/comp_colon.rb"), "Bar".to_owned()),
+                (PathBuf::from("ruby/app/views/foos/edit.erb"), "Foo".to_owned()),
+                (PathBuf::from("ruby/app/views/foos/show.html.erb"), "Bar".to_owned()),
+                (PathBuf::from("ruby/app/views/foos/_row.html.erb"), "Bam".to_owned()),
             ]),
             Source::TeamFile,
         )];

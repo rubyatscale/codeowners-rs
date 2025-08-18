@@ -31,7 +31,7 @@ pub mod tests {
     const DEFAULT_CODE_OWNERSHIP_YML: &str = indoc! {"
         ---
         owned_globs:
-          - \"{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml}\"
+          - \"{app,components,config,frontend,lib,packs,spec,ruby}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml,erb}\"
         unowned_globs:
           - config/code_ownership.yml
         javascript_package_paths:
@@ -248,7 +248,7 @@ pub mod tests {
                 },
                 TestProjectFile {
                     relative_path: "packs/jscomponents/comp-colon.ts".to_owned(),
-                    content: "// @team: FooColon\n".to_owned(),
+                    content: "// @team: Foo\n".to_owned(),
                 },
                 TestProjectFile {
                     relative_path: "packs/[admin]/comp.ts".to_owned(),
@@ -259,8 +259,20 @@ pub mod tests {
                     content: "# @team Bar\n".to_owned(),
                 },
                 TestProjectFile {
-                    relative_path: "packs/bar/comp-colon.rb".to_owned(),
-                    content: "# @team: BarColon\n".to_owned(),
+                    relative_path: "packs/bar/comp_colon.rb".to_owned(),
+                    content: "# @team: Bar\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/edit.erb".to_owned(),
+                    content: "<%# @team: Foo %>\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/show.html.erb".to_owned(),
+                    content: "<!-- @team: Bar -->\n".to_owned(),
+                },
+                TestProjectFile {
+                    relative_path: "ruby/app/views/foos/_row.html.erb".to_owned(),
+                    content: "<!-- @team Bam -->\n".to_owned(),
                 },
             ],
         );

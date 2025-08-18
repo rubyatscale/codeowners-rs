@@ -12,6 +12,9 @@
 /javascript/packages/list/page-admin.tsx @PaymentsTeam
 /ruby/app/models/bank_account.rb @PaymentsTeam
 /ruby/app/models/payroll.rb @PayrollTeam
+/ruby/app/views/foos/edit.erb @PayrollTeam
+/ruby/app/views/foos/index.html.erb @UX
+/ruby/app/views/foos/new.html.erb @PayrollTeam
 
 # Team-specific owned globs
 /ruby/app/payments/**/* @PaymentsTeam
