@@ -28,16 +28,18 @@ pub(crate) fn untracked_files(base_path: &Path) -> Result<Vec<PathBuf>, Error> {
         .output()
         .change_context(Error::Io)?;
 
-    if output.status.success() {
-        let stdout = output.stdout;
-        let mut results: Vec<PathBuf> = Vec::new();
-        for rel in stdout.split(|b| *b == 0).filter(|s| !s.is_empty()) {
-            let rel_str = std::str::from_utf8(rel).change_context(Error::Io)?;
-            results.push(base_path.join(rel_str));
-        }
-        return Ok(results);
+    if !output.status.success() {
+        return Ok(Vec::new());
     }
-    Ok(vec![])
+
+    let results: Vec<PathBuf> = output
+        .stdout
+        .split(|&b| b == b'\0')
+        .filter(|chunk| !chunk.is_empty())
+        .map(|rel| std::str::from_utf8(rel).change_context(Error::Io).map(|s| base_path.join(s)))
+        .collect::<std::result::Result<_, _>>()?;
+
+    Ok(results)
 }
 
 #[cfg(test)]
