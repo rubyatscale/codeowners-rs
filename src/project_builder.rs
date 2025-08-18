@@ -13,6 +13,7 @@ use tracing::{instrument, warn};
 use crate::{
     cache::Cache,
     config::Config,
+    files,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
 };
@@ -56,13 +57,18 @@ impl<'a> ProjectBuilder<'a> {
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         builder.follow_links(false);
+
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
+        let untracked_files = files::untracked_files(&base_path).unwrap_or_default();
 
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
+            if !untracked_files.is_empty() && untracked_files.contains(&path.to_path_buf()) {
+                //return false;
+            }
             if let Some(ft) = entry.file_type()
                 && ft.is_dir()
                 && let Ok(rel) = path.strip_prefix(&base_path)
