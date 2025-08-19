@@ -59,7 +59,7 @@ impl Mapper for TeamFileMapper {
             }
         }
 
-        vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamFile)]
+        vec![OwnerMatcher::ExactMatches(path_to_team, Source::AnnotatedFile)]
     }
 
     fn name(&self) -> String {
@@ -150,7 +150,7 @@ mod tests {
                 (PathBuf::from("ruby/app/views/foos/show.html.erb"), "Bar".to_owned()),
                 (PathBuf::from("ruby/app/views/foos/_row.html.erb"), "Bam".to_owned()),
             ]),
-            Source::TeamFile,
+            Source::AnnotatedFile,
         )];
         assert_eq!(owner_matchers, expected_owner_matchers);
         Ok(())
