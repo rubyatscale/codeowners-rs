@@ -42,7 +42,7 @@ mod tests {
 
         std::fs::write(tmp_dir.path().join("test.txt"), "test").unwrap();
         let tracked = find_tracked_files(tmp_dir.path()).unwrap();
-        assert!(tracked.len() == 0);
+        assert!(tracked.is_empty());
 
         std::process::Command::new("git")
             .arg("add")

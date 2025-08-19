@@ -66,12 +66,12 @@ impl<'a> ProjectBuilder<'a> {
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
-            if let Some(tracked_files) = &tracked_files {
-                if let Some(ft) = entry.file_type() {
-                    if ft.is_file() && !tracked_files.contains_key(path) {
-                        return false;
-                    }
-                }
+            if let Some(tracked_files) = &tracked_files
+                && let Some(ft) = entry.file_type()
+                && ft.is_file()
+                && !tracked_files.contains_key(path)
+            {
+                return false;
             }
             if let Some(ft) = entry.file_type()
                 && ft.is_dir()
