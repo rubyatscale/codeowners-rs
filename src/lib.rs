@@ -2,6 +2,7 @@ pub mod cache;
 pub(crate) mod common_test;
 pub mod config;
 pub mod crosscheck;
+pub(crate) mod files;
 pub mod ownership;
 pub(crate) mod project;
 pub mod project_builder;
