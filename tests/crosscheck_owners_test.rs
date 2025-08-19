@@ -6,6 +6,8 @@ use std::{error::Error, fs, path::Path, process::Command};
 mod common;
 use common::setup_fixture_repo;
 
+use crate::common::git_add_all_files;
+
 const FIXTURE: &str = "tests/fixtures/valid_project";
 
 #[test]
@@ -22,6 +24,7 @@ fn test_crosscheck_owners_reports_team_mismatch() -> Result<(), Box<dyn Error>> 
         "/ruby/app/models/payroll.rb @PaymentsTeam",
     );
     fs::write(&codeowners_path, modified)?;
+    git_add_all_files(project_root);
 
     // Act + Assert
     Command::cargo_bin("codeowners")?
@@ -53,6 +56,7 @@ fn test_crosscheck_owners_reports_unowned_mismatch() -> Result<(), Box<dyn Error
         .map(|l| format!("{}\n", l))
         .collect();
     fs::write(&codeowners_path, modified)?;
+    git_add_all_files(project_root);
 
     // Act + Assert
     Command::cargo_bin("codeowners")?

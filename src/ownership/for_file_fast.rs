@@ -303,7 +303,6 @@ mod tests {
             vendored_gems_path: vendored_path.to_string(),
             cache_directory: "tmp/cache/codeowners".to_string(),
             ignore_dirs: vec![],
-            codeowners_override_config_file_path: ".codeowners.yml".to_string(),
         }
     }
 

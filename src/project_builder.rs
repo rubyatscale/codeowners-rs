@@ -8,15 +8,14 @@ use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::Deserialize;
 use tracing::{instrument, warn};
 
 use crate::{
     cache::Cache,
     config::Config,
-    files,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
+    tracked_files,
 };
 
 type AbsolutePath = PathBuf;
@@ -62,17 +61,17 @@ impl<'a> ProjectBuilder<'a> {
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
-        let untracked_files = if should_skip_untracked_files(&self.base_path, &self.config.codeowners_override_config_file_path) {
-            files::untracked_files(&base_path).unwrap_or_default()
-        } else {
-            vec![]
-        };
+        let tracked_files = tracked_files::find_tracked_files(&self.base_path);
 
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
-            if !untracked_files.is_empty() && untracked_files.contains(&path.to_path_buf()) {
-                return false;
+            if let Some(tracked_files) = &tracked_files {
+                if let Some(ft) = entry.file_type() {
+                    if ft.is_file() && !tracked_files.contains_key(path) {
+                        return false;
+                    }
+                }
             }
             if let Some(ft) = entry.file_type()
                 && ft.is_dir()
@@ -296,29 +295,6 @@ fn matches_globs(path: &Path, globs: &[String]) -> bool {
         Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
         None => false,
     }
-}
-
-fn should_skip_untracked_files(base_path: &Path, codeowners_override_config_file_path: &str) -> bool {
-    let path = base_path.join(codeowners_override_config_file_path);
-    if !path.exists() {
-        return false;
-    }
-    if let Ok(file) = File::open(path) {
-        #[derive(Deserialize)]
-        struct OverrideConfig {
-            #[serde(default)]
-            skip_untracked_files: bool,
-        }
-
-        let config: OverrideConfig = match serde_yaml::from_reader(file) {
-            Ok(cfg) => cfg,
-            Err(_) => return false,
-        };
-
-        return config.skip_untracked_files;
-    }
-
-    false
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {

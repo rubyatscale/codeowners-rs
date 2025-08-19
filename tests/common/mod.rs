@@ -37,6 +37,35 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
 }
 
 #[allow(dead_code)]
+pub fn git_reset_all(path: &Path) {
+    let status = Command::new("git")
+        .arg("reset")
+        .current_dir(path)
+        .output()
+        .expect("failed to run git reset --all");
+    assert!(
+        status.status.success(),
+        "git reset --all failed: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+}
+
+#[allow(dead_code)]
+pub fn git_add_all_files(path: &Path) {
+    let status = Command::new("git")
+        .arg("add")
+        .arg("--all")
+        .current_dir(path)
+        .output()
+        .expect("failed to run git add --all");
+    assert!(
+        status.status.success(),
+        "git add --all failed: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+}
+
+#[allow(dead_code)]
 pub fn init_git_repo(path: &Path) {
     let status = Command::new("git")
         .arg("init")

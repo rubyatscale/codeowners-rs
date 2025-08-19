@@ -24,9 +24,6 @@ pub struct Config {
 
     #[serde(default = "default_ignore_dirs")]
     pub ignore_dirs: Vec<String>,
-
-    #[serde(default = "default_codeowners_override_config_file_path")]
-    pub codeowners_override_config_file_path: String,
 }
 
 #[allow(dead_code)]
@@ -61,10 +58,6 @@ fn unowned_globs() -> Vec<String> {
 
 fn vendored_gems_path() -> String {
     "vendored/".to_string()
-}
-
-fn default_codeowners_override_config_file_path() -> String {
-    ".codeowners.yml".to_string()
 }
 
 fn default_ignore_dirs() -> Vec<String> {
