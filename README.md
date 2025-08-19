@@ -1,6 +1,8 @@
 # Codeowners
 
-**Codeowners** is a fast, Rust-based CLI for generating and validating [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) in large repositories. It supports conventions for Ruby and JavaScript projects, and is a high-performance reimplementation of the [original Ruby CLI](https://github.com/rubyatscale/code_ownership).
+**Codeowners** is a fast, Rust-based CLI for generating and validating [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) in large repositories. 
+
+Note: For Ruby application, it's usually  easier to use `codeowners-rs` via the [code_ownership](https://github.com/rubyatscale/code_ownership) gem.
 
 ## 🚀 Quick Start: Generate & Validate
 
@@ -14,20 +16,6 @@ codeowners gv
   - Generate a fresh `CODEOWNERS` file (by default at `.github/CODEOWNERS`)
   - Validate that all files are properly owned and that the file is up to date
   - Exit with a nonzero code and detailed errors if validation fails
-
-**Why use this tool?**  
-On large projects, `codeowners gv` is _over 10x faster_ than the legacy Ruby implementation:
-
-```
-$ hyperfine 'codeownership validate' 'codeowners validate'
-Benchmark 1: codeownership validate (ruby gem)
-  Time (mean ± σ):     47.991 s ±  1.220 s
-Benchmark 2: codeowners gv (this repo)
-  Time (mean ± σ):      4.263 s ±  0.025 s
-
-Summary
-  codeowners gv ran 11.26 ± 0.29 times faster than codeownership validate
-```
 
 ## Table of Contents
 

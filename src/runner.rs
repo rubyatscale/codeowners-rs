@@ -56,7 +56,6 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<T
     Ok(owners.first().map(|fo| fo.team.clone()))
 }
 
-
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
@@ -258,7 +257,6 @@ impl Runner {
     }
 }
 
-
 fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
     match team_for_file_from_codeowners(run_config, file_path) {
         Ok(Some(team)) => {
@@ -362,12 +360,20 @@ mod tests {
     #[test]
     fn test_file_owners_for_file() {
         let temp_dir = tempdir().unwrap();
-        write_file(&temp_dir.path(), "config/code_ownership.yml", &common_test::tests::DEFAULT_CODE_OWNERSHIP_YML);
+        write_file(
+            temp_dir.path(),
+            "config/code_ownership.yml",
+            common_test::tests::DEFAULT_CODE_OWNERSHIP_YML,
+        );
         ["a", "b", "c"].iter().for_each(|name| {
             let team_yml = format!("name: {}\ngithub:\n  team: \"@{}\"\n  members:\n    - {}member\n", name, name, name);
-            write_file(&temp_dir.path(), &format!("config/teams/{}.yml", name), &team_yml);
+            write_file(temp_dir.path(), &format!("config/teams/{}.yml", name), &team_yml);
         });
-        write_file(&temp_dir.path(), "app/consumers/deep/nesting/nestdir/deep_file.rb", "# @team b\nclass DeepFile end;");
+        write_file(
+            temp_dir.path(),
+            "app/consumers/deep/nesting/nestdir/deep_file.rb",
+            "# @team b\nclass DeepFile end;",
+        );
 
         let run_config = RunConfig {
             project_root: temp_dir.path().to_path_buf(),
@@ -376,19 +382,19 @@ mod tests {
             no_cache: false,
         };
 
-        
-       let file_owners = file_owners_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb").unwrap();
-       assert_eq!(file_owners.len(), 1);
-       assert_eq!(file_owners[0].team.name, "b");
-       assert_eq!(file_owners[0].team.github_team, "@b");
-       assert_eq!(file_owners[0].team.path.to_string_lossy().ends_with("config/teams/b.yml"), true);
-       assert_eq!(file_owners[0].sources.len(), 1);
-       assert_eq!(file_owners[0].sources, vec![Source::AnnotatedFile]);
+        let file_owners = file_owners_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb").unwrap();
+        assert_eq!(file_owners.len(), 1);
+        assert_eq!(file_owners[0].team.name, "b");
+        assert_eq!(file_owners[0].team.github_team, "@b");
+        assert!(file_owners[0].team.path.to_string_lossy().ends_with("config/teams/b.yml"));
+        assert_eq!(file_owners[0].sources.len(), 1);
+        assert_eq!(file_owners[0].sources, vec![Source::AnnotatedFile]);
 
-
-       let team = team_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb").unwrap().unwrap();
-       assert_eq!(team.name, "b");
-       assert_eq!(team.github_team, "@b");
-       assert_eq!(team.path.to_string_lossy().ends_with("config/teams/b.yml"), true);
+        let team = team_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb")
+            .unwrap()
+            .unwrap();
+        assert_eq!(team.name, "b");
+        assert_eq!(team.github_team, "@b");
+        assert!(team.path.to_string_lossy().ends_with("config/teams/b.yml"));
     }
 }
