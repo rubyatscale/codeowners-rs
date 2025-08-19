@@ -21,8 +21,8 @@ fn test_skip_untracked_files() -> Result<(), Box<dyn Error>> {
         .assert()
         .failure();
 
-    let skip_untracked_files_config_path = project_root.join(".codeowners-skip-untracked-files");
-    fs::write(&skip_untracked_files_config_path, "true")?;
+    let skip_untracked_files_config_path = project_root.join(".codeowners.yml");
+    fs::write(&skip_untracked_files_config_path, "skip_untracked_files: true")?;
 
     // should succeed if skip_untracked_false is false
     Command::cargo_bin("codeowners")?
@@ -32,6 +32,16 @@ fn test_skip_untracked_files() -> Result<(), Box<dyn Error>> {
         .arg("gv")
         .assert()
         .success();
+
+    // should fail if skip_untracked_false is false
+    fs::write(&skip_untracked_files_config_path, "skip_untracked_files: false")?;
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("gv")
+        .assert()
+        .failure();
 
     Ok(())
 }

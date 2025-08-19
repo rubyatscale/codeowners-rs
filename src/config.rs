@@ -25,8 +25,8 @@ pub struct Config {
     #[serde(default = "default_ignore_dirs")]
     pub ignore_dirs: Vec<String>,
 
-    #[serde(default = "default_skip_untracked_files_config_path")]
-    pub skip_untracked_files_config_path: String,
+    #[serde(default = "default_codeowners_override_config_file_path")]
+    pub codeowners_override_config_file_path: String,
 }
 
 #[allow(dead_code)]
@@ -63,8 +63,8 @@ fn vendored_gems_path() -> String {
     "vendored/".to_string()
 }
 
-fn default_skip_untracked_files_config_path() -> String {
-    ".codeowners-skip-untracked-files".to_string()
+fn default_codeowners_override_config_file_path() -> String {
+    ".codeowners.yml".to_string()
 }
 
 fn default_ignore_dirs() -> Vec<String> {

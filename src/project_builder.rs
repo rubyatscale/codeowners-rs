@@ -8,6 +8,7 @@ use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use serde::Deserialize;
 use tracing::{instrument, warn};
 
 use crate::{
@@ -61,7 +62,7 @@ impl<'a> ProjectBuilder<'a> {
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
-        let untracked_files = if skip_untracked_files_config_path_exists(&self.base_path, &self.config.skip_untracked_files_config_path) {
+        let untracked_files = if should_skip_untracked_files(&self.base_path, &self.config.codeowners_override_config_file_path) {
             files::untracked_files(&base_path).unwrap_or_default()
         } else {
             vec![]
@@ -297,10 +298,27 @@ fn matches_globs(path: &Path, globs: &[String]) -> bool {
     }
 }
 
-// If skip_untracked_files_config_path exists, we skip untracked files. We don't do this be default because it's slow.
-fn skip_untracked_files_config_path_exists(base_path: &Path, skip_untracked_files_config_path: &str) -> bool {
-    let path = base_path.join(skip_untracked_files_config_path);
-    path.exists()
+fn should_skip_untracked_files(base_path: &Path, codeowners_override_config_file_path: &str) -> bool {
+    let path = base_path.join(codeowners_override_config_file_path);
+    if !path.exists() {
+        return false;
+    }
+    if let Ok(file) = File::open(path) {
+        #[derive(Deserialize)]
+        struct OverrideConfig {
+            #[serde(default)]
+            skip_untracked_files: bool,
+        }
+
+        let config: OverrideConfig = match serde_yaml::from_reader(file) {
+            Ok(cfg) => cfg,
+            Err(_) => return false,
+        };
+
+        return config.skip_untracked_files;
+    }
+
+    false
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
