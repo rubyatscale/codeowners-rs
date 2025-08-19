@@ -8,4 +8,3 @@ javascript_package_paths:
 vendored_gems_path: gems
 team_file_glob:
   - config/teams/**/*.yml
-skip_untracked_files: false

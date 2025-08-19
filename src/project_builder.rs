@@ -61,7 +61,7 @@ impl<'a> ProjectBuilder<'a> {
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
         let base_path = self.base_path.clone();
-        let untracked_files = if self.config.skip_untracked_files {
+        let untracked_files = if skip_untracked_files_config_path_exists(&self.base_path, &self.config.skip_untracked_files_config_path) {
             files::untracked_files(&base_path).unwrap_or_default()
         } else {
             vec![]
@@ -295,6 +295,12 @@ fn matches_globs(path: &Path, globs: &[String]) -> bool {
         Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
         None => false,
     }
+}
+
+// If skip_untracked_files_config_path exists, we skip untracked files. We don't do this be default because it's slow.
+fn skip_untracked_files_config_path_exists(base_path: &Path, skip_untracked_files_config_path: &str) -> bool {
+    let path = base_path.join(skip_untracked_files_config_path);
+    path.exists()
 }
 
 fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
