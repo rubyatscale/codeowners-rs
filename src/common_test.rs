@@ -28,7 +28,7 @@ pub mod tests {
         }};
     }
 
-    const DEFAULT_CODE_OWNERSHIP_YML: &str = indoc! {"
+    pub const DEFAULT_CODE_OWNERSHIP_YML: &str = indoc! {"
         ---
         owned_globs:
           - \"{app,components,config,frontend,lib,packs,spec,ruby}/**/*.{rb,rake,js,jsx,ts,tsx,json,yml,erb}\"

@@ -36,7 +36,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
                 && !is_config_unowned
                 && let Some(team) = teams_by_name.get(&team_name)
             {
-                sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamFile);
+                sources_by_team.entry(team.name.clone()).or_default().push(Source::AnnotatedFile);
             }
         }
     }
@@ -277,7 +277,7 @@ fn vendored_gem_owner(relative_file_path: &Path, config: &Config, teams: &[Team]
 fn source_priority(source: &Source) -> u8 {
     match source {
         // Highest confidence first
-        Source::TeamFile => 0,
+        Source::AnnotatedFile => 0,
         Source::Directory(_) => 1,
         Source::Package(_, _) => 2,
         Source::TeamGlob(_) => 3,

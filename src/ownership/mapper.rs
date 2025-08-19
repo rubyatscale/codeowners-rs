@@ -33,7 +33,7 @@ pub type TeamName = String;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Source {
     Directory(String),
-    TeamFile,
+    AnnotatedFile,
     TeamGem,
     TeamGlob(String),
     Package(String, String),
@@ -44,7 +44,7 @@ impl Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Source::Directory(path) => write!(f, "Owner specified in `{}/.codeowner`", path),
-            Source::TeamFile => write!(f, "Owner annotation at the top of the file"),
+            Source::AnnotatedFile => write!(f, "Owner annotation at the top of the file"),
             Source::TeamGem => write!(f, "Owner specified in Team YML's `owned_gems`"),
             Source::TeamGlob(glob) => write!(f, "Owner specified in Team YML as an owned_glob `{}`", glob),
             Source::Package(package_path, glob) => {
@@ -200,7 +200,7 @@ mod tests {
             Source::Directory("packs/bam".to_string()).to_string(),
             "Owner specified in `packs/bam/.codeowner`"
         );
-        assert_eq!(Source::TeamFile.to_string(), "Owner annotation at the top of the file");
+        assert_eq!(Source::AnnotatedFile.to_string(), "Owner annotation at the top of the file");
         assert_eq!(Source::TeamGem.to_string(), "Owner specified in Team YML's `owned_gems`");
         assert_eq!(
             Source::TeamGlob("a/glob/**".to_string()).to_string(),

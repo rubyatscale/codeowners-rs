@@ -43,96 +43,17 @@ pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) 
     for_file_optimized(run_config, file_path)
 }
 
-fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
-    match team_for_file_from_codeowners(run_config, file_path) {
-        Ok(Some(team)) => {
-            let relative_team_path = team
-                .path
-                .strip_prefix(&run_config.project_root)
-                .unwrap_or(team.path.as_path())
-                .to_string_lossy()
-                .to_string();
-            RunResult {
-                info_messages: vec![format!(
-                    "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
-                    team.name, team.github_team, relative_team_path
-                )],
-                ..Default::default()
-            }
-        }
-        Ok(None) => RunResult::default(),
-        Err(err) => RunResult {
-            io_errors: vec![err.to_string()],
-            ..Default::default()
-        },
-    }
-}
-pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
-    let config = config_from_path(&run_config.config_path)?;
-    let relative_file_path = Path::new(file_path)
-        .strip_prefix(&run_config.project_root)
-        .unwrap_or(Path::new(file_path));
-
-    let parser = crate::ownership::parser::Parser {
-        project_root: run_config.project_root.clone(),
-        codeowners_file_path: run_config.codeowners_file_path.clone(),
-        team_file_globs: config.team_file_glob.clone(),
-    };
-    Ok(parser
-        .team_from_file_path(Path::new(relative_file_path))
-        .map_err(|e| Error::Io(e.to_string()))?)
-}
-
-pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+pub fn file_owners_for_file(run_config: &RunConfig, file_path: &str) -> Result<Vec<FileOwner>, Error> {
     let config = config_from_path(&run_config.config_path)?;
     use crate::ownership::for_file_fast::find_file_owners;
     let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
 
-    Ok(owners.first().map(|fo| fo.team.clone()))
+    Ok(owners)
 }
 
-// (imports below intentionally trimmed after refactor)
-
-fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
-    let config = match config_from_path(&run_config.config_path) {
-        Ok(c) => c,
-        Err(err) => {
-            return RunResult {
-                io_errors: vec![err.to_string()],
-                ..Default::default()
-            };
-        }
-    };
-
-    use crate::ownership::for_file_fast::find_file_owners;
-    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
-        Ok(v) => v,
-        Err(err) => {
-            return RunResult {
-                io_errors: vec![err],
-                ..Default::default()
-            };
-        }
-    };
-
-    let info_messages: Vec<String> = match file_owners.len() {
-        0 => vec![format!("{}", FileOwner::default())],
-        1 => vec![format!("{}", file_owners[0])],
-        _ => {
-            let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
-            for file_owner in file_owners {
-                error_messages.push(format!("\n{}", file_owner));
-            }
-            return RunResult {
-                validation_errors: error_messages,
-                ..Default::default()
-            };
-        }
-    };
-    RunResult {
-        info_messages,
-        ..Default::default()
-    }
+pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+    let owners = file_owners_for_file(run_config, file_path)?;
+    Ok(owners.first().map(|fo| fo.team.clone()))
 }
 
 pub fn version() -> String {
@@ -336,12 +257,144 @@ impl Runner {
     }
 }
 
+fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
+    match team_for_file_from_codeowners(run_config, file_path) {
+        Ok(Some(team)) => {
+            let relative_team_path = team
+                .path
+                .strip_prefix(&run_config.project_root)
+                .unwrap_or(team.path.as_path())
+                .to_string_lossy()
+                .to_string();
+            RunResult {
+                info_messages: vec![format!(
+                    "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
+                    team.name, team.github_team, relative_team_path
+                )],
+                ..Default::default()
+            }
+        }
+        Ok(None) => RunResult::default(),
+        Err(err) => RunResult {
+            io_errors: vec![err.to_string()],
+            ..Default::default()
+        },
+    }
+}
+pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+    let config = config_from_path(&run_config.config_path)?;
+    let relative_file_path = Path::new(file_path)
+        .strip_prefix(&run_config.project_root)
+        .unwrap_or(Path::new(file_path));
+
+    let parser = crate::ownership::parser::Parser {
+        project_root: run_config.project_root.clone(),
+        codeowners_file_path: run_config.codeowners_file_path.clone(),
+        team_file_globs: config.team_file_glob.clone(),
+    };
+    Ok(parser
+        .team_from_file_path(Path::new(relative_file_path))
+        .map_err(|e| Error::Io(e.to_string()))?)
+}
+
+fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
+    let config = match config_from_path(&run_config.config_path) {
+        Ok(c) => c,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err.to_string()],
+                ..Default::default()
+            };
+        }
+    };
+
+    use crate::ownership::for_file_fast::find_file_owners;
+    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
+        Ok(v) => v,
+        Err(err) => {
+            return RunResult {
+                io_errors: vec![err],
+                ..Default::default()
+            };
+        }
+    };
+
+    let info_messages: Vec<String> = match file_owners.len() {
+        0 => vec![format!("{}", FileOwner::default())],
+        1 => vec![format!("{}", file_owners[0])],
+        _ => {
+            let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
+            for file_owner in file_owners {
+                error_messages.push(format!("\n{}", file_owner));
+            }
+            return RunResult {
+                validation_errors: error_messages,
+                ..Default::default()
+            };
+        }
+    };
+    RunResult {
+        info_messages,
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
+    use crate::{common_test, ownership::mapper::Source};
+
     use super::*;
 
     #[test]
     fn test_version() {
         assert_eq!(version(), env!("CARGO_PKG_VERSION").to_string());
+    }
+    fn write_file(temp_dir: &Path, file_path: &str, content: &str) {
+        let file_path = temp_dir.join(file_path);
+        let _ = std::fs::create_dir_all(file_path.parent().unwrap());
+        std::fs::write(file_path, content).unwrap();
+    }
+
+    #[test]
+    fn test_file_owners_for_file() {
+        let temp_dir = tempdir().unwrap();
+        write_file(
+            temp_dir.path(),
+            "config/code_ownership.yml",
+            common_test::tests::DEFAULT_CODE_OWNERSHIP_YML,
+        );
+        ["a", "b", "c"].iter().for_each(|name| {
+            let team_yml = format!("name: {}\ngithub:\n  team: \"@{}\"\n  members:\n    - {}member\n", name, name, name);
+            write_file(temp_dir.path(), &format!("config/teams/{}.yml", name), &team_yml);
+        });
+        write_file(
+            temp_dir.path(),
+            "app/consumers/deep/nesting/nestdir/deep_file.rb",
+            "# @team b\nclass DeepFile end;",
+        );
+
+        let run_config = RunConfig {
+            project_root: temp_dir.path().to_path_buf(),
+            codeowners_file_path: temp_dir.path().join(".github/CODEOWNERS").to_path_buf(),
+            config_path: temp_dir.path().join("config/code_ownership.yml").to_path_buf(),
+            no_cache: false,
+        };
+
+        let file_owners = file_owners_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb").unwrap();
+        assert_eq!(file_owners.len(), 1);
+        assert_eq!(file_owners[0].team.name, "b");
+        assert_eq!(file_owners[0].team.github_team, "@b");
+        assert!(file_owners[0].team.path.to_string_lossy().ends_with("config/teams/b.yml"));
+        assert_eq!(file_owners[0].sources.len(), 1);
+        assert_eq!(file_owners[0].sources, vec![Source::AnnotatedFile]);
+
+        let team = team_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb")
+            .unwrap()
+            .unwrap();
+        assert_eq!(team.name, "b");
+        assert_eq!(team.github_team, "@b");
+        assert!(team.path.to_string_lossy().ends_with("config/teams/b.yml"));
     }
 }
