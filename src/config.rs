@@ -24,9 +24,6 @@ pub struct Config {
 
     #[serde(default = "default_ignore_dirs")]
     pub ignore_dirs: Vec<String>,
-
-    #[serde(default = "default_skip_untracked_files")]
-    pub skip_untracked_files: bool,
 }
 
 #[allow(dead_code)]
@@ -61,10 +58,6 @@ fn unowned_globs() -> Vec<String> {
 
 fn vendored_gems_path() -> String {
     "vendored/".to_string()
-}
-
-fn default_skip_untracked_files() -> bool {
-    true
 }
 
 fn default_ignore_dirs() -> Vec<String> {

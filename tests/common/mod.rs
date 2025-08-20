@@ -1,9 +1,46 @@
+use assert_cmd::prelude::*;
+use codeowners::runner::{self, RunConfig};
+use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
-
-use codeowners::runner::{self, RunConfig};
+use std::{error::Error, process::Command};
 use tempfile::TempDir;
+
+#[allow(dead_code)]
+pub enum OutputStream {
+    Stdout,
+    Stderr,
+}
+
+#[allow(dead_code)]
+pub fn run_codeowners<I, P>(
+    relative_fixture_path: &str,
+    command: &[&str],
+    success: bool,
+    stream: OutputStream,
+    output_predicate: I,
+) -> Result<(), Box<dyn Error>>
+where
+    I: assert_cmd::assert::IntoOutputPredicate<P>,
+    P: Predicate<[u8]>,
+{
+    let fixture_root = Path::new("tests/fixtures").join(relative_fixture_path);
+    let temp_dir = setup_fixture_repo(&fixture_root);
+    let project_root = temp_dir.path();
+    git_add_all_files(project_root);
+    let mut cmd = Command::cargo_bin("codeowners")?;
+    let assert = cmd.arg("--project-root").arg(project_root).arg("--no-cache").args(command).assert();
+    let assert = if success { assert.success() } else { assert.failure() };
+    match stream {
+        OutputStream::Stdout => {
+            assert.stdout(output_predicate);
+        }
+        OutputStream::Stderr => {
+            assert.stderr(output_predicate);
+        }
+    }
+    Ok(())
+}
 
 #[allow(dead_code)]
 pub fn teardown() {
@@ -34,6 +71,35 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
             fs::copy(&src_path, &dest_path).expect("failed to copy file");
         }
     }
+}
+
+#[allow(dead_code)]
+pub fn git_reset_all(path: &Path) {
+    let status = Command::new("git")
+        .arg("reset")
+        .current_dir(path)
+        .output()
+        .expect("failed to run git reset --all");
+    assert!(
+        status.status.success(),
+        "git reset --all failed: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+}
+
+#[allow(dead_code)]
+pub fn git_add_all_files(path: &Path) {
+    let status = Command::new("git")
+        .arg("add")
+        .arg("--all")
+        .current_dir(path)
+        .output()
+        .expect("failed to run git add --all");
+    assert!(
+        status.status.success(),
+        "git add --all failed: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
 }
 
 #[allow(dead_code)]
