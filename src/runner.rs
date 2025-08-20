@@ -43,17 +43,16 @@ pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) 
     for_file_optimized(run_config, file_path)
 }
 
-pub fn file_owners_for_file(run_config: &RunConfig, file_path: &str) -> Result<Vec<FileOwner>, Error> {
+pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<FileOwner>, Error> {
     let config = config_from_path(&run_config.config_path)?;
     use crate::ownership::for_file_fast::find_file_owners;
     let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
-
-    Ok(owners)
+    Ok(owners.first().cloned())
 }
 
 pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
-    let owners = file_owners_for_file(run_config, file_path)?;
-    Ok(owners.first().map(|fo| fo.team.clone()))
+    let owner = file_owner_for_file(run_config, file_path)?;
+    Ok(owner.map(|fo| fo.team.clone()))
 }
 
 pub fn version() -> String {
@@ -382,13 +381,14 @@ mod tests {
             no_cache: false,
         };
 
-        let file_owners = file_owners_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb").unwrap();
-        assert_eq!(file_owners.len(), 1);
-        assert_eq!(file_owners[0].team.name, "b");
-        assert_eq!(file_owners[0].team.github_team, "@b");
-        assert!(file_owners[0].team.path.to_string_lossy().ends_with("config/teams/b.yml"));
-        assert_eq!(file_owners[0].sources.len(), 1);
-        assert_eq!(file_owners[0].sources, vec![Source::AnnotatedFile]);
+        let file_owner = file_owner_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb")
+            .unwrap()
+            .unwrap();
+        assert_eq!(file_owner.team.name, "b");
+        assert_eq!(file_owner.team.github_team, "@b");
+        assert!(file_owner.team.path.to_string_lossy().ends_with("config/teams/b.yml"));
+        assert_eq!(file_owner.sources.len(), 1);
+        assert_eq!(file_owner.sources, vec![Source::AnnotatedFile]);
 
         let team = team_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb")
             .unwrap()
