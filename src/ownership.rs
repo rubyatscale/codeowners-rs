@@ -33,7 +33,7 @@ use self::{
 pub struct Ownership {
     project: Arc<Project>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileOwner {
     pub team: Team,
     pub team_config_file_path: String,
