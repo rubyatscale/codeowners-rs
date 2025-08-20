@@ -13,7 +13,7 @@ mod file_generator;
 mod file_owner_finder;
 pub mod for_file_fast;
 pub(crate) mod mapper;
-pub(crate) mod parser;
+pub(crate) mod codeowners_file_parser;
 mod validator;
 
 use crate::{
@@ -26,7 +26,7 @@ pub use validator::Errors as ValidatorErrors;
 use self::{
     file_generator::FileGenerator,
     mapper::{JavascriptPackageMapper, Mapper, RubyPackageMapper, TeamFileMapper, TeamGemMapper, TeamGlobMapper, TeamYmlMapper},
-    parser::parse_for_team,
+    codeowners_file_parser::parse_for_team,
     validator::Validator,
 };
 

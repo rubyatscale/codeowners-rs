@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{
+    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
     process::Command,
@@ -280,17 +281,36 @@ fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResul
         },
     }
 }
-pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+
+// For an array of file paths, return a map of file path to its owning team
+pub fn teams_for_files_from_codeowners(run_config: &RunConfig, file_paths: &[String]) -> Result<HashMap<String, Team>, Error> {
+    let relative_file_paths: Vec<PathBuf> = file_paths
+        .iter()
+        .map(|path| Path::new(path).strip_prefix(&run_config.project_root).unwrap_or(Path::new(path)))
+        .map(|path| path.to_path_buf())
+        .collect();
+
+    let parser = build_codeowners_parser(run_config)?;
+    Ok(parser
+        .teams_from_files_paths(&relative_file_paths)
+        .map_err(|e| Error::Io(e.to_string()))?)
+}
+
+fn build_codeowners_parser(run_config: &RunConfig) -> Result<crate::ownership::codeowners_file_parser::Parser, Error> {
     let config = config_from_path(&run_config.config_path)?;
+    Ok(crate::ownership::codeowners_file_parser::Parser {
+        codeowners_file_path: run_config.codeowners_file_path.clone(),
+        project_root: run_config.project_root.clone(),
+        team_file_globs: config.team_file_glob.clone(),
+    })
+}
+
+pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
     let relative_file_path = Path::new(file_path)
         .strip_prefix(&run_config.project_root)
         .unwrap_or(Path::new(file_path));
 
-    let parser = crate::ownership::parser::Parser {
-        project_root: run_config.project_root.clone(),
-        codeowners_file_path: run_config.codeowners_file_path.clone(),
-        team_file_globs: config.team_file_glob.clone(),
-    };
+    let parser = build_codeowners_parser(run_config)?;
     Ok(parser
         .team_from_file_path(Path::new(relative_file_path))
         .map_err(|e| Error::Io(e.to_string()))?)

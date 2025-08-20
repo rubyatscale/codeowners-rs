@@ -22,6 +22,10 @@ pub struct Parser {
 }
 
 impl Parser {
+    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Team>, Box<dyn Error>> {
+        todo!()
+    }
+    
     pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
         let file_path_str = file_path
             .to_str()
