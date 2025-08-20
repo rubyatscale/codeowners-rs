@@ -363,6 +363,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{common_test, ownership::mapper::Source};
+    use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 
     use super::*;
 
@@ -416,5 +417,46 @@ mod tests {
         assert_eq!(team.name, "b");
         assert_eq!(team.github_team, "@b");
         assert!(team.path.to_string_lossy().ends_with("config/teams/b.yml"));
+    }
+
+    #[test]
+    fn test_teams_for_files_from_codeowners() {
+       let project_root = Path::new("/Users/perryhertler/workspace/zenpayroll");
+       let codeowners_file_path = project_root.join(".github/CODEOWNERS");
+       let config_path = project_root.join("config/code_ownership.yml");
+       let run_config = RunConfig {
+           project_root: project_root.to_path_buf(),
+           codeowners_file_path: codeowners_file_path.to_path_buf(),
+           config_path: config_path.to_path_buf(),
+           no_cache: false,
+       };
+
+       // Collect all files in packs and frontend directories recursively
+       let mut file_paths = Vec::new();
+       for dir in ["packs", "frontend"] {
+           let dir_path = project_root.join(dir);
+           if dir_path.exists() && dir_path.is_dir() {
+               for entry in WalkBuilder::new(&dir_path)
+                   .filter_entry(|e| {
+                       let name = e.file_name().to_str().unwrap_or("");
+                       !(name == "node_modules" || name == "dist" || name == ".git")
+                   })
+                   .build() 
+                   .filter_map(|e| e.ok())
+                   .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                   .filter_map(|e| e.path().strip_prefix(project_root).ok().map(|p| p.to_string_lossy().to_string()))
+               {
+                   file_paths.push(entry);
+               }        
+           }
+       }
+
+       let start_time = std::time::Instant::now();
+       let teams = teams_for_files_from_codeowners(&run_config, &file_paths).unwrap();
+       let end_time = std::time::Instant::now();
+       println!("Time taken: {:?}", end_time.duration_since(start_time));
+       println!("Teams: {:?}", teams);
+       assert_eq!(teams.len(), 1);
+
     }
 }
