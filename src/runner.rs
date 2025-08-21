@@ -362,10 +362,8 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
 mod tests {
     use tempfile::tempdir;
 
-    use crate::{common_test, ownership::mapper::Source};
-    use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
-
     use super::*;
+    use crate::{common_test, ownership::mapper::Source};
 
     #[test]
     fn test_version() {
@@ -421,42 +419,33 @@ mod tests {
 
     #[test]
     fn test_teams_for_files_from_codeowners() {
-       let project_root = Path::new("/Users/perryhertler/workspace/zenpayroll");
-       let codeowners_file_path = project_root.join(".github/CODEOWNERS");
-       let config_path = project_root.join("config/code_ownership.yml");
-       let run_config = RunConfig {
-           project_root: project_root.to_path_buf(),
-           codeowners_file_path: codeowners_file_path.to_path_buf(),
-           config_path: config_path.to_path_buf(),
-           no_cache: false,
-       };
-
-       // Collect all files in packs and frontend directories recursively
-       let mut file_paths = Vec::new();
-       for dir in ["packs", "frontend"] {
-           let dir_path = project_root.join(dir);
-           if dir_path.exists() && dir_path.is_dir() {
-               for entry in WalkBuilder::new(&dir_path)
-                   .filter_entry(|e| {
-                       let name = e.file_name().to_str().unwrap_or("");
-                       !(name == "node_modules" || name == "dist" || name == ".git")
-                   })
-                   .build() 
-                   .filter_map(|e| e.ok())
-                   .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
-                   .filter_map(|e| e.path().strip_prefix(project_root).ok().map(|p| p.to_string_lossy().to_string()))
-               {
-                   file_paths.push(entry);
-               }        
-           }
-       }
-
-       let start_time = std::time::Instant::now();
-       let teams = teams_for_files_from_codeowners(&run_config, &file_paths).unwrap();
-       let end_time = std::time::Instant::now();
-       println!("Time taken: {:?}", end_time.duration_since(start_time));
-       println!("Teams: {:?}", teams);
-       assert_eq!(teams.len(), 1);
-
+        let project_root = Path::new("tests/fixtures/valid_project");
+        let file_paths = [
+            "javascript/packages/items/item.ts",
+            "config/teams/payroll.yml",
+            "ruby/app/models/bank_account.rb",
+            "made/up/file.rb",
+            "ruby/ignored_files/git_ignored.rb",
+        ];
+        let run_config = RunConfig {
+            project_root: project_root.to_path_buf(),
+            codeowners_file_path: project_root.join(".github/CODEOWNERS").to_path_buf(),
+            config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
+            no_cache: false,
+        };
+        let teams =
+            teams_for_files_from_codeowners(&run_config, &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>()).unwrap();
+        assert_eq!(teams.len(), 3);
+        assert_eq!(
+            teams.get("javascript/packages/items/item.ts").map(|t| t.name.as_str()),
+            Some("Payroll")
+        );
+        assert_eq!(teams.get("config/teams/payroll.yml").map(|t| t.name.as_str()), Some("Payroll"));
+        assert_eq!(
+            teams.get("ruby/app/models/bank_account.rb").map(|t| t.name.as_str()),
+            Some("Payments")
+        );
+        assert_eq!(teams.get("made/up/file.rb").map(|t| t.name.as_str()), None);
+        assert_eq!(teams.get("ruby/ignored_files/git_ignored.rb").map(|t| t.name.as_str()), None);
     }
 }
