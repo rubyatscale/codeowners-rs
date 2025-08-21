@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{
+    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
     process::Command,
@@ -280,17 +281,36 @@ fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResul
         },
     }
 }
-pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
+
+// For an array of file paths, return a map of file path to its owning team
+pub fn teams_for_files_from_codeowners(run_config: &RunConfig, file_paths: &[String]) -> Result<HashMap<String, Option<Team>>, Error> {
+    let relative_file_paths: Vec<PathBuf> = file_paths
+        .iter()
+        .map(|path| Path::new(path).strip_prefix(&run_config.project_root).unwrap_or(Path::new(path)))
+        .map(|path| path.to_path_buf())
+        .collect();
+
+    let parser = build_codeowners_parser(run_config)?;
+    Ok(parser
+        .teams_from_files_paths(&relative_file_paths)
+        .map_err(|e| Error::Io(e.to_string()))?)
+}
+
+fn build_codeowners_parser(run_config: &RunConfig) -> Result<crate::ownership::codeowners_file_parser::Parser, Error> {
     let config = config_from_path(&run_config.config_path)?;
+    Ok(crate::ownership::codeowners_file_parser::Parser {
+        codeowners_file_path: run_config.codeowners_file_path.clone(),
+        project_root: run_config.project_root.clone(),
+        team_file_globs: config.team_file_glob.clone(),
+    })
+}
+
+pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
     let relative_file_path = Path::new(file_path)
         .strip_prefix(&run_config.project_root)
         .unwrap_or(Path::new(file_path));
 
-    let parser = crate::ownership::parser::Parser {
-        project_root: run_config.project_root.clone(),
-        codeowners_file_path: run_config.codeowners_file_path.clone(),
-        team_file_globs: config.team_file_glob.clone(),
-    };
+    let parser = build_codeowners_parser(run_config)?;
     Ok(parser
         .team_from_file_path(Path::new(relative_file_path))
         .map_err(|e| Error::Io(e.to_string()))?)
@@ -342,9 +362,8 @@ fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
 mod tests {
     use tempfile::tempdir;
 
-    use crate::{common_test, ownership::mapper::Source};
-
     use super::*;
+    use crate::{common_test, ownership::mapper::Source};
 
     #[test]
     fn test_version() {
@@ -396,5 +415,63 @@ mod tests {
         assert_eq!(team.name, "b");
         assert_eq!(team.github_team, "@b");
         assert!(team.path.to_string_lossy().ends_with("config/teams/b.yml"));
+    }
+
+    #[test]
+    fn test_teams_for_files_from_codeowners() {
+        let project_root = Path::new("tests/fixtures/valid_project");
+        let file_paths = [
+            "javascript/packages/items/item.ts",
+            "config/teams/payroll.yml",
+            "ruby/app/models/bank_account.rb",
+            "made/up/file.rb",
+            "ruby/ignored_files/git_ignored.rb",
+        ];
+        let run_config = RunConfig {
+            project_root: project_root.to_path_buf(),
+            codeowners_file_path: project_root.join(".github/CODEOWNERS").to_path_buf(),
+            config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
+            no_cache: false,
+        };
+        let teams =
+            teams_for_files_from_codeowners(&run_config, &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>()).unwrap();
+        assert_eq!(teams.len(), 5);
+        assert_eq!(
+            teams
+                .get("javascript/packages/items/item.ts")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            Some("Payroll")
+        );
+        assert_eq!(
+            teams.get("config/teams/payroll.yml").unwrap().as_ref().map(|t| t.name.as_str()),
+            Some("Payroll")
+        );
+        assert_eq!(
+            teams
+                .get("ruby/app/models/bank_account.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            Some("Payments")
+        );
+        assert_eq!(teams.get("made/up/file.rb").unwrap().as_ref().map(|t| t.name.as_str()), None);
+        assert_eq!(
+            teams
+                .get("ruby/ignored_files/git_ignored.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            None
+        );
+        assert_eq!(
+            teams
+                .get("ruby/ignored_files/git_ignored.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            None
+        );
     }
 }

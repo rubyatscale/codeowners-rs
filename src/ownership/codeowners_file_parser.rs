@@ -4,6 +4,7 @@ use crate::{
 };
 use fast_glob::glob_match;
 use memoize::memoize;
+use rayon::prelude::*;
 use regex::Regex;
 use std::{
     collections::HashMap,
@@ -22,29 +23,57 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
-        let file_path_str = file_path
-            .to_str()
-            .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
-        let slash_prefixed = if file_path_str.starts_with("/") {
-            file_path_str.to_string()
-        } else {
-            format!("/{}", file_path_str)
-        };
+    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Option<Team>>, Box<dyn Error>> {
+        let file_inputs: Vec<(String, String)> = file_paths
+            .iter()
+            .map(|path| {
+                let file_path_str = path
+                    .to_str()
+                    .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
+                let original = file_path_str.to_string();
+                let prefixed = if file_path_str.starts_with('/') {
+                    original.clone()
+                } else {
+                    format!("/{}", file_path_str)
+                };
+                Ok((original, prefixed))
+            })
+            .collect::<Result<Vec<_>, IoError>>()?;
 
-        let codeowners_lines_in_priorty = build_codeowners_lines_in_priority(self.codeowners_file_path.to_string_lossy().into_owned());
-        for line in codeowners_lines_in_priorty {
-            let (glob, team_name) = line
-                .split_once(' ')
-                .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))?;
-            if glob_match(glob, &slash_prefixed) {
-                let tbn = teams_by_github_team_name(self.absolute_team_files_globs());
-                let team: Option<Team> = tbn.get(team_name.to_string().as_str()).cloned();
-                return Ok(team);
-            }
+        if file_inputs.is_empty() {
+            return Ok(HashMap::new());
         }
 
-        Ok(None)
+        let codeowners_entries: Vec<(String, String)> =
+            build_codeowners_lines_in_priority(self.codeowners_file_path.to_string_lossy().into_owned())
+                .iter()
+                .map(|line| {
+                    line.split_once(' ')
+                        .map(|(glob, team_name)| (glob.to_string(), team_name.to_string()))
+                        .ok_or_else(|| IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))
+                })
+                .collect::<Result<_, IoError>>()
+                .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
+        let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
+
+        let result: HashMap<String, Option<Team>> = file_inputs
+            .par_iter()
+            .map(|(key, prefixed)| {
+                let team = codeowners_entries
+                    .iter()
+                    .find(|(glob, _)| glob_match(glob, prefixed))
+                    .and_then(|(_, team_name)| teams_by_name.get(team_name).cloned());
+                (key.clone(), team)
+            })
+            .collect();
+
+        Ok(result)
+    }
+
+    pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
+        let teams = self.teams_from_files_paths(&[file_path.to_path_buf()])?;
+        Ok(teams.get(file_path.to_string_lossy().into_owned().as_str()).cloned().flatten())
     }
 
     fn absolute_team_files_globs(&self) -> Vec<String> {
