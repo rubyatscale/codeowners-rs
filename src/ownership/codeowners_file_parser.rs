@@ -23,7 +23,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Team>, Box<dyn Error>> {
+    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Option<Team>>, Box<dyn Error>> {
         let file_inputs: Vec<(String, String)> = file_paths
             .iter()
             .map(|path| {
@@ -57,14 +57,14 @@ impl Parser {
 
         let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
 
-        let result: HashMap<String, Team> = file_inputs
+        let result: HashMap<String, Option<Team>> = file_inputs
             .par_iter()
-            .filter_map(|(key, prefixed)| {
-                codeowners_entries
+            .map(|(key, prefixed)| {
+                let team = codeowners_entries
                     .iter()
                     .find(|(glob, _)| glob_match(glob, prefixed))
-                    .and_then(|(_, team_name)| teams_by_name.get(team_name))
-                    .map(|team| (key.clone(), team.clone()))
+                    .and_then(|(_, team_name)| teams_by_name.get(team_name).cloned());
+                (key.clone(), team)
             })
             .collect();
 
@@ -73,7 +73,7 @@ impl Parser {
 
     pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
         let teams = self.teams_from_files_paths(&[file_path.to_path_buf()])?;
-        Ok(teams.get(file_path.to_string_lossy().into_owned().as_str()).cloned())
+        Ok(teams.get(file_path.to_string_lossy().into_owned().as_str()).cloned().flatten())
     }
 
     fn absolute_team_files_globs(&self) -> Vec<String> {
