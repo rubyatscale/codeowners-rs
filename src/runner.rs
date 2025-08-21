@@ -283,7 +283,7 @@ fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResul
 }
 
 // For an array of file paths, return a map of file path to its owning team
-pub fn teams_for_files_from_codeowners(run_config: &RunConfig, file_paths: &[String]) -> Result<HashMap<String, Team>, Error> {
+pub fn teams_for_files_from_codeowners(run_config: &RunConfig, file_paths: &[String]) -> Result<HashMap<String, Option<Team>>, Error> {
     let relative_file_paths: Vec<PathBuf> = file_paths
         .iter()
         .map(|path| Path::new(path).strip_prefix(&run_config.project_root).unwrap_or(Path::new(path)))
@@ -435,17 +435,43 @@ mod tests {
         };
         let teams =
             teams_for_files_from_codeowners(&run_config, &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>()).unwrap();
-        assert_eq!(teams.len(), 3);
+        assert_eq!(teams.len(), 5);
         assert_eq!(
-            teams.get("javascript/packages/items/item.ts").map(|t| t.name.as_str()),
+            teams
+                .get("javascript/packages/items/item.ts")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
             Some("Payroll")
         );
-        assert_eq!(teams.get("config/teams/payroll.yml").map(|t| t.name.as_str()), Some("Payroll"));
         assert_eq!(
-            teams.get("ruby/app/models/bank_account.rb").map(|t| t.name.as_str()),
+            teams.get("config/teams/payroll.yml").unwrap().as_ref().map(|t| t.name.as_str()),
+            Some("Payroll")
+        );
+        assert_eq!(
+            teams
+                .get("ruby/app/models/bank_account.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
             Some("Payments")
         );
-        assert_eq!(teams.get("made/up/file.rb").map(|t| t.name.as_str()), None);
-        assert_eq!(teams.get("ruby/ignored_files/git_ignored.rb").map(|t| t.name.as_str()), None);
+        assert_eq!(teams.get("made/up/file.rb").unwrap().as_ref().map(|t| t.name.as_str()), None);
+        assert_eq!(
+            teams
+                .get("ruby/ignored_files/git_ignored.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            None
+        );
+        assert_eq!(
+            teams
+                .get("ruby/ignored_files/git_ignored.rb")
+                .unwrap()
+                .as_ref()
+                .map(|t| t.name.as_str()),
+            None
+        );
     }
 }
