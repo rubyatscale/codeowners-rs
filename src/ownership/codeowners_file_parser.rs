@@ -4,8 +4,8 @@ use crate::{
 };
 use fast_glob::glob_match;
 use memoize::memoize;
-use regex::Regex;
 use rayon::prelude::*;
+use regex::Regex;
 use std::{
     collections::HashMap,
     error::Error,
@@ -24,62 +24,49 @@ pub struct Parser {
 
 impl Parser {
     pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Team>, Box<dyn Error>> {
-        let mut file_inputs: Vec<(String, String)> = Vec::with_capacity(file_paths.len());
-        for path in file_paths {
-            let file_path_str = path
-                .to_str()
-                .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
-            let key = file_path_str.to_string();
-            let slash_prefixed = if file_path_str.starts_with('/') {
-                file_path_str.to_string()
-            } else {
-                format!("/{}", file_path_str)
-            };
-            file_inputs.push((key, slash_prefixed));
-        }
+        let file_inputs: Vec<(String, String)> = file_paths
+            .iter()
+            .map(|path| {
+                let file_path_str = path
+                    .to_str()
+                    .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
+                let original = file_path_str.to_string();
+                let prefixed = if file_path_str.starts_with('/') {
+                    original.clone()
+                } else {
+                    format!("/{}", file_path_str)
+                };
+                Ok((original, prefixed))
+            })
+            .collect::<Result<Vec<_>, IoError>>()?;
 
         if file_inputs.is_empty() {
             return Ok(HashMap::new());
         }
 
-        let codeowners_lines_in_priority = build_codeowners_lines_in_priority(
-            self.codeowners_file_path.to_string_lossy().into_owned(),
-        );
-        // Pre-parse lines once to avoid repeated split and to handle malformed lines early
-        let codeowners_entries: Vec<(String, String)> = codeowners_lines_in_priority
-            .iter()
-            .map(|line| {
-                line
-                    .split_once(' ')
-                    .map(|(glob, team_name)| (glob.to_string(), team_name.to_string()))
-                    .ok_or_else(|| IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))
-            })
-            .collect::<Result<_, IoError>>()
-            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+        let codeowners_entries: Vec<(String, String)> =
+            build_codeowners_lines_in_priority(self.codeowners_file_path.to_string_lossy().into_owned())
+                .iter()
+                .map(|line| {
+                    line.split_once(' ')
+                        .map(|(glob, team_name)| (glob.to_string(), team_name.to_string()))
+                        .ok_or_else(|| IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))
+                })
+                .collect::<Result<_, IoError>>()
+                .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+
         let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
 
-        // Parallelize across files: for each file, scan lines in priority order
-        let result_pairs: Vec<(String, Team)> = file_inputs
+        let result: HashMap<String, Team> = file_inputs
             .par_iter()
             .filter_map(|(key, prefixed)| {
-                for (glob, team_name) in &codeowners_entries {
-                    if glob_match(glob, prefixed) {
-                        // Stop at first match (highest priority). If team missing, treat as unowned.
-                        if let Some(team) = teams_by_name.get(team_name) {
-                            return Some((key.clone(), team.clone()));
-                        } else {
-                            return None;
-                        }
-                    }
-                }
-                None
+                codeowners_entries
+                    .iter()
+                    .find(|(glob, _)| glob_match(glob, prefixed))
+                    .and_then(|(_, team_name)| teams_by_name.get(team_name))
+                    .map(|team| (key.clone(), team.clone()))
             })
             .collect();
-
-        let mut result: HashMap<String, Team> = HashMap::with_capacity(result_pairs.len());
-        for (k, t) in result_pairs {
-            result.insert(k, t);
-        }
 
         Ok(result)
     }
