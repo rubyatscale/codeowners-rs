@@ -77,50 +77,31 @@ pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
+    type FirstLine = &'static str;
+    type Owner = &'static str;
 
     #[test]
     fn test_team_regex() {
-        let owner = TEAM_REGEX
-            .captures("// @team Foo")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
+        let mut map: HashMap<FirstLine, Owner> = HashMap::new();
+        map.insert("// @team Foo", "Foo");
+        map.insert("// @team Foo Bar", "Foo Bar");
+        map.insert("// @team Zoo", "Zoo");
+        map.insert("// @team: Zoo Foo", "Zoo Foo");
+        map.insert("# @team: Bap", "Bap");
+        map.insert("# @team: Bap Hap", "Bap Hap");
+        map.insert("<!-- @team: Zoink -->", "Zoink");
+        map.insert("<!-- @team: Zoink Err -->", "Zoink Err");
+        map.insert("<%# @team: Zap %>", "Zap");
+        map.insert("<%# @team: Zap Zip%>", "Zap Zip");
+        map.insert("<!-- @team Blast -->", "Blast");
+        map.insert("<!-- @team Blast Off -->", "Blast Off");
 
-        let owner = TEAM_REGEX
-            .captures("// @team Foo")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
-
-        let owner = TEAM_REGEX
-            .captures("// @team: Foo")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
-
-        let owner = TEAM_REGEX
-            .captures("# @team: Foo")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
-
-        let owner = TEAM_REGEX
-            .captures("<!-- @team: Foo -->")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
-
-        let owner = TEAM_REGEX
-            .captures("<%# @team: Foo %>")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
-
-        let owner = TEAM_REGEX
-            .captures("<!-- @team Foo -->")
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string());
-        assert_eq!(owner, Some("Foo".to_string()));
+        for (key, value) in map {
+            let owner = TEAM_REGEX.captures(key).and_then(|cap| cap.get(1)).map(|m| m.as_str());
+            assert_eq!(owner, Some(value));
+        }
     }
 }

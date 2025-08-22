@@ -40,6 +40,7 @@ pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
     run(run_config, |runner| runner.crosscheck_owners())
 }
 
+// Returns the highest priority owner for a file. More to come here.
 pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<FileOwner>, Error> {
     let runner = Runner::new(run_config)?;
     let owners = runner.owners_for_file(file_path)?;
