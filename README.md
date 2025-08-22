@@ -190,3 +190,44 @@ codeowners for-team Payroll
   ```
 
 - Please update `CHANGELOG.md` and this `README.md` when making changes.
+
+### Module layout (for library users)
+
+- `src/runner.rs`: public façade re-exporting the API and types.
+- `src/runner/api.rs`: externally available functions used by the CLI and other crates.
+- `src/runner/types.rs`: `RunConfig`, `RunResult`, and runner `Error`.
+- `src/ownership/`: all ownership logic (parsing, mapping, validation, generation).
+- `src/ownership/codeowners_query.rs`: CODEOWNERS-only queries consumed by the façade.
+
+Import public APIs from `codeowners::runner::*`.
+
+### Library usage example
+
+```rust
+use codeowners::runner::{RunConfig, for_file, teams_for_files_from_codeowners};
+
+fn main() {
+    let run_config = RunConfig {
+        project_root: std::path::PathBuf::from("."),
+        codeowners_file_path: std::path::PathBuf::from(".github/CODEOWNERS"),
+        config_path: std::path::PathBuf::from("config/code_ownership.yml"),
+        no_cache: true, // set false to enable on-disk caching
+    };
+
+    // Find owner for a single file using the optimized path (not just CODEOWNERS)
+    let result = for_file(&run_config, "app/models/user.rb", false);
+    for msg in result.info_messages { println!("{}", msg); }
+    for err in result.io_errors { eprintln!("io: {}", err); }
+    for err in result.validation_errors { eprintln!("validation: {}", err); }
+
+    // Map multiple files to teams using CODEOWNERS rules only
+    let files = vec![
+        "app/models/user.rb".to_string(),
+        "config/teams/payroll.yml".to_string(),
+    ];
+    match teams_for_files_from_codeowners(&run_config, &files) {
+        Ok(map) => println!("{:?}", map),
+        Err(e) => eprintln!("error: {}", e),
+    }
+}
+```
