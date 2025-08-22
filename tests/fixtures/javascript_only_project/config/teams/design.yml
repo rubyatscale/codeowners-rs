@@ -1,0 +1,6 @@
+name: Design
+github:
+  team: '@DesignTeam'
+owned_globs:
+  - frontend/apps/public/**/*
+

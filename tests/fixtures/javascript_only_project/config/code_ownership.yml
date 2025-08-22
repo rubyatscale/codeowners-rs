@@ -1,0 +1,11 @@
+owned_globs:
+  - "{config,frontend}/**/*.{js,jsx,ts,tsx,json,yml}"
+javascript_package_paths:
+  - frontend/packages/**
+team_file_glob:
+  - config/teams/**/*.yml
+unbuilt_gems_path: gems
+unowned_globs:
+  - frontend/**/node_modules/**/*
+  - frontend/**/__generated__/**/*
+
