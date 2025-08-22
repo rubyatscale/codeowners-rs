@@ -24,10 +24,7 @@ team_file_glob:
 "#;
     write_file(temp_dir.path(), "config/code_ownership.yml", DEFAULT_CODE_OWNERSHIP_YML);
     ["a", "b", "c"].iter().for_each(|name| {
-        let team_yml = format!(
-            "name: {}\ngithub:\n  team: \"@{}\"\n  members:\n    - {}member\n",
-            name, name, name
-        );
+        let team_yml = format!("name: {}\ngithub:\n  team: \"@{}\"\n  members:\n    - {}member\n", name, name, name);
         write_file(temp_dir.path(), &format!("config/teams/{}.yml", name), &team_yml);
     });
     write_file(
@@ -67,11 +64,8 @@ fn test_teams_for_files_from_codeowners() {
         config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
         no_cache: true,
     };
-    let teams = runner::teams_for_files_from_codeowners(
-        &run_config,
-        &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>(),
-    )
-    .unwrap();
+    let teams =
+        runner::teams_for_files_from_codeowners(&run_config, &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>()).unwrap();
     assert_eq!(teams.len(), 5);
     assert_eq!(
         teams
@@ -82,11 +76,7 @@ fn test_teams_for_files_from_codeowners() {
         Some("Payroll")
     );
     assert_eq!(
-        teams
-            .get("config/teams/payroll.yml")
-            .unwrap()
-            .as_ref()
-            .map(|t| t.name.as_str()),
+        teams.get("config/teams/payroll.yml").unwrap().as_ref().map(|t| t.name.as_str()),
         Some("Payroll")
     );
     assert_eq!(
@@ -146,7 +136,11 @@ javascript_package_paths:
     let res = runner::for_team(&rc, "Foo");
     assert!(res.io_errors.is_empty(), "unexpected io errors: {:?}", res.io_errors);
     assert!(res.validation_errors.is_empty());
-    assert!(res.info_messages.iter().any(|m| m.contains("# Code Ownership Report for `Foo` Team")));
+    assert!(
+        res.info_messages
+            .iter()
+            .any(|m| m.contains("# Code Ownership Report for `Foo` Team"))
+    );
 }
 
 #[test]
@@ -185,5 +179,3 @@ javascript_package_paths:
     let content = std::fs::read_to_string(td.path().join(".github/CODEOWNERS")).unwrap();
     assert!(!content.is_empty());
 }
-
-
