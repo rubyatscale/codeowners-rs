@@ -125,8 +125,6 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
     Ok(teams)
 }
 
-// no regex: parse cheaply with ASCII-aware checks
-
 fn read_top_of_file_team(path: &Path) -> Option<String> {
     let project_file = build_project_file_without_cache(&path.to_path_buf());
     if let Some(owner) = project_file.owner {
