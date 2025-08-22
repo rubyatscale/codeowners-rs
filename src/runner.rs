@@ -1,92 +1,33 @@
-use core::fmt;
-use std::{
-    collections::HashMap,
-    fs::File,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{path::Path, process::Command};
 
-use error_stack::{Context, Result, ResultExt};
-use serde::{Deserialize, Serialize};
+use error_stack::{Result, ResultExt};
 
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
-    project::Team,
     project_builder::ProjectBuilder,
 };
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RunResult {
-    pub validation_errors: Vec<String>,
-    pub io_errors: Vec<String>,
-    pub info_messages: Vec<String>,
-}
-#[derive(Debug, Clone)]
-pub struct RunConfig {
-    pub project_root: PathBuf,
-    pub codeowners_file_path: PathBuf,
-    pub config_path: PathBuf,
-    pub no_cache: bool,
-}
+mod types;
+pub use self::types::{Error, RunConfig, RunResult};
+mod api;
+pub use self::api::*;
 
 pub struct Runner {
     run_config: RunConfig,
     ownership: Ownership,
     cache: Cache,
-}
-
-pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) -> RunResult {
-    if from_codeowners {
-        return for_file_codeowners_only(run_config, file_path);
-    }
-    for_file_optimized(run_config, file_path)
-}
-
-pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<FileOwner>, Error> {
-    let config = config_from_path(&run_config.config_path)?;
-    use crate::ownership::for_file_fast::find_file_owners;
-    let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
-    Ok(owners.first().cloned())
-}
-
-pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
-    let owner = file_owner_for_file(run_config, file_path)?;
-    Ok(owner.map(|fo| fo.team.clone()))
+    config: Config,
 }
 
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
-    run_with_runner(run_config, |runner| runner.for_team(team_name))
-}
-
-pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
-    run_with_runner(run_config, |runner| runner.validate())
-}
-
-pub fn generate(run_config: &RunConfig, git_stage: bool) -> RunResult {
-    run_with_runner(run_config, |runner| runner.generate(git_stage))
-}
-
-pub fn generate_and_validate(run_config: &RunConfig, _file_paths: Vec<String>, git_stage: bool) -> RunResult {
-    run_with_runner(run_config, |runner| runner.generate_and_validate(git_stage))
-}
-
-pub fn delete_cache(run_config: &RunConfig) -> RunResult {
-    run_with_runner(run_config, |runner| runner.delete_cache())
-}
-
-pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
-    run_with_runner(run_config, |runner| runner.crosscheck_owners())
-}
-
 pub type Runnable = fn(Runner) -> RunResult;
 
-pub fn run_with_runner<F>(run_config: &RunConfig, runnable: F) -> RunResult
+pub fn run<F>(run_config: &RunConfig, runnable: F) -> RunResult
 where
     F: FnOnce(Runner) -> RunResult,
 {
@@ -102,34 +43,11 @@ where
     runnable(runner)
 }
 
-impl RunResult {
-    pub fn has_errors(&self) -> bool {
-        !self.validation_errors.is_empty() || !self.io_errors.is_empty()
+pub(crate) fn config_from_path(path: &Path) -> Result<Config, Error> {
+    match crate::config::Config::load_from_path(path) {
+        Ok(c) => Ok(c),
+        Err(msg) => Err(error_stack::Report::new(Error::Io(msg))),
     }
-}
-
-#[derive(Debug)]
-pub enum Error {
-    Io(String),
-    ValidationFailed,
-}
-
-impl Context for Error {}
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Io(msg) => fmt.write_str(msg),
-            Error::ValidationFailed => fmt.write_str("Error::ValidationFailed"),
-        }
-    }
-}
-
-pub(crate) fn config_from_path(path: &PathBuf) -> Result<Config, Error> {
-    let config_file = File::open(path)
-        .change_context(Error::Io(format!("Can't open config file: {}", &path.to_string_lossy())))
-        .attach_printable(format!("Can't open config file: {}", &path.to_string_lossy()))?;
-
-    serde_yaml::from_reader(config_file).change_context(Error::Io(format!("Can't parse config file: {}", &path.to_string_lossy())))
 }
 impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
@@ -168,6 +86,7 @@ impl Runner {
             run_config: run_config.clone(),
             ownership,
             cache,
+            config,
         })
     }
 
@@ -255,111 +174,75 @@ impl Runner {
     pub fn crosscheck_owners(&self) -> RunResult {
         crate::crosscheck::crosscheck_owners(&self.run_config, &self.cache)
     }
-}
 
-fn for_file_codeowners_only(run_config: &RunConfig, file_path: &str) -> RunResult {
-    match team_for_file_from_codeowners(run_config, file_path) {
-        Ok(Some(team)) => {
-            let relative_team_path = team
-                .path
-                .strip_prefix(&run_config.project_root)
-                .unwrap_or(team.path.as_path())
-                .to_string_lossy()
-                .to_string();
-            RunResult {
-                info_messages: vec![format!(
-                    "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
-                    team.name, team.github_team, relative_team_path
-                )],
-                ..Default::default()
-            }
-        }
-        Ok(None) => RunResult::default(),
-        Err(err) => RunResult {
-            io_errors: vec![err.to_string()],
-            ..Default::default()
-        },
+    pub fn owners_for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, Error> {
+        use crate::ownership::for_file_fast::find_file_owners;
+        let owners = find_file_owners(&self.run_config.project_root, &self.config, std::path::Path::new(file_path)).map_err(Error::Io)?;
+        Ok(owners)
     }
-}
 
-// For an array of file paths, return a map of file path to its owning team
-pub fn teams_for_files_from_codeowners(run_config: &RunConfig, file_paths: &[String]) -> Result<HashMap<String, Option<Team>>, Error> {
-    let relative_file_paths: Vec<PathBuf> = file_paths
-        .iter()
-        .map(|path| Path::new(path).strip_prefix(&run_config.project_root).unwrap_or(Path::new(path)))
-        .map(|path| path.to_path_buf())
-        .collect();
+    pub fn for_file_optimized(&self, file_path: &str) -> RunResult {
+        let file_owners = match self.owners_for_file(file_path) {
+            Ok(v) => v,
+            Err(err) => {
+                return RunResult {
+                    io_errors: vec![err.to_string()],
+                    ..Default::default()
+                };
+            }
+        };
 
-    let parser = build_codeowners_parser(run_config)?;
-    Ok(parser
-        .teams_from_files_paths(&relative_file_paths)
-        .map_err(|e| Error::Io(e.to_string()))?)
-}
+        let info_messages: Vec<String> = match file_owners.len() {
+            0 => vec![format!("{}", FileOwner::default())],
+            1 => vec![format!("{}", file_owners[0])],
+            _ => {
+                let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
+                for file_owner in file_owners {
+                    error_messages.push(format!("\n{}", file_owner));
+                }
+                return RunResult {
+                    validation_errors: error_messages,
+                    ..Default::default()
+                };
+            }
+        };
+        RunResult {
+            info_messages,
+            ..Default::default()
+        }
+    }
 
-fn build_codeowners_parser(run_config: &RunConfig) -> Result<crate::ownership::codeowners_file_parser::Parser, Error> {
-    let config = config_from_path(&run_config.config_path)?;
-    Ok(crate::ownership::codeowners_file_parser::Parser {
-        codeowners_file_path: run_config.codeowners_file_path.clone(),
-        project_root: run_config.project_root.clone(),
-        team_file_globs: config.team_file_glob.clone(),
-    })
-}
-
-pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Error> {
-    let relative_file_path = Path::new(file_path)
-        .strip_prefix(&run_config.project_root)
-        .unwrap_or(Path::new(file_path));
-
-    let parser = build_codeowners_parser(run_config)?;
-    Ok(parser
-        .team_from_file_path(Path::new(relative_file_path))
-        .map_err(|e| Error::Io(e.to_string()))?)
-}
-
-fn for_file_optimized(run_config: &RunConfig, file_path: &str) -> RunResult {
-    let config = match config_from_path(&run_config.config_path) {
-        Ok(c) => c,
-        Err(err) => {
-            return RunResult {
+    pub fn for_file_codeowners_only(&self, file_path: &str) -> RunResult {
+        match team_for_file_from_codeowners(&self.run_config, file_path) {
+            Ok(Some(team)) => {
+                let relative_team_path = team
+                    .path
+                    .strip_prefix(&self.run_config.project_root)
+                    .unwrap_or(team.path.as_path())
+                    .to_string_lossy()
+                    .to_string();
+                RunResult {
+                    info_messages: vec![format!(
+                        "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- Owner inferred from codeowners file",
+                        team.name, team.github_team, relative_team_path
+                    )],
+                    ..Default::default()
+                }
+            }
+            Ok(None) => RunResult::default(),
+            Err(err) => RunResult {
                 io_errors: vec![err.to_string()],
                 ..Default::default()
-            };
+            },
         }
-    };
-
-    use crate::ownership::for_file_fast::find_file_owners;
-    let file_owners = match find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)) {
-        Ok(v) => v,
-        Err(err) => {
-            return RunResult {
-                io_errors: vec![err],
-                ..Default::default()
-            };
-        }
-    };
-
-    let info_messages: Vec<String> = match file_owners.len() {
-        0 => vec![format!("{}", FileOwner::default())],
-        1 => vec![format!("{}", file_owners[0])],
-        _ => {
-            let mut error_messages = vec!["Error: file is owned by multiple teams!".to_string()];
-            for file_owner in file_owners {
-                error_messages.push(format!("\n{}", file_owner));
-            }
-            return RunResult {
-                validation_errors: error_messages,
-                ..Default::default()
-            };
-        }
-    };
-    RunResult {
-        info_messages,
-        ..Default::default()
     }
 }
+
+// removed free functions for for_file_* variants in favor of Runner methods
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use tempfile::tempdir;
 
     use super::*;
