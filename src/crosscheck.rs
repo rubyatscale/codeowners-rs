@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::{
     cache::Cache,
     config::Config,
-    ownership::for_file_fast::find_file_owners,
+    ownership::file_owner_resolver::find_file_owners,
     project::Project,
     project_builder::ProjectBuilder,
     runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},

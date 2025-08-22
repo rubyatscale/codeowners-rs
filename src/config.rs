@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::{fs::File, path::Path};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
@@ -75,6 +76,13 @@ fn default_ignore_dirs() -> Vec<String> {
         "sorbet".to_owned(),
         "tmp".to_owned(),
     ]
+}
+
+impl Config {
+    pub fn load_from_path(path: &Path) -> std::result::Result<Self, String> {
+        let file = File::open(path).map_err(|e| format!("Can't open config file: {} ({})", path.to_string_lossy(), e))?;
+        serde_yaml::from_reader(file).map_err(|e| format!("Can't parse config file: {} ({})", path.to_string_lossy(), e))
+    }
 }
 
 #[cfg(test)]

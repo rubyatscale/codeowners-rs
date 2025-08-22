@@ -1,25 +1,25 @@
 # Codeowners
 
-**Codeowners** is a fast, Rust-based CLI for generating and validating [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) in large repositories. 
+**Codeowners** is a fast, Rust-based CLI for generating and validating [GitHub `CODEOWNERS` files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) in large repositories.
 
-Note: For Ruby application, it's usually  easier to use `codeowners-rs` via the [code_ownership](https://github.com/rubyatscale/code_ownership) gem.
+Note: For Ruby applications, it's usually easier to use `codeowners-rs` via the [code_ownership](https://github.com/rubyatscale/code_ownership) gem.
 
 ## 🚀 Quick Start: Generate & Validate
 
-The most common workflow is to **generate and validate your CODEOWNERS file** in a single step:
+The most common workflow is to generate and validate in one step:
 
 ```sh
 codeowners gv
 ```
 
-- This command will:
-  - Generate a fresh `CODEOWNERS` file (by default at `.github/CODEOWNERS`)
-  - Validate that all files are properly owned and that the file is up to date
-  - Exit with a nonzero code and detailed errors if validation fails
+- Generates a fresh `CODEOWNERS` file (default: `.github/CODEOWNERS`)
+- Validates ownership and that the file is up to date
+- Exits non-zero and prints detailed errors if validation fails
 
 ## Table of Contents
 
-- [Quick Start: Generate & Validate](#-quick-start-generate--validate)
+- [Quick Start: Generate & Validate](#quick-start-generate--validate)
+- [Installation](#installation)
 - [Getting Started](#getting-started)
 - [Declaring Ownership](#declaring-ownership)
   - [Directory-Based Ownership](#1-directory-based-ownership)
@@ -27,25 +27,37 @@ codeowners gv
   - [Package-Based Ownership](#3-package-based-ownership)
   - [Glob-Based Ownership](#4-glob-based-ownership)
   - [JavaScript Package Ownership](#5-javascript-package-ownership)
-- [Other CLI Commands](#other-cli-commands)
+- [CLI Reference](#cli-reference)
+  - [Global Flags](#global-flags)
+  - [Commands](#commands)
   - [Examples](#examples)
-    - [Find the owner of a file](#find-the-owner-of-a-file)
-    - [Ownership report for a team](#ownership-report-for-a-team)
-- [Validation](#validation)
-- [Development](#development)
 - [Configuration](#configuration)
+- [Cache](#cache)
+- [Validation](#validation)
+- [Library Usage](#library-usage)
+- [Development](#development)
+
+## Installation
+
+You can run `codeowners` without installing a platform-specific binary by using DotSlash, or install from source with Cargo.
+
+### Option A: DotSlash (recommended)
+
+1. Install DotSlash: see [https://dotslash-cli.com/docs/installation/](https://dotslash-cli.com/docs/installation/)
+2. Download the latest DotSlash text file from a release, for example [https://github.com/rubyatscale/codeowners-rs/releases](https://github.com/rubyatscale/codeowners-rs/releases).
+3. Execute the downloaded file with DotSlash; it will fetch and run the correct binary.
+
+### Option B: From source with Cargo
+
+Requires Rust toolchain.
+
+```sh
+cargo install --git https://github.com/rubyatscale/codeowners-rs codeowners
+```
 
 ## Getting Started
 
-1. **Install DotSlash**  
-   [Install DotSlash](https://dotslash-cli.com/docs/installation/)  
-   Releases include a DotSlash text file that will automatically download and run the correct binary for your system.
-
-2. **Download the Latest DotSlash Text File**  
-   Releases contain a DotSlash text file. Example: [codeowners release v0.2.4](https://github.com/rubyatscale/codeowners-rs/releases/download/v0.2.4/codeowners).  
-   Running this file with DotSlash installed will execute `codeowners`.
-
-3. **Configure Ownership**  
+1. **Configure Ownership**  
    Create a `config/code_ownership.yml` file. Example:
 
    ```yaml
@@ -58,7 +70,7 @@ codeowners gv
      - frontend/javascripts/**/__generated__/**/*
    ```
 
-4. **Declare Teams**  
+2. **Declare Teams**  
    Example: `config/teams/operations.yml`
 
    ```yaml
@@ -67,7 +79,7 @@ codeowners gv
      team: '@my-org/operations-team'
    ```
 
-5. **Run the Main Workflow**
+3. **Run the Main Workflow**
 
    ```sh
    codeowners gv
@@ -92,7 +104,15 @@ Add an annotation at the top of a file:
 ```ruby
 # @team MyTeam
 ```
-
+```typescript
+// @team MyTeam
+```
+```html
+<!-- @team MyTeam -->
+```
+```erb
+<%# @team: Foo %>
+```
 ### 3. Package-Based Ownership
 
 In `package.yml` (for Ruby Packwerk):
@@ -133,29 +153,27 @@ js_package_paths:
   - frontend/javascripts/packages/*
 ```
 
+## CLI Reference
 
-## Other CLI Commands
+### Global Flags
 
-While `codeowners gv` is the main workflow, the CLI also supports:
+- `--codeowners-file-path <path>`: Path for the CODEOWNERS file. Default: `./.github/CODEOWNERS`
+- `--config-path <path>`: Path to `code_ownership.yml`. Default: `./config/code_ownership.yml`
+- `--project-root <path>`: Project root. Default: `.`
+- `--no-cache`: Disable on-disk caching (useful in CI)
+- `-V, --version`, `-h, --help`
 
-```text
-Usage: codeowners [OPTIONS] <COMMAND>
+### Commands
 
-Commands:
-  for-file               Finds the owner of a given file. [aliases: f]
-  for-team               Finds code ownership information for a given team [aliases: t]
-  generate               Generate the CODEOWNERS file [aliases: g]
-  validate               Validate the CODEOWNERS file [aliases: v]
-  generate-and-validate  Chains both `generate` and `validate` [aliases: gv]
-  help                   Print this message or the help of the given subcommand(s)
-
-Options:
-      --codeowners-file-path <CODEOWNERS_FILE_PATH>  [default: ./.github/CODEOWNERS]
-      --config-path <CONFIG_PATH>                    [default: ./config/code_ownership.yml]
-      --project-root <PROJECT_ROOT>                  [default: .]
-  -h, --help
-  -V, --version
-```
+- `generate` (`g`): Generate the CODEOWNERS file and write it to `--codeowners-file-path`.
+  - Flags: `--skip-stage, -s` to avoid `git add` after writing
+- `validate` (`v`): Validate the CODEOWNERS file and configuration.
+- `generate-and-validate` (`gv`): Run `generate` then `validate`.
+  - Flags: `--skip-stage, -s`
+- `for-file <path>` (`f`): Print the owner of a file.
+  - Flags: `--from-codeowners` to resolve using only the CODEOWNERS rules
+- `for-team <name>` (`t`): Print ownership report for a team.
+- `delete-cache` (`d`): Delete the persisted cache.
 
 ### Examples
 
@@ -171,14 +189,83 @@ codeowners for-file path/to/file.rb
 codeowners for-team Payroll
 ```
 
+#### Generate but do not stage the file
+
+```sh
+codeowners generate --skip-stage
+```
+
+#### Run without using the cache
+
+```sh
+codeowners gv --no-cache
+```
+
+## Configuration
+
+`config/code_ownership.yml` keys and defaults:
+
+- `owned_globs` (required): Glob patterns that must be owned.
+- `ruby_package_paths` (default: `['packs/**/*', 'components/**']`)
+- `js_package_paths` / `javascript_package_paths` (default: `['frontend/**/*']`)
+- `team_file_glob` (default: `['config/teams/**/*.yml']`)
+- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`)
+- `vendored_gems_path` (default: `'vendored/'`)
+- `cache_directory` (default: `'tmp/cache/codeowners'`)
+- `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
+
+See examples in `tests/fixtures/**/config/` for reference setups.
+
+## Cache
+
+By default, cache is stored under `tmp/cache/codeowners` relative to the project root. This speeds up repeated runs.
+
+- Disable cache for a run: add the global flag `--no-cache`
+- Clear all cache: `codeowners delete-cache`
+
 ## Validation
 
 `codeowners validate` (or `codeowners gv`) ensures:
 
 1. Only one mechanism defines ownership for any file.
 2. All referenced teams are valid.
-3. All files in `owned_globs` are owned, unless in `unowned_globs`.
-4. The `CODEOWNERS` file is up to date.
+3. All files in `owned_globs` are owned, unless matched by `unowned_globs`.
+4. The generated `CODEOWNERS` file is up to date.
+
+Exit status is non-zero on errors.
+
+## Library Usage
+
+Import public APIs from `codeowners::runner::*`.
+
+```rust
+use codeowners::runner::{RunConfig, for_file, teams_for_files_from_codeowners};
+
+fn main() {
+    let run_config = RunConfig {
+        project_root: std::path::PathBuf::from("."),
+        codeowners_file_path: std::path::PathBuf::from(".github/CODEOWNERS"),
+        config_path: std::path::PathBuf::from("config/code_ownership.yml"),
+        no_cache: true, // set false to enable on-disk caching
+    };
+
+    // Find owner for a single file using the optimized path (not just CODEOWNERS)
+    let result = for_file(&run_config, "app/models/user.rb", false);
+    for msg in result.info_messages { println!("{}", msg); }
+    for err in result.io_errors { eprintln!("io: {}", err); }
+    for err in result.validation_errors { eprintln!("validation: {}", err); }
+
+    // Map multiple files to teams using CODEOWNERS rules only
+    let files = vec![
+        "app/models/user.rb".to_string(),
+        "config/teams/payroll.yml".to_string(),
+    ];
+    match teams_for_files_from_codeowners(&run_config, &files) {
+        Ok(map) => println!("{:?}", map),
+        Err(e) => eprintln!("error: {}", e),
+    }
+}
+```
 
 ## Development
 
@@ -190,3 +277,11 @@ codeowners for-team Payroll
   ```
 
 - Please update `CHANGELOG.md` and this `README.md` when making changes.
+
+### Module layout
+
+- `src/runner.rs`: public façade re-exporting the API and types.
+- `src/runner/api.rs`: externally available functions used by the CLI and other crates.
+- `src/runner/types.rs`: `RunConfig`, `RunResult`, and runner `Error`.
+- `src/ownership/`: all ownership logic (parsing, mapping, validation, generation).
+- `src/ownership/codeowners_query.rs`: CODEOWNERS-only queries consumed by the façade.

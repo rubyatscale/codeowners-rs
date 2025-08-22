@@ -5,18 +5,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod annotated_file_mapper;
 pub(crate) mod directory_mapper;
 mod escaper;
 mod package_mapper;
-mod team_file_mapper;
 mod team_gem_mapper;
 mod team_glob_mapper;
 mod team_yml_mapper;
 
+pub use annotated_file_mapper::TeamFileMapper;
 pub use directory_mapper::DirectoryMapper;
 pub use package_mapper::JavascriptPackageMapper;
 pub use package_mapper::RubyPackageMapper;
-pub use team_file_mapper::TeamFileMapper;
 pub use team_gem_mapper::TeamGemMapper;
 pub use team_glob_mapper::TeamGlobMapper;
 pub use team_yml_mapper::TeamYmlMapper;

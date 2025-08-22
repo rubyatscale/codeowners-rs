@@ -3,6 +3,7 @@ pub(crate) mod common_test;
 pub mod config;
 pub mod crosscheck;
 pub mod ownership;
+pub mod path_utils;
 pub(crate) mod project;
 pub mod project_builder;
 pub mod project_file_builder;
