@@ -13,7 +13,7 @@ pub(crate) mod codeowners_file_parser;
 pub(crate) mod codeowners_query;
 mod file_generator;
 mod file_owner_finder;
-pub mod for_file_fast;
+pub mod file_owner_resolver;
 pub(crate) mod mapper;
 mod validator;
 
