@@ -158,9 +158,9 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io => fmt.write_str("Error::Io"),
-            Error::SerdeYaml => fmt.write_str("Error::SerdeYaml"),
-            Error::SerdeJson => fmt.write_str("Error::SerdeJson"),
+            Error::Io => fmt.write_str("IO operation failed"),
+            Error::SerdeYaml => fmt.write_str("YAML serialization/deserialization failed"),
+            Error::SerdeJson => fmt.write_str("JSON serialization/deserialization failed"),
         }
     }
 }

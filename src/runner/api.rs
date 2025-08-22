@@ -6,12 +6,12 @@ use crate::project::Team;
 
 use super::{Error, RunConfig, RunResult, Runner, config_from_path, run};
 
-pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool) -> RunResult {
+pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool, json: bool) -> RunResult {
     run(run_config, |runner| {
         if from_codeowners {
-            runner.for_file_codeowners_only(file_path)
+            runner.for_file_codeowners_only(file_path, json)
         } else {
-            runner.for_file_optimized(file_path)
+            runner.for_file_derived(file_path, json)
         }
     })
 }

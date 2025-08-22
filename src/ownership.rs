@@ -59,19 +59,21 @@ impl TeamOwnership {
 impl Display for FileOwner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sources = if self.sources.is_empty() {
-            "Unowned".to_string()
+            "".to_string()
         } else {
-            self.sources
+            let sources_str = self
+                .sources
                 .iter()
                 .sorted_by_key(|source| source.to_string())
                 .map(|source| source.to_string())
                 .collect::<Vec<_>>()
-                .join("\n- ")
+                .join("\n- ");
+            format!("\n- {}", sources_str)
         };
 
         write!(
             f,
-            "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:\n- {}",
+            "Team: {}\nGithub Team: {}\nTeam YML: {}\nDescription:{}",
             self.team.name, self.team.github_team, self.team_config_file_path, sources
         )
     }
