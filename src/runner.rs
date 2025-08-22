@@ -176,7 +176,7 @@ impl Runner {
     }
 
     pub fn owners_for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, Error> {
-        use crate::ownership::for_file_fast::find_file_owners;
+        use crate::ownership::file_owner_resolver::find_file_owners;
         let owners = find_file_owners(&self.run_config.project_root, &self.config, std::path::Path::new(file_path)).map_err(Error::Io)?;
         Ok(owners)
     }
@@ -215,10 +215,7 @@ impl Runner {
     pub fn for_file_codeowners_only(&self, file_path: &str) -> RunResult {
         match team_for_file_from_codeowners(&self.run_config, file_path) {
             Ok(Some(team)) => {
-                let relative_team_path = team
-                    .path
-                    .strip_prefix(&self.run_config.project_root)
-                    .unwrap_or(team.path.as_path())
+                let relative_team_path = crate::path_utils::relative_to(&self.run_config.project_root, team.path.as_path())
                     .to_string_lossy()
                     .to_string();
                 RunResult {

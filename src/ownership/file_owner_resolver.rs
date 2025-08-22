@@ -17,10 +17,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     } else {
         project_root.join(file_path)
     };
-    let relative_file_path = absolute_file_path
-        .strip_prefix(project_root)
-        .unwrap_or(&absolute_file_path)
-        .to_path_buf();
+    let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
 
     let teams = load_teams(project_root, &config.team_file_glob)?;
     let teams_by_name = build_teams_by_name_map(&teams);
@@ -68,7 +65,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     }
 
     for team in &teams {
-        let team_rel = team.path.strip_prefix(project_root).unwrap_or(&team.path).to_path_buf();
+        let team_rel = crate::path_utils::relative_to_buf(project_root, &team.path);
         if team_rel == relative_file_path {
             sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamYml);
         }
@@ -77,10 +74,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     let mut file_owners: Vec<FileOwner> = Vec::new();
     for (team_name, sources) in sources_by_team.into_iter() {
         if let Some(team) = teams_by_name.get(&team_name) {
-            let relative_team_yml_path = team
-                .path
-                .strip_prefix(project_root)
-                .unwrap_or(&team.path)
+            let relative_team_yml_path = crate::path_utils::relative_to(project_root, &team.path)
                 .to_string_lossy()
                 .to_string();
             file_owners.push(FileOwner {
@@ -157,9 +151,7 @@ fn most_specific_directory_owner(
         if let Ok(owner_str) = fs::read_to_string(&codeowner_path) {
             let owner = owner_str.trim();
             if let Some(team) = teams_by_name.get(owner) {
-                let relative_dir = current
-                    .strip_prefix(project_root)
-                    .unwrap_or(current.as_path())
+                let relative_dir = crate::path_utils::relative_to(project_root, current.as_path())
                     .to_string_lossy()
                     .to_string();
                 let candidate = (team.name.clone(), Source::Directory(relative_dir));
@@ -191,7 +183,7 @@ fn nearest_package_owner(
         if !current.pop() {
             break;
         }
-        let parent_rel = current.strip_prefix(project_root).unwrap_or(current.as_path());
+        let parent_rel = crate::path_utils::relative_to(project_root, current.as_path());
         if let Some(rel_str) = parent_rel.to_str() {
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");

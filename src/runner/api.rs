@@ -68,9 +68,7 @@ pub fn teams_for_files_from_codeowners(
 }
 
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<Team>, Error> {
-    let relative_file_path = Path::new(file_path)
-        .strip_prefix(&run_config.project_root)
-        .unwrap_or(Path::new(file_path));
+    let relative_file_path = crate::path_utils::relative_to(&run_config.project_root, Path::new(file_path));
 
     let config = config_from_path(&run_config.config_path)?;
     let res = crate::ownership::codeowners_query::team_for_file_from_codeowners(

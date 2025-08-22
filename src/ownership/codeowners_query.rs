@@ -11,7 +11,7 @@ pub(crate) fn team_for_file_from_codeowners(
     file_path: &Path,
 ) -> Result<Option<Team>, String> {
     let relative_file_path = if file_path.is_absolute() {
-        file_path.strip_prefix(project_root).unwrap_or(file_path).to_path_buf()
+        crate::path_utils::relative_to_buf(project_root, file_path)
     } else {
         PathBuf::from(file_path)
     };
@@ -36,7 +36,7 @@ pub(crate) fn teams_for_files_from_codeowners(
         .map(Path::new)
         .map(|path| {
             if path.is_absolute() {
-                path.strip_prefix(project_root).unwrap_or(path).to_path_buf()
+                crate::path_utils::relative_to_buf(project_root, path)
             } else {
                 path.to_path_buf()
             }
