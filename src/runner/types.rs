@@ -11,12 +11,6 @@ pub struct RunResult {
     pub info_messages: Vec<String>,
 }
 
-impl RunResult {
-    pub fn has_errors(&self) -> bool {
-        !self.validation_errors.is_empty() || !self.io_errors.is_empty()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub project_root: PathBuf,
@@ -25,7 +19,7 @@ pub struct RunConfig {
     pub no_cache: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Error {
     Io(String),
     ValidationFailed,

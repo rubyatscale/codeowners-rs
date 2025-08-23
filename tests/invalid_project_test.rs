@@ -54,8 +54,26 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
             Github Team: Unowned
             Team YML: 
             Description:
-            - Unowned
             "}),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn test_for_file_json() -> Result<(), Box<dyn Error>> {
+    run_codeowners(
+        "invalid_project",
+        &["for-file", "ruby/app/models/blockchain.rb", "--json"],
+        true,
+        OutputStream::Stdout,
+        predicate::eq(indoc! {r#"
+            {
+              "team_name": "Unowned",
+              "github_team": "Unowned",
+              "team_yml": "",
+              "description": []
+            }
+            "#}),
     )?;
     Ok(())
 }
@@ -82,6 +100,45 @@ fn test_for_file_multiple_owners() -> Result<(), Box<dyn Error>> {
             Description:
             - Owner specified in `ruby/app/services/.codeowner`
         "}),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn test_for_file_multiple_owners_json() -> Result<(), Box<dyn Error>> {
+    run_codeowners(
+        "invalid_project",
+        &["for-file", "ruby/app/services/multi_owned.rb", "--json"],
+        false,
+        OutputStream::Stdout,
+        predicate::eq(indoc! {r#"
+            {
+              "validation_errors": [
+                "Error: file is owned by multiple teams!",
+                "\nTeam: Payments\nGithub Team: @PaymentTeam\nTeam YML: config/teams/payments.yml\nDescription:\n- Owner annotation at the top of the file",
+                "\nTeam: Payroll\nGithub Team: @PayrollTeam\nTeam YML: config/teams/payroll.yml\nDescription:\n- Owner specified in `ruby/app/services/.codeowner`"
+              ]
+            }
+            "#}),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn test_for_file_nonexistent_json() -> Result<(), Box<dyn Error>> {
+    run_codeowners(
+        "invalid_project",
+        &["for-file", "nonexistent/file.rb", "--json"],
+        true,
+        OutputStream::Stdout,
+        predicate::eq(indoc! {r#"
+            {
+              "team_name": "Unowned",
+              "github_team": "Unowned",
+              "team_yml": "",
+              "description": []
+            }
+            "#}),
     )?;
     Ok(())
 }
