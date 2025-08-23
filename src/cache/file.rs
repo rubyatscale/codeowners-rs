@@ -17,7 +17,7 @@ pub struct GlobalCache {
     file_owner_cache: Option<Box<Mutex<HashMap<PathBuf, FileOwnerCacheEntry>>>>,
 }
 
-const DEFAULT_CACHE_CAPACITY: usize = 10000;
+const DEFAULT_CACHE_CAPACITY: usize = 50000;
 
 impl Caching for GlobalCache {
     fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {

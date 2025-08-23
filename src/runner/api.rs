@@ -73,17 +73,10 @@ pub fn teams_for_files_from_codeowners(
 }
 
 pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<Team>, Error> {
-    let relative_file_path = crate::path_utils::relative_to(&run_config.project_root, Path::new(file_path));
-
-    let config = config_from_path(&run_config.config_path)?;
-    let res = crate::ownership::codeowners_query::team_for_file_from_codeowners(
-        &run_config.project_root,
-        &run_config.codeowners_file_path,
-        &config.team_file_glob,
-        Path::new(relative_file_path),
-    )
-    .map_err(Error::Io)?;
-    Ok(res)
+    let result = teams_for_files_from_codeowners(run_config, &[file_path.to_string()])?;
+    // Since we only passed one file, there should be exactly one result
+    debug_assert_eq!(result.len(), 1);
+    Ok(result.into_values().next().flatten())
 }
 
 // Fast path that avoids creating a full Runner for single file queries
