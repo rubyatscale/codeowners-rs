@@ -304,7 +304,7 @@ impl RunResult {
     pub fn json_info(result: ForFileResult) -> Self {
         let json = match serde_json::to_string_pretty(&result) {
             Ok(json) => json,
-            Err(e) => return Self::json_io_error(Error::Io(e.to_string())),
+            Err(e) => return Self::fallback_io_error(&e.to_string()),
         };
         Self {
             info_messages: vec![json],
@@ -317,9 +317,9 @@ impl RunResult {
             Error::Io(msg) => msg,
             Error::ValidationFailed => "Error::ValidationFailed".to_string(),
         };
-        let json = match serde_json::to_string(&serde_json::json!({"error": message})).map_err(|e| Error::Io(e.to_string())) {
+        let json = match serde_json::to_string(&serde_json::json!({"error": message})) {
             Ok(json) => json,
-            Err(e) => return Self::json_io_error(Error::Io(e.to_string())),
+            Err(e) => return Self::fallback_io_error(&format!("JSON serialization failed: {}", e)),
         };
         Self {
             io_errors: vec![json],
@@ -331,10 +331,17 @@ impl RunResult {
         let json_obj = serde_json::json!({"validation_errors": validation_errors});
         let json = match serde_json::to_string_pretty(&json_obj) {
             Ok(json) => json,
-            Err(e) => return Self::json_io_error(Error::Io(e.to_string())),
+            Err(e) => return Self::fallback_io_error(&format!("JSON serialization failed: {}", e)),
         };
         Self {
             validation_errors: vec![json],
+            ..Default::default()
+        }
+    }
+
+    fn fallback_io_error(message: &str) -> Self {
+        Self {
+            io_errors: vec![format!("{{\"error\": \"{}\"}}", message.replace('"', "\\\""))],
             ..Default::default()
         }
     }
