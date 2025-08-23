@@ -6,13 +6,7 @@ use fast_glob::glob_match;
 use memoize::memoize;
 use rayon::prelude::*;
 use regex::Regex;
-use std::{
-    collections::HashMap,
-    error::Error,
-    fs,
-    io::Error as IoError,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, error::Error, fs, io::Error as IoError, path::PathBuf};
 
 use super::file_generator::compare_lines;
 
@@ -60,11 +54,6 @@ impl Parser {
             .collect();
 
         Ok(result)
-    }
-
-    pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
-        let teams = self.teams_from_files_paths(&[file_path.to_path_buf()])?;
-        Ok(teams.get(file_path.to_string_lossy().into_owned().as_str()).cloned().flatten())
     }
 
     fn absolute_team_files_globs(&self) -> Vec<String> {

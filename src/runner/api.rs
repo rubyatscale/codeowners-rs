@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 
 use crate::ownership::FileOwner;
 use crate::project::Team;
