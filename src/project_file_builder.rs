@@ -14,7 +14,7 @@ pub struct ProjectFileBuilder<'a> {
 
 lazy_static! {
     static ref TEAM_REGEX: Regex =
-        Regex::new(r#"^(?:#|//|<!--|<%#)\s*@team:?\s*(.*?)\s*(?:-->|%>)?$"#).expect("error compiling regular expression");
+        Regex::new(r#"^(?:#|//|<!--|<%#)\s*(?:@?team:?\s*)(.*?)\s*(?:-->|%>)?$"#).expect("error compiling regular expression");
 }
 
 impl<'a> ProjectFileBuilder<'a> {
@@ -98,6 +98,12 @@ mod tests {
         map.insert("<%# @team: Zap Zip%>", "Zap Zip");
         map.insert("<!-- @team Blast -->", "Blast");
         map.insert("<!-- @team Blast Off -->", "Blast Off");
+
+        // New team: format (without @ symbol)
+        map.insert("# team: MyTeam", "MyTeam");
+        map.insert("// team: MyTeam", "MyTeam");
+        map.insert("<!-- team: MyTeam -->", "MyTeam");
+        map.insert("<%# team: MyTeam %>", "MyTeam");
 
         for (key, value) in map {
             let owner = TEAM_REGEX.captures(key).and_then(|cap| cap.get(1)).map(|m| m.as_str());
