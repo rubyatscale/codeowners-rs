@@ -52,8 +52,9 @@ impl<'a> ProjectBuilder<'a> {
         }
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "debug", skip_all, fields(base_path = %self.base_path.display()))]
     pub fn build(&mut self) -> Result<Project, Error> {
+        tracing::info!("Starting project build");
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         builder.follow_links(false);
@@ -276,6 +277,13 @@ impl<'a> ProjectBuilder<'a> {
             .iter()
             .flat_map(|team| vec![(team.name.clone(), team.clone()), (team.github_team.clone(), team.clone())])
             .collect();
+
+        tracing::info!(
+            files_count = %project_files.len(),
+            teams_count = %teams.len(),
+            packages_count = %packages.len(),
+            "Project build completed successfully"
+        );
 
         Ok(Project {
             base_path: self.base_path.to_owned(),

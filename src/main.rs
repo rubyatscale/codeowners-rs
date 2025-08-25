@@ -26,7 +26,7 @@ fn maybe_print_errors(result: RunResult) -> Result<(), RunnerError> {
         for msg in result.validation_errors {
             println!("{}", msg);
         }
-        process::exit(-1);
+        process::exit(1);
     }
 
     Ok(())

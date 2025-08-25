@@ -6,13 +6,7 @@ use fast_glob::glob_match;
 use memoize::memoize;
 use rayon::prelude::*;
 use regex::Regex;
-use std::{
-    collections::HashMap,
-    error::Error,
-    fs,
-    io::Error as IoError,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, error::Error, fs, io::Error as IoError, path::PathBuf};
 
 use super::file_generator::compare_lines;
 
@@ -44,16 +38,7 @@ impl Parser {
             return Ok(HashMap::new());
         }
 
-        let codeowners_entries: Vec<(String, String)> =
-            build_codeowners_lines_in_priority(self.codeowners_file_path.to_string_lossy().into_owned())
-                .iter()
-                .map(|line| {
-                    line.split_once(' ')
-                        .map(|(glob, team_name)| (glob.to_string(), team_name.to_string()))
-                        .ok_or_else(|| IoError::new(std::io::ErrorKind::InvalidInput, "Invalid line"))
-                })
-                .collect::<Result<_, IoError>>()
-                .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+        let codeowners_entries = parse_codeowners_entries(self.codeowners_file_path.to_string_lossy().into_owned());
 
         let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
 
@@ -69,11 +54,6 @@ impl Parser {
             .collect();
 
         Ok(result)
-    }
-
-    pub fn team_from_file_path(&self, file_path: &Path) -> Result<Option<Team>, Box<dyn Error>> {
-        let teams = self.teams_from_files_paths(&[file_path.to_path_buf()])?;
-        Ok(teams.get(file_path.to_string_lossy().into_owned().as_str()).cloned().flatten())
     }
 
     fn absolute_team_files_globs(&self) -> Vec<String> {
@@ -111,7 +91,6 @@ fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Tea
     teams
 }
 
-#[memoize]
 fn build_codeowners_lines_in_priority(codeowners_file_path: String) -> Vec<String> {
     let codeowners_file = match fs::read_to_string(codeowners_file_path) {
         Ok(codeowners_file) => codeowners_file,
@@ -122,6 +101,16 @@ fn build_codeowners_lines_in_priority(codeowners_file_path: String) -> Vec<Strin
         }
     };
     stripped_lines_by_priority(&codeowners_file)
+}
+
+fn parse_codeowners_entries(codeowners_file_path: String) -> Vec<(String, String)> {
+    build_codeowners_lines_in_priority(codeowners_file_path)
+        .iter()
+        .filter_map(|line| {
+            line.split_once(' ')
+                .map(|(glob, team_name)| (glob.to_string(), team_name.to_string()))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

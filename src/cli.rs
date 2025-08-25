@@ -17,10 +17,12 @@ enum Command {
             help = "Find the owner from the CODEOWNERS file and just return the team name and yml path"
         )]
         from_codeowners: bool,
+        #[arg(short, long, default_value = "false", help = "Output the result in JSON format")]
+        json: bool,
         name: String,
     },
 
-    #[clap(about = "Finds code ownership information for a given team ", visible_alias = "t")]
+    #[clap(about = "Finds code ownership information for a given team", visible_alias = "t")]
     ForTeam { name: String },
 
     #[clap(
@@ -113,7 +115,11 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         Command::Validate => runner::validate(&run_config, vec![]),
         Command::Generate { skip_stage } => runner::generate(&run_config, !skip_stage),
         Command::GenerateAndValidate { skip_stage } => runner::generate_and_validate(&run_config, vec![], !skip_stage),
-        Command::ForFile { name, from_codeowners } => runner::for_file(&run_config, &name, from_codeowners),
+        Command::ForFile {
+            name,
+            from_codeowners,
+            json,
+        } => runner::for_file(&run_config, &name, from_codeowners, json),
         Command::ForTeam { name } => runner::for_team(&run_config, &name),
         Command::DeleteCache => runner::delete_cache(&run_config),
         Command::CrosscheckOwners => runner::crosscheck_owners(&run_config),

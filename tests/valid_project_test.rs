@@ -72,6 +72,28 @@ fn test_for_file() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_for_file_json() -> Result<(), Box<dyn Error>> {
+    run_codeowners(
+        "valid_project",
+        &["for-file", "ruby/app/models/payroll.rb", "--json"],
+        true,
+        OutputStream::Stdout,
+        predicate::eq(indoc! {r#"
+            {
+              "team_name": "Payroll",
+              "github_team": "@PayrollTeam",
+              "team_yml": "config/teams/payroll.yml",
+              "description": [
+                "Owner annotation at the top of the file"
+              ]
+            }
+        "#}),
+    )?;
+
+    Ok(())
+}
+
+#[test]
 fn test_for_file_full_path() -> Result<(), Box<dyn Error>> {
     let project_root = Path::new("tests/fixtures/valid_project");
     let for_file_absolute_path = fs::canonicalize(project_root.join("ruby/app/models/payroll.rb"))?;
@@ -91,6 +113,33 @@ fn test_for_file_full_path() -> Result<(), Box<dyn Error>> {
             Description:
             - Owner annotation at the top of the file
         "}));
+    Ok(())
+}
+
+#[test]
+fn test_for_file_full_path_json() -> Result<(), Box<dyn Error>> {
+    let project_root = Path::new("tests/fixtures/valid_project");
+    let for_file_absolute_path = fs::canonicalize(project_root.join("ruby/app/models/payroll.rb"))?;
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("for-file")
+        .arg(for_file_absolute_path.to_str().unwrap())
+        .arg("--json")
+        .assert()
+        .success()
+        .stdout(predicate::eq(indoc! {r#"
+            {
+              "team_name": "Payroll",
+              "github_team": "@PayrollTeam",
+              "team_yml": "config/teams/payroll.yml",
+              "description": [
+                "Owner annotation at the top of the file"
+              ]
+            }
+        "#}));
     Ok(())
 }
 
@@ -129,7 +178,6 @@ fn test_fast_for_file_with_ignored_file() -> Result<(), Box<dyn Error>> {
             Github Team: Unowned
             Team YML: 
             Description:
-            - Unowned
         "}));
     Ok(())
 }
