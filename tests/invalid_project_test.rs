@@ -17,20 +17,6 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
 
     CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
 
-    Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways
-
-    gems/payroll_calculator/calculator.rb
-     owner: Payments
-      - Owner annotation at the top of the file
-     owner: Payroll
-      - Owner specified in Team YML's `owned_gems`
-
-    ruby/app/services/multi_owned.rb
-     owner: Payments
-      - Owner annotation at the top of the file
-     owner: Payroll
-      - Owner specified in `ruby/app/services/.codeowner`
-
     Found invalid team annotations
     - ruby/app/models/blockchain.rb is referencing an invalid team - 'Web3'
 
