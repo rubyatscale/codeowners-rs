@@ -38,12 +38,17 @@ enum Command {
         about = "Validate the validity of the CODEOWNERS file. A validation failure will exit with a failure code and a detailed output of the validation errors.",
         visible_alias = "v"
     )]
-    Validate,
+    Validate {
+        #[arg(help = "Optional list of files to validate ownership for (fast mode for git hooks)")]
+        files: Vec<String>,
+    },
 
     #[clap(about = "Chains both `generate` and `validate` commands.", visible_alias = "gv")]
     GenerateAndValidate {
         #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
+        #[arg(help = "Optional list of files to validate ownership for (fast mode for git hooks)")]
+        files: Vec<String>,
     },
 
     #[clap(about = "Delete the cache file.", visible_alias = "d")]
@@ -112,9 +117,9 @@ pub fn cli() -> Result<RunResult, RunnerError> {
     };
 
     let runner_result = match args.command {
-        Command::Validate => runner::validate(&run_config, vec![]),
+        Command::Validate { files } => runner::validate(&run_config, files),
         Command::Generate { skip_stage } => runner::generate(&run_config, !skip_stage),
-        Command::GenerateAndValidate { skip_stage } => runner::generate_and_validate(&run_config, vec![], !skip_stage),
+        Command::GenerateAndValidate { files, skip_stage } => runner::generate_and_validate(&run_config, files, !skip_stage),
         Command::ForFile {
             name,
             from_codeowners,

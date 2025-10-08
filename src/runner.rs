@@ -91,7 +91,15 @@ impl Runner {
         })
     }
 
-    pub fn validate(&self) -> RunResult {
+    pub fn validate(&self, file_paths: Vec<String>) -> RunResult {
+        if file_paths.is_empty() {
+            self.validate_all()
+        } else {
+            self.validate_files(file_paths)
+        }
+    }
+
+    fn validate_all(&self) -> RunResult {
         match self.ownership.validate() {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
@@ -99,6 +107,40 @@ impl Runner {
                 ..Default::default()
             },
         }
+    }
+
+    fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
+        let mut unowned_files = Vec::new();
+        let mut io_errors = Vec::new();
+
+        for file_path in file_paths {
+            match team_for_file_from_codeowners(&self.run_config, &file_path) {
+                Ok(Some(_)) => {}
+                Ok(None) => unowned_files.push(file_path),
+                Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
+            }
+        }
+
+        if !unowned_files.is_empty() {
+            let validation_errors = std::iter::once("Unowned files detected:".to_string())
+                .chain(unowned_files.into_iter().map(|file| format!("  {}", file)))
+                .collect();
+
+            return RunResult {
+                validation_errors,
+                io_errors,
+                ..Default::default()
+            };
+        }
+
+        if !io_errors.is_empty() {
+            return RunResult {
+                io_errors,
+                ..Default::default()
+            };
+        }
+
+        RunResult::default()
     }
 
     pub fn generate(&self, git_stage: bool) -> RunResult {
@@ -120,12 +162,12 @@ impl Runner {
         }
     }
 
-    pub fn generate_and_validate(&self, git_stage: bool) -> RunResult {
+    pub fn generate_and_validate(&self, file_paths: Vec<String>, git_stage: bool) -> RunResult {
         let run_result = self.generate(git_stage);
         if run_result.has_errors() {
             return run_result;
         }
-        self.validate()
+        self.validate(file_paths)
     }
 
     fn git_stage(&self) {
