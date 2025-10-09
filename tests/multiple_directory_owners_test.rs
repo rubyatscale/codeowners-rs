@@ -1,7 +1,7 @@
 use std::{error::Error, path::Path};
 
-use common::OutputStream;
 use common::run_codeowners;
+use common::OutputStream;
 use predicates::prelude::*;
 
 mod common;

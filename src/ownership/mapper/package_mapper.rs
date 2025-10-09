@@ -122,10 +122,10 @@ fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
 
     for package in packages.iter().sorted_by_key(|package| package.package_root()) {
         if let Some(last_package) = top_level_packages.last() {
-            if let (Some(current_root), Some(last_root)) = (package.package_root(), last_package.package_root())
-                && !current_root.starts_with(last_root)
-            {
-                top_level_packages.push(package);
+            if let (Some(current_root), Some(last_root)) = (package.package_root(), last_package.package_root()) {
+                if !current_root.starts_with(last_root) {
+                    top_level_packages.push(package);
+                }
             }
         } else {
             top_level_packages.push(package);

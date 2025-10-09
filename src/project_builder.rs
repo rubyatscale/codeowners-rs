@@ -13,7 +13,7 @@ use tracing::{instrument, warn};
 use crate::{
     cache::Cache,
     config::Config,
-    project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
+    project::{deserializers, DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem},
     project_file_builder::ProjectFileBuilder,
     tracked_files,
 };
@@ -67,20 +67,21 @@ impl<'a> ProjectBuilder<'a> {
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
-            if let Some(tracked_files) = &tracked_files
-                && let Some(ft) = entry.file_type()
-                && ft.is_file()
-                && !tracked_files.contains_key(path)
-            {
-                return false;
+            if let Some(tracked_files) = &tracked_files {
+                if let Some(ft) = entry.file_type() {
+                    if ft.is_file() && !tracked_files.contains_key(path) {
+                        return false;
+                    }
+                }
             }
-            if let Some(ft) = entry.file_type()
-                && ft.is_dir()
-                && let Ok(rel) = path.strip_prefix(&base_path)
-                && rel.components().count() == 1
-                && ignore_dirs.iter().any(|d| *d == file_name)
-            {
-                return false;
+            if let Some(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    if let Ok(rel) = path.strip_prefix(&base_path) {
+                        if rel.components().count() == 1 && ignore_dirs.iter().any(|d| *d == file_name) {
+                            return false;
+                        }
+                    }
+                }
             }
 
             true
@@ -104,10 +105,10 @@ impl<'a> ProjectBuilder<'a> {
                             let _ = tx.send(entry_type);
                         }
                         Err(report) => {
-                            if let Ok(mut slot) = error_holder.lock()
-                                && slot.is_none()
-                            {
-                                *slot = Some(report);
+                            if let Ok(mut slot) = error_holder.lock() {
+                                if slot.is_none() {
+                                    *slot = Some(report);
+                                }
                             }
                         }
                     }

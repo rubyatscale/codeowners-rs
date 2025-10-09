@@ -136,11 +136,10 @@ javascript_package_paths:
     let res = runner::for_team(&rc, "Foo");
     assert!(res.io_errors.is_empty(), "unexpected io errors: {:?}", res.io_errors);
     assert!(res.validation_errors.is_empty());
-    assert!(
-        res.info_messages
-            .iter()
-            .any(|m| m.contains("# Code Ownership Report for `Foo` Team"))
-    );
+    assert!(res
+        .info_messages
+        .iter()
+        .any(|m| m.contains("# Code Ownership Report for `Foo` Team")));
 }
 
 #[test]

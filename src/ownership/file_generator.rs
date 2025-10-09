@@ -49,15 +49,15 @@ impl FileGenerator {
 }
 
 pub fn compare_lines(a: &String, b: &String) -> Ordering {
-    if let Some((prefix, _)) = a.split_once("**")
-        && b.starts_with(prefix)
-    {
-        return Ordering::Less;
+    if let Some((prefix, _)) = a.split_once("**") {
+        if b.starts_with(prefix) {
+            return Ordering::Less;
+        }
     }
-    if let Some((prefix, _)) = b.split_once("**")
-        && a.starts_with(prefix)
-    {
-        return Ordering::Greater;
+    if let Some((prefix, _)) = b.split_once("**") {
+        if a.starts_with(prefix) {
+            return Ordering::Greater;
+        }
     }
     a.cmp(b)
 }

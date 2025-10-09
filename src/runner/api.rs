@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ownership::FileOwner;
 use crate::project::Team;
 
-use super::{Error, ForFileResult, RunConfig, RunResult, config_from_path, run};
+use super::{config_from_path, run, Error, ForFileResult, RunConfig, RunResult};
 
 pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool, json: bool) -> RunResult {
     if from_codeowners {

@@ -6,7 +6,7 @@ use crate::{
     ownership::file_owner_resolver::find_file_owners,
     project::Project,
     project_builder::ProjectBuilder,
-    runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
+    runner::{config_from_path, team_for_file_from_codeowners, RunConfig, RunResult},
 };
 
 pub fn crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> RunResult {

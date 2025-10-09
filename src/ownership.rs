@@ -105,7 +105,11 @@ pub struct Entry {
 impl Entry {
     fn to_row(&self) -> String {
         let line = format!("/{} {}", self.path, self.github_team);
-        if self.disabled { format!("# {}", line) } else { line }
+        if self.disabled {
+            format!("# {}", line)
+        } else {
+            line
+        }
     }
 }
 

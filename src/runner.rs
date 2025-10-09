@@ -4,7 +4,7 @@ use error_stack::{Result, ResultExt};
 use serde::Serialize;
 
 use crate::{
-    cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
+    cache::{file::GlobalCache, noop::NoopCache, Cache, Caching},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,

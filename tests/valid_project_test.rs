@@ -5,8 +5,8 @@ use std::{error::Error, fs, path::Path, process::Command};
 
 mod common;
 
-use common::OutputStream;
 use common::run_codeowners;
+use common::OutputStream;
 
 #[test]
 fn test_validate() -> Result<(), Box<dyn Error>> {

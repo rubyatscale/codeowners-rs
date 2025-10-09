@@ -4,8 +4,8 @@ use std::error::Error;
 
 mod common;
 
-use common::OutputStream;
 use common::run_codeowners;
+use common::OutputStream;
 
 #[test]
 #[ignore]

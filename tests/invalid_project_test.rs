@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::error::Error;
 
 mod common;
-use common::OutputStream;
 use common::run_codeowners;
+use common::OutputStream;
 
 #[test]
 fn test_validate() -> Result<(), Box<dyn Error>> {
