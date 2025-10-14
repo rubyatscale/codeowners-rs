@@ -16,16 +16,16 @@ pub fn for_team(run_config: &RunConfig, team_name: &str) -> RunResult {
     run(run_config, |runner| runner.for_team(team_name))
 }
 
-pub fn validate(run_config: &RunConfig, _file_paths: Vec<String>) -> RunResult {
-    run(run_config, |runner| runner.validate())
+pub fn validate(run_config: &RunConfig, file_paths: Vec<String>) -> RunResult {
+    run(run_config, |runner| runner.validate(file_paths))
 }
 
 pub fn generate(run_config: &RunConfig, git_stage: bool) -> RunResult {
     run(run_config, |runner| runner.generate(git_stage))
 }
 
-pub fn generate_and_validate(run_config: &RunConfig, _file_paths: Vec<String>, git_stage: bool) -> RunResult {
-    run(run_config, |runner| runner.generate_and_validate(git_stage))
+pub fn generate_and_validate(run_config: &RunConfig, file_paths: Vec<String>, git_stage: bool) -> RunResult {
+    run(run_config, |runner| runner.generate_and_validate(file_paths, git_stage))
 }
 
 pub fn delete_cache(run_config: &RunConfig) -> RunResult {
