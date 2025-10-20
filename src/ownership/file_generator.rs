@@ -11,17 +11,16 @@ impl FileGenerator {
         let mut lines: Vec<String> = Vec::new();
         lines.append(&mut Self::disclaimer());
 
+        // Collect all entries from all mappers
+        let mut all_entries: Vec<Entry> = Vec::new();
         for mapper in &self.mappers {
-            if mapper.entries().is_empty() {
-                continue;
-            }
-
-            lines.push(format!("# {}", mapper.name()));
-            lines.append(&mut Self::to_sorted_lines(&mapper.entries()));
-            lines.push("".to_owned());
+            all_entries.extend(mapper.entries());
         }
 
-        lines.join("\n")
+        // Sort all entries together to ensure correct specificity ordering
+        lines.append(&mut Self::to_sorted_lines(&all_entries));
+
+        format!("{}\n", lines.join("\n"))
     }
 
     pub fn disclaimer() -> Vec<String> {
@@ -199,5 +198,35 @@ mod tests {
         ];
         let sorted = FileGenerator::to_sorted_lines(&entries);
         assert_eq!(sorted, vec!["/directory/owner-1/** @foo", "/directory/owner_2/** @bar"]);
+    }
+
+    #[test]
+    fn test_specific_file_overrides_glob_pattern() {
+        // This tests the case where a specific file should override a general glob pattern.
+        // In CODEOWNERS, the last matching rule wins, so general patterns must come first.
+        let entries = vec![
+            Entry {
+                path: "js/packages/zp-constants/src/__generated__/global.ts".to_string(),
+                github_team: "@Gusto/dev-productivity-web".to_string(),
+                team_name: "dev-productivity-web".to_string(),
+                disabled: false,
+            },
+            Entry {
+                path: "js/packages/zp-constants/**/**".to_string(),
+                github_team: "@Gusto/dev-productivity-modularity-unowned".to_string(),
+                team_name: "dev-productivity-modularity-unowned".to_string(),
+                disabled: false,
+            },
+        ];
+        let sorted = FileGenerator::to_sorted_lines(&entries);
+        // The glob pattern should come FIRST, then the specific file
+        // This way the specific file rule overrides the general glob
+        assert_eq!(
+            sorted,
+            vec![
+                "/js/packages/zp-constants/**/** @Gusto/dev-productivity-modularity-unowned",
+                "/js/packages/zp-constants/src/__generated__/global.ts @Gusto/dev-productivity-web"
+            ]
+        );
     }
 }
