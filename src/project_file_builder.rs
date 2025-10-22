@@ -1,6 +1,8 @@
 use error_stack::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -49,8 +51,8 @@ impl<'a> ProjectFileBuilder<'a> {
 }
 
 pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
-    let content = match std::fs::read_to_string(path) {
-        Ok(content) => content,
+    let file = match File::open(path) {
+        Ok(file) => file,
         Err(_) => {
             return ProjectFile {
                 path: path.clone(),
@@ -59,13 +61,21 @@ pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
         }
     };
 
-    let first_line = content.lines().next();
-    let Some(first_line) = first_line else {
-        return ProjectFile {
-            path: path.clone(),
-            owner: None,
-        };
-    };
+    let mut reader = BufReader::new(file);
+    let mut first_line = String::with_capacity(256);
+
+    match reader.read_line(&mut first_line) {
+        Ok(0) | Err(_) => {
+            return ProjectFile {
+                path: path.clone(),
+                owner: None,
+            };
+        }
+        Ok(_) => {}
+    }
+
+    // read_line includes the newline, but .lines() doesn't, so we need to trim
+    let first_line = first_line.trim_end();
 
     let owner = TEAM_REGEX
         .captures(first_line)
