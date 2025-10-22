@@ -170,8 +170,11 @@ impl<'a> ProjectBuilder<'a> {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
             _ if matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs) => {
-                let project_file = self.project_file_builder.build(absolute_path.to_path_buf());
-                Ok(EntryType::OwnedFile(project_file))
+                // Defer file processing - just collect the path
+                Ok(EntryType::OwnedFile(ProjectFile {
+                    path: absolute_path.to_path_buf(),
+                    owner: None, // Will be populated later
+                }))
             }
             _ => Ok(EntryType::NullEntry()),
         }
@@ -273,6 +276,18 @@ impl<'a> ProjectBuilder<'a> {
                     acc
                 },
             );
+        // Now process all collected files in parallel using rayon
+        // This is done after file discovery to avoid blocking WalkParallel threads
+        let project_files: Vec<ProjectFile> = project_files
+            .into_par_iter()
+            .map(|mut file| {
+                // Build the actual project file with owner information
+                let built_file = self.project_file_builder.build(file.path.clone());
+                file.owner = built_file.owner;
+                file
+            })
+            .collect();
+
         let teams_by_name = teams
             .iter()
             .flat_map(|team| vec![(team.name.clone(), team.clone()), (team.github_team.clone(), team.clone())])
