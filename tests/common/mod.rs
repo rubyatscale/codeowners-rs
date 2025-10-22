@@ -29,7 +29,7 @@ where
     let project_root = temp_dir.path();
     git_add_all_files(project_root);
     let mut cmd = Command::cargo_bin("codeowners")?;
-    let assert = cmd.arg("--project-root").arg(project_root).arg("--no-cache").args(command).assert();
+    let assert = cmd.arg("--project-root").arg(project_root).args(command).assert();
     let assert = if success { assert.success() } else { assert.failure() };
     match stream {
         OutputStream::Stdout => {
@@ -156,7 +156,6 @@ pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunCo
         project_root,
         codeowners_file_path,
         config_path,
-        no_cache: true,
     }
 }
 

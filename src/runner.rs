@@ -4,7 +4,6 @@ use error_stack::{Result, ResultExt};
 use serde::Serialize;
 
 use crate::{
-    cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
     project_builder::ProjectBuilder,
@@ -18,7 +17,6 @@ pub use self::api::*;
 pub struct Runner {
     run_config: RunConfig,
     ownership: Ownership,
-    cache: Cache,
     config: Config,
 }
 
@@ -54,39 +52,16 @@ impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
         let config = config_from_path(&run_config.config_path)?;
 
-        let cache: Cache = if run_config.no_cache {
-            NoopCache::default().into()
-        } else {
-            GlobalCache::new(run_config.project_root.clone(), config.cache_directory.clone())
-                .change_context(Error::Io(format!(
-                    "Can't create cache: {}",
-                    &run_config.config_path.to_string_lossy()
-                )))
-                .attach_printable(format!("Can't create cache: {}", &run_config.config_path.to_string_lossy()))?
-                .into()
-        };
-
-        let mut project_builder = ProjectBuilder::new(
-            &config,
-            run_config.project_root.clone(),
-            run_config.codeowners_file_path.clone(),
-            &cache,
-        );
+        let mut project_builder = ProjectBuilder::new(&config, run_config.project_root.clone(), run_config.codeowners_file_path.clone());
         let project = project_builder.build().change_context(Error::Io(format!(
             "Can't build project: {}",
             &run_config.config_path.to_string_lossy()
         )))?;
         let ownership = Ownership::build(project);
 
-        cache.persist_cache().change_context(Error::Io(format!(
-            "Can't persist cache: {}",
-            &run_config.config_path.to_string_lossy()
-        )))?;
-
         Ok(Self {
             run_config: run_config.clone(),
             ownership,
-            cache,
             config,
         })
     }
@@ -202,20 +177,12 @@ impl Runner {
     }
 
     pub fn delete_cache(&self) -> RunResult {
-        match self.cache.delete_cache().change_context(Error::Io(format!(
-            "Can't delete cache: {}",
-            &self.run_config.config_path.to_string_lossy()
-        ))) {
-            Ok(_) => RunResult::default(),
-            Err(err) => RunResult {
-                io_errors: vec![err.to_string()],
-                ..Default::default()
-            },
-        }
+        // Cache has been removed - this is now a no-op
+        RunResult::default()
     }
 
     pub fn crosscheck_owners(&self) -> RunResult {
-        crate::crosscheck::crosscheck_owners(&self.run_config, &self.cache)
+        crate::crosscheck::crosscheck_owners(&self.run_config)
     }
 
     pub fn owners_for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, Error> {

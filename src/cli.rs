@@ -75,10 +75,6 @@ struct Args {
     /// Path for the root of the project
     #[arg(long, default_value = ".")]
     project_root: PathBuf,
-
-    /// Run without the cache (good for CI, testing)
-    #[arg(long)]
-    no_cache: bool,
 }
 
 impl Args {
@@ -113,7 +109,6 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         config_path,
         codeowners_file_path,
         project_root,
-        no_cache: args.no_cache,
     };
 
     let runner_result = match args.command {

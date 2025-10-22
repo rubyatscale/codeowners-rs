@@ -19,7 +19,6 @@ fn test_skip_untracked_files() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("gv")
         .assert()
         .failure();
@@ -29,7 +28,6 @@ fn test_skip_untracked_files() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("gv")
         .assert()
         .success();

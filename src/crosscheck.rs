@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use crate::{
-    cache::Cache,
     config::Config,
     ownership::file_owner_resolver::find_file_owners,
     project::Project,
@@ -9,8 +8,8 @@ use crate::{
     runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
 };
 
-pub fn crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> RunResult {
-    match do_crosscheck_owners(run_config, cache) {
+pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
+    match do_crosscheck_owners(run_config) {
         Ok(mismatches) if mismatches.is_empty() => RunResult {
             info_messages: vec!["Success! All files match between CODEOWNERS and for-file command.".to_string()],
             ..Default::default()
@@ -26,9 +25,9 @@ pub fn crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> RunResult {
     }
 }
 
-fn do_crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> Result<Vec<String>, String> {
+fn do_crosscheck_owners(run_config: &RunConfig) -> Result<Vec<String>, String> {
     let config = load_config(run_config)?;
-    let project = build_project(&config, run_config, cache)?;
+    let project = build_project(&config, run_config)?;
 
     let mut mismatches: Vec<String> = Vec::new();
     for file in &project.files {
@@ -46,13 +45,8 @@ fn load_config(run_config: &RunConfig) -> Result<Config, String> {
     config_from_path(&run_config.config_path).map_err(|e| e.to_string())
 }
 
-fn build_project(config: &Config, run_config: &RunConfig, cache: &Cache) -> Result<Project, String> {
-    let mut project_builder = ProjectBuilder::new(
-        config,
-        run_config.project_root.clone(),
-        run_config.codeowners_file_path.clone(),
-        cache,
-    );
+fn build_project(config: &Config, run_config: &RunConfig) -> Result<Project, String> {
+    let mut project_builder = ProjectBuilder::new(config, run_config.project_root.clone(), run_config.codeowners_file_path.clone());
     project_builder.build().map_err(|e| e.to_string())
 }
 

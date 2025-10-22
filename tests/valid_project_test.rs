@@ -101,7 +101,6 @@ fn test_for_file_full_path() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("for-file")
         .arg(for_file_absolute_path.to_str().unwrap())
         .assert()
@@ -124,7 +123,6 @@ fn test_for_file_full_path_json() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("for-file")
         .arg(for_file_absolute_path.to_str().unwrap())
         .arg("--json")
@@ -148,7 +146,6 @@ fn test_fast_for_file() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("ruby/app/models/payroll.rb")
         .assert()
@@ -168,7 +165,6 @@ fn test_fast_for_file_with_ignored_file() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("should_be_ignored/an_ignored_file.rb")
         .assert()
@@ -190,7 +186,6 @@ fn test_fast_for_file_full_path() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("for-file")
         .arg(for_file_absolute_path.to_str().unwrap())
         .assert()
@@ -210,7 +205,6 @@ fn test_for_file_with_components() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("gems/pets/dog.rb")
         .assert()
@@ -230,7 +224,6 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
@@ -251,7 +244,6 @@ fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Erro
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
@@ -272,7 +264,6 @@ fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-file")
         .arg("javascript/packages/PayrollFlow/index.tsx")
         .assert()
@@ -335,7 +326,6 @@ fn test_for_missing_team() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg("tests/fixtures/valid_project")
-        .arg("--no-cache")
         .arg("for-team")
         .arg("Nope")
         .assert()

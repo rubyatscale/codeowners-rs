@@ -11,10 +11,9 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::{instrument, warn};
 
 use crate::{
-    cache::Cache,
     config::Config,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
-    project_file_builder::ProjectFileBuilder,
+    project_file_builder::build_project_file,
     tracked_files,
 };
 
@@ -36,16 +35,13 @@ pub struct ProjectBuilder<'a> {
     config: &'a Config,
     base_path: PathBuf,
     codeowners_file_path: PathBuf,
-    project_file_builder: ProjectFileBuilder<'a>,
 }
 
 const INITIAL_VECTOR_CAPACITY: usize = 1000;
 
 impl<'a> ProjectBuilder<'a> {
-    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf, cache: &'a Cache) -> Self {
-        let project_file_builder = ProjectFileBuilder::new(cache);
+    pub fn new(config: &'a Config, base_path: PathBuf, codeowners_file_path: PathBuf) -> Self {
         Self {
-            project_file_builder,
             config,
             base_path,
             codeowners_file_path,
@@ -170,7 +166,7 @@ impl<'a> ProjectBuilder<'a> {
                 Ok(EntryType::TeamFile(absolute_path.to_owned(), relative_path.to_owned()))
             }
             _ if matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs) => {
-                let project_file = self.project_file_builder.build(absolute_path.to_path_buf());
+                let project_file = build_project_file(&absolute_path.to_path_buf());
                 Ok(EntryType::OwnedFile(project_file))
             }
             _ => Ok(EntryType::NullEntry()),

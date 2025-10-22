@@ -1,56 +1,17 @@
-use error_stack::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::{
-    cache::{Cache, Caching},
-    project::{Error, ProjectFile},
-};
-
-pub struct ProjectFileBuilder<'a> {
-    global_cache: &'a Cache,
-}
+use crate::project::ProjectFile;
 
 lazy_static! {
     static ref TEAM_REGEX: Regex =
         Regex::new(r#"^(?:#|//|<!--|<%#)\s*(?:@?team:?\s*)(.*?)\s*(?:-->|%>)?$"#).expect("error compiling regular expression");
 }
 
-impl<'a> ProjectFileBuilder<'a> {
-    pub fn new(global_cache: &'a Cache) -> Self {
-        Self { global_cache }
-    }
-
-    pub(crate) fn build(&self, path: PathBuf) -> ProjectFile {
-        if let Ok(Some(cached_project_file)) = self.get_project_file_from_cache(&path) {
-            return cached_project_file;
-        }
-
-        let project_file = build_project_file_without_cache(&path);
-
-        self.save_project_file_to_cache(&path, &project_file);
-
-        project_file
-    }
-
-    fn get_project_file_from_cache(&self, path: &Path) -> Result<Option<ProjectFile>, Error> {
-        self.global_cache.get_file_owner(path).map(|entry| {
-            entry.map(|e| ProjectFile {
-                path: path.to_path_buf(),
-                owner: e.owner,
-            })
-        })
-    }
-
-    fn save_project_file_to_cache(&self, path: &Path, project_file: &ProjectFile) {
-        self.global_cache.write_file_owner(path, project_file.owner.clone());
-    }
-}
-
-pub(crate) fn build_project_file_without_cache(path: &PathBuf) -> ProjectFile {
+pub(crate) fn build_project_file(path: &PathBuf) -> ProjectFile {
     let file = match File::open(path) {
         Ok(file) => file,
         Err(_) => {

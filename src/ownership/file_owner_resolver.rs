@@ -7,7 +7,7 @@ use std::{
 use fast_glob::glob_match;
 use glob::glob;
 
-use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache};
+use crate::{config::Config, project::Team, project_file_builder::build_project_file};
 
 use super::{FileOwner, mapper::Source};
 
@@ -126,12 +126,8 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
 }
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
-    let project_file = build_project_file_without_cache(&path.to_path_buf());
-    if let Some(owner) = project_file.owner {
-        return Some(owner);
-    }
-
-    None
+    let project_file = build_project_file(&path.to_path_buf());
+    project_file.owner
 }
 
 fn most_specific_directory_owner(

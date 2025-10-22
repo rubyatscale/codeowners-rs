@@ -67,7 +67,6 @@ fn test_generate_and_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
         .arg(project_root)
         .arg("--codeowners-file-path")
         .arg(&codeowners_path)
-        .arg("--no-cache")
         .arg("generate-and-validate")
         .arg("ruby/app/models/payroll.rb")
         .arg("ruby/app/models/bank_account.rb")
@@ -91,7 +90,6 @@ fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> 
         .arg(project_root)
         .arg("--codeowners-file-path")
         .arg(&codeowners_path)
-        .arg("--no-cache")
         .arg("generate-and-validate")
         .arg("ruby/app/unowned.rb")
         .assert()
@@ -114,7 +112,6 @@ fn test_validate_with_absolute_path() -> Result<(), Box<dyn Error>> {
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("validate")
         .arg(file_absolute_path.to_str().unwrap())
         .assert()

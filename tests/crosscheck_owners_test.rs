@@ -30,7 +30,6 @@ fn test_crosscheck_owners_reports_team_mismatch() -> Result<(), Box<dyn Error>> 
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("crosscheck-owners")
         .assert()
         .failure()
@@ -62,7 +61,6 @@ fn test_crosscheck_owners_reports_unowned_mismatch() -> Result<(), Box<dyn Error
     Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
-        .arg("--no-cache")
         .arg("crosscheck-owners")
         .assert()
         .failure()
