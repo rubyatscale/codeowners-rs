@@ -112,6 +112,7 @@ pub mod deserializers {
     #[derive(Deserialize)]
     pub struct RubyPackage {
         pub owner: Option<String>,
+        pub metadata: Option<Metadata>,
     }
 
     #[derive(Deserialize)]

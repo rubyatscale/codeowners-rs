@@ -314,7 +314,19 @@ fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
     let file = File::open(path).change_context(Error::Io)?;
     let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 
-    Ok(deserializer.owner)
+    let top_level_owner = deserializer.owner;
+    let metadata_owner = deserializer.metadata.and_then(|metadata| metadata.owner);
+
+    // Error if both are present with different values
+    match (top_level_owner.as_ref(), metadata_owner.as_ref()) {
+        (Some(top), Some(meta)) if top != meta => Err(error_stack::report!(Error::Io).attach_printable(format!(
+            "Package at {} has conflicting owners: 'owner: {}' vs 'metadata.owner: {}'. Please use only one.",
+            path.display(),
+            top,
+            meta
+        ))),
+        _ => Ok(top_level_owner.or(metadata_owner)),
+    }
 }
 
 fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
@@ -338,5 +350,55 @@ mod tests {
     #[test]
     fn test_glob_match() {
         assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_top_level() {
+        let yaml = "owner: TeamA\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        assert_eq!(owner, Some("TeamA".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_metadata() {
+        let yaml = "metadata:\n  owner: TeamB\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        assert_eq!(owner, Some("TeamB".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_errors_when_both_present_and_different() {
+        let yaml = "owner: TeamA\nmetadata:\n  owner: TeamB\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let result = ruby_package_owner(temp_file.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ruby_package_owner_allows_both_when_same() {
+        let yaml = "owner: TeamA\nmetadata:\n  owner: TeamA\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        assert_eq!(owner, Some("TeamA".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_no_owner() {
+        let yaml = "name: my_package\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        assert_eq!(owner, None);
     }
 }
