@@ -17,6 +17,7 @@ pub struct Project {
     pub codeowners_file_path: PathBuf,
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
     pub teams_by_name: HashMap<String, Team>,
+    pub executable_name: String,
 }
 
 #[derive(Clone, Debug)]

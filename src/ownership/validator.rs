@@ -21,6 +21,7 @@ pub struct Validator {
     pub project: Arc<Project>,
     pub mappers: Vec<Box<dyn Mapper>>,
     pub file_generator: FileGenerator,
+    pub executable_name: String,
 }
 
 #[derive(Debug)]
@@ -28,7 +29,7 @@ enum Error {
     InvalidTeam { name: String, path: PathBuf },
     FileWithoutOwner { path: PathBuf },
     FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
-    CodeownershipFileIsStale,
+    CodeownershipFileIsStale { executable_name: String },
 }
 
 #[derive(Debug)]
@@ -130,12 +131,16 @@ impl Validator {
         match self.project.get_codeowners_file() {
             Ok(current_file) => {
                 if generated_file != current_file {
-                    vec![Error::CodeownershipFileIsStale]
+                    vec![Error::CodeownershipFileIsStale {
+                        executable_name: self.executable_name.to_string(),
+                    }]
                 } else {
                     vec![]
                 }
             }
-            Err(_) => vec![Error::CodeownershipFileIsStale], // Treat any read error as stale file
+            Err(_) => vec![Error::CodeownershipFileIsStale {
+                executable_name: self.executable_name.to_string(),
+            }],
         }
     }
 
@@ -161,13 +166,13 @@ impl Validator {
 impl Error {
     pub fn category(&self) -> String {
         match self {
-            Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
-            Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
-            Error::CodeownershipFileIsStale => {
-                "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file".to_owned()
+                Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
+                Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
+                Error::CodeownershipFileIsStale { executable_name } => {
+                    format!("CODEOWNERS out of date. Run `{} generate` to update the CODEOWNERS file", executable_name.to_string())
+                }
+                Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
             }
-            Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
-        }
     }
 
     pub fn messages(&self) -> Vec<String> {
@@ -187,7 +192,7 @@ impl Error {
 
                 vec![messages.join("\n")]
             }
-            Error::CodeownershipFileIsStale => vec![],
+            Error::CodeownershipFileIsStale { executable_name: _ } => vec![],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }
     }

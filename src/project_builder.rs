@@ -294,6 +294,7 @@ impl<'a> ProjectBuilder<'a> {
             codeowners_file_path: self.codeowners_file_path.to_path_buf(),
             directory_codeowner_files: directory_codeowners,
             teams_by_name,
+            executable_name: self.config.executable_name.clone(),
         })
     }
 }

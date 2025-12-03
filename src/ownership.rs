@@ -123,6 +123,7 @@ impl Ownership {
             project: self.project.clone(),
             mappers: self.mappers(),
             file_generator: FileGenerator { mappers: self.mappers() },
+            executable_name: self.project.executable_name.clone(),
         };
 
         validator.validate()
