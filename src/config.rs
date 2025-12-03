@@ -25,6 +25,9 @@ pub struct Config {
 
     #[serde(default = "default_ignore_dirs")]
     pub ignore_dirs: Vec<String>,
+
+    #[serde(default = "default_executable_name")]
+    pub executable_name: String,
 }
 
 #[allow(dead_code)]
@@ -59,6 +62,10 @@ fn unowned_globs() -> Vec<String> {
 
 fn vendored_gems_path() -> String {
     "vendored/".to_string()
+}
+
+fn default_executable_name() -> String {
+    "codeowners".to_string()
 }
 
 fn default_ignore_dirs() -> Vec<String> {
