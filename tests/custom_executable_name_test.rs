@@ -30,4 +30,3 @@ fn test_validate_default_executable_name() -> Result<(), Box<dyn Error>> {
     )?;
     Ok(())
 }
-
