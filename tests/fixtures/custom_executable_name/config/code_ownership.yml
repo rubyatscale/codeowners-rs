@@ -1,0 +1,6 @@
+owned_globs:
+  - "**/*.rb"
+team_file_glob:
+  - config/teams/**/*.yml
+executable_name: my-custom-tool
+

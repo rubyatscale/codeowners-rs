@@ -169,7 +169,7 @@ impl Error {
                 Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
                 Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
                 Error::CodeownershipFileIsStale { executable_name } => {
-                    format!("CODEOWNERS out of date. Run `{} generate` to update the CODEOWNERS file", executable_name.to_string())
+                    format!("CODEOWNERS out of date. Run `{} generate` to update the CODEOWNERS file", executable_name)
                 }
                 Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
             }

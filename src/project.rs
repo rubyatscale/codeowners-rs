@@ -220,6 +220,7 @@ mod tests {
             codeowners_file_path: PathBuf::from(".github/CODEOWNERS"),
             directory_codeowner_files: vec![],
             teams_by_name: HashMap::new(),
+            executable_name: "codeowners".to_string(),
         };
 
         let map = project.vendored_gem_by_name();
