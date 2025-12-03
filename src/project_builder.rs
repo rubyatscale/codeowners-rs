@@ -58,6 +58,15 @@ impl<'a> ProjectBuilder<'a> {
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         builder.follow_links(false);
+        
+        // CRITICAL: We need to disable gitignore filtering because we're filtering by tracked files instead.
+        // The WalkBuilder from the `ignore` crate respects .gitignore by default, which can filter out
+        // files that are actually tracked by git (e.g., if someone adds a file to git before adding it to .gitignore,
+        // or if there's a local .gitignore that differs from what's committed).
+        // Since we have our own tracked_files filter below, we don't want the walker to pre-filter.
+        builder.git_ignore(false);
+        builder.git_global(false);
+        builder.git_exclude(false);
 
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
@@ -67,6 +76,7 @@ impl<'a> ProjectBuilder<'a> {
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
+
             if let Some(tracked_files) = &tracked_files
                 && let Some(ft) = entry.file_type()
                 && ft.is_file()

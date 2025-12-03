@@ -19,7 +19,11 @@ pub(crate) fn find_tracked_files(base_path: &Path) -> Option<HashMap<PathBuf, bo
         .stdout
         .split(|&b| b == b'\0')
         .filter(|chunk| !chunk.is_empty())
-        .map(|rel| std::str::from_utf8(rel).ok().map(|s| (base_path.join(s), true)))
+        .map(|rel| {
+            let rel_str = std::str::from_utf8(rel).ok()?;
+            let absolute_path = base_path.join(rel_str);
+            Some((absolute_path, true))
+        })
         .collect::<Option<HashMap<PathBuf, bool>>>()?;
 
     Some(results)
