@@ -4,8 +4,6 @@ use std::path::PathBuf;
 use error_stack::Context;
 use serde::{Deserialize, Serialize};
 
-use crate::path_utils::relative_to_buf;
-
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct RunResult {
     pub validation_errors: Vec<String>,
@@ -19,15 +17,7 @@ pub struct RunConfig {
     pub codeowners_file_path: PathBuf,
     pub config_path: PathBuf,
     pub no_cache: bool,
-    pub executable_path: Option<PathBuf>,
-}
-
-impl RunConfig {
-    pub fn executable_name(&self) -> Option<String> {
-        self.executable_path
-            .as_ref()
-            .map(|path| relative_to_buf(&self.project_root, path).to_string_lossy().to_string())
-    }
+    pub executable_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

@@ -47,7 +47,7 @@ where
 pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, Error> {
     match crate::config::Config::load_from_path(&run_config.config_path) {
         Ok(mut c) => {
-            if let Some(executable_name) = &run_config.executable_name() {
+            if let Some(executable_name) = &run_config.executable_path {
                 c.executable_name = executable_name.clone();
             }
             Ok(c)
