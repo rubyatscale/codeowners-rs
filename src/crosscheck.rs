@@ -6,7 +6,7 @@ use crate::{
     ownership::file_owner_resolver::find_file_owners,
     project::Project,
     project_builder::ProjectBuilder,
-    runner::{RunConfig, RunResult, config_from_path, team_for_file_from_codeowners},
+    runner::{RunConfig, RunResult, config_from_run_config, team_for_file_from_codeowners},
 };
 
 pub fn crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> RunResult {
@@ -43,7 +43,7 @@ fn do_crosscheck_owners(run_config: &RunConfig, cache: &Cache) -> Result<Vec<Str
 }
 
 fn load_config(run_config: &RunConfig) -> Result<Config, String> {
-    config_from_path(&run_config.config_path).map_err(|e| e.to_string())
+    config_from_run_config(run_config).map_err(|e| e.to_string())
 }
 
 fn build_project(config: &Config, run_config: &RunConfig, cache: &Cache) -> Result<Project, String> {

@@ -213,6 +213,15 @@ codeowners gv --no-cache
 - `vendored_gems_path` (default: `'vendored/'`)
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
+- `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
+
+Example configuration with custom executable name:
+
+```yaml
+owned_globs:
+  - '{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx}'
+executable_name: 'bin/codeownership'  # For Ruby gem wrapper
+```
 
 See examples in `tests/fixtures/**/config/` for reference setups.
 

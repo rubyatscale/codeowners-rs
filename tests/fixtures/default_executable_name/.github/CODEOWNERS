@@ -7,4 +7,5 @@
 # https://help.github.com/en/articles/about-code-owners
 
 # Outdated content to trigger validation error
-/app/old.rb @FooTeam
+/app/old.rb @BarTeam
+

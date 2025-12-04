@@ -1,4 +1,4 @@
-use std::{path::Path, process::Command};
+use std::process::Command;
 
 use error_stack::{Result, ResultExt};
 use serde::Serialize;
@@ -44,15 +44,20 @@ where
     runnable(runner)
 }
 
-pub(crate) fn config_from_path(path: &Path) -> Result<Config, Error> {
-    match crate::config::Config::load_from_path(path) {
-        Ok(c) => Ok(c),
+pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, Error> {
+    match crate::config::Config::load_from_path(&run_config.config_path) {
+        Ok(mut c) => {
+            if let Some(executable_name) = &run_config.executable_name() {
+                c.executable_name = executable_name.clone();
+            }
+            Ok(c)
+        }
         Err(msg) => Err(error_stack::Report::new(Error::Io(msg))),
     }
 }
 impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
-        let config = config_from_path(&run_config.config_path)?;
+        let config = config_from_run_config(run_config)?;
 
         let cache: Cache = if run_config.no_cache {
             NoopCache::default().into()

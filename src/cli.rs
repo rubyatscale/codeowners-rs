@@ -114,6 +114,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
         codeowners_file_path,
         project_root,
         no_cache: args.no_cache,
+        executable_path: None,
     };
 
     let runner_result = match args.command {

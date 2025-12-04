@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::ownership::FileOwner;
 use crate::project::Team;
+use crate::{ownership::FileOwner, runner::config_from_run_config};
 
-use super::{Error, ForFileResult, RunConfig, RunResult, config_from_path, run};
+use super::{Error, ForFileResult, RunConfig, RunResult, run};
 
 pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool, json: bool) -> RunResult {
     if from_codeowners {
@@ -38,7 +38,7 @@ pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
 
 // Returns all owners for a file without creating a Runner (performance optimized)
 pub fn owners_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Vec<FileOwner>, Error> {
-    let config = config_from_path(&run_config.config_path)?;
+    let config = config_from_run_config(run_config)?;
     use crate::ownership::file_owner_resolver::find_file_owners;
     let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
     Ok(owners)
@@ -60,7 +60,7 @@ pub fn teams_for_files_from_codeowners(
     run_config: &RunConfig,
     file_paths: &[String],
 ) -> error_stack::Result<HashMap<String, Option<Team>>, Error> {
-    let config = config_from_path(&run_config.config_path)?;
+    let config = config_from_run_config(run_config)?;
     let res = crate::ownership::codeowners_query::teams_for_files_from_codeowners(
         &run_config.project_root,
         &run_config.codeowners_file_path,
@@ -80,7 +80,7 @@ pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) ->
 
 // Fast path that avoids creating a full Runner for single file queries
 fn for_file_optimized(run_config: &RunConfig, file_path: &str, json: bool) -> RunResult {
-    let config = match config_from_path(&run_config.config_path) {
+    let config = match config_from_run_config(run_config) {
         Ok(c) => c,
         Err(err) => {
             return RunResult::from_io_error(Error::Io(err.to_string()), json);
