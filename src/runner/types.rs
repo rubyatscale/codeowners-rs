@@ -17,7 +17,7 @@ pub struct RunConfig {
     pub codeowners_file_path: PathBuf,
     pub config_path: PathBuf,
     pub no_cache: bool,
-    pub executable_path: Option<String>,
+    pub executable_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

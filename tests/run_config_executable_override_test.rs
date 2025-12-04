@@ -18,7 +18,7 @@ fn test_run_config_executable_path_overrides_config_file() -> Result<(), Box<dyn
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
     // Use a relative path that gets displayed as-is in error messages
-    run_config.executable_path = Some("my-wrapper-tool".to_string());
+    run_config.executable_name = Some("my-wrapper-tool".to_string());
 
     let result = validate(&run_config, vec![]);
 
@@ -50,7 +50,7 @@ fn test_run_config_without_executable_path_uses_config_file() -> Result<(), Box<
     // This fixture has executable_name: "bin/codeownership" in config
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
-    run_config.executable_path = None; // Explicitly no override
+    run_config.executable_name = None; // Explicitly no override
 
     let result = validate(&run_config, vec![]);
 
@@ -78,7 +78,7 @@ fn test_run_config_executable_path_overrides_default() -> Result<(), Box<dyn Err
     // This fixture has NO executable_name in config (uses default "codeowners")
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
-    run_config.executable_path = Some("custom-command".to_string());
+    run_config.executable_name = Some("custom-command".to_string());
 
     let result = validate(&run_config, vec![]);
 

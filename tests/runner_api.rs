@@ -38,7 +38,7 @@ team_file_glob:
         codeowners_file_path: temp_dir.path().join(".github/CODEOWNERS").to_path_buf(),
         config_path: temp_dir.path().join("config/code_ownership.yml").to_path_buf(),
         no_cache: true,
-        executable_path: None,
+        executable_name: None,
     };
 
     let file_owner = runner::file_owner_for_file(&run_config, "app/consumers/deep/nesting/nestdir/deep_file.rb")
@@ -64,7 +64,7 @@ fn test_teams_for_files_from_codeowners() {
         codeowners_file_path: project_root.join(".github/CODEOWNERS").to_path_buf(),
         config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
         no_cache: true,
-        executable_path: None,
+        executable_name: None,
     };
     let teams =
         runner::teams_for_files_from_codeowners(&run_config, &file_paths.iter().map(|s| s.to_string()).collect::<Vec<String>>()).unwrap();
@@ -131,7 +131,7 @@ javascript_package_paths:
         codeowners_file_path: td.path().join(".github/CODEOWNERS"),
         config_path: td.path().join("config/code_ownership.yml"),
         no_cache: true,
-        executable_path: None,
+        executable_name: None,
     };
 
     // Ensure CODEOWNERS file matches generator output to avoid out-of-date errors
@@ -173,7 +173,7 @@ javascript_package_paths:
         codeowners_file_path: td.path().join(".github/CODEOWNERS"),
         config_path: td.path().join("config/code_ownership.yml"),
         no_cache: true,
-        executable_path: None,
+        executable_name: None,
     };
 
     let gv = runner::generate_and_validate(&rc, vec![], true);
