@@ -1,6 +1,7 @@
 use std::{path::Path, process::Command};
 
 use error_stack::{Result, ResultExt};
+use fast_glob::glob_match;
 use serde::Serialize;
 
 use crate::{
@@ -113,7 +114,27 @@ impl Runner {
         let mut unowned_files = Vec::new();
         let mut io_errors = Vec::new();
 
-        for file_path in file_paths {
+        // Filter files based on owned_globs and unowned_globs configuration
+        // Only validate files that match owned_globs and don't match unowned_globs
+        let filtered_paths: Vec<String> = file_paths
+            .into_iter()
+            .filter(|file_path| {
+                // Convert to relative path for glob matching
+                let path = Path::new(file_path);
+                let relative_path = if path.is_absolute() {
+                    path.strip_prefix(&self.run_config.project_root)
+                        .unwrap_or(path)
+                } else {
+                    path
+                };
+
+                // Apply the same filtering logic as project_builder.rs:172
+                matches_globs(relative_path, &self.config.owned_globs)
+                    && !matches_globs(relative_path, &self.config.unowned_globs)
+            })
+            .collect();
+
+        for file_path in filtered_paths {
             match team_for_file_from_codeowners(&self.run_config, &file_path) {
                 Ok(Some(_)) => {}
                 Ok(None) => unowned_files.push(file_path),
@@ -386,6 +407,15 @@ impl RunResult {
             io_errors: vec![format!("{{\"error\": \"{}\"}}", message.replace('"', "\\\""))],
             ..Default::default()
         }
+    }
+}
+
+/// Helper function to check if a path matches any of the provided glob patterns.
+/// This is used to filter files by owned_globs and unowned_globs configuration.
+fn matches_globs(path: &Path, globs: &[String]) -> bool {
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
+        None => false,
     }
 }
 
