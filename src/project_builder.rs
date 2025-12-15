@@ -8,7 +8,7 @@ use error_stack::{Report, Result, ResultExt};
 use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{
     cache::Cache,
@@ -178,9 +178,17 @@ impl<'a> ProjectBuilder<'a> {
     }
 
     fn build_project_from_entry_types(&mut self, entry_types: Vec<EntryType>) -> Result<Project, Error> {
-        let (project_files, packages, vendored_gems, directory_codeowners, teams): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = entry_types
+        type Accumulator = (
+            Vec<ProjectFile>,
+            Vec<Package>,
+            Vec<VendoredGem>,
+            Vec<DirectoryCodeownersFile>,
+            Vec<Team>,
+        );
+
+        let (project_files, packages, vendored_gems, directory_codeowners, teams): Accumulator = entry_types
             .into_par_iter()
-            .fold(
+            .try_fold(
                 || {
                     (
                         Vec::<ProjectFile>::with_capacity(INITIAL_VECTOR_CAPACITY),
@@ -197,18 +205,20 @@ impl<'a> ProjectBuilder<'a> {
                         }
                         EntryType::Directory(absolute_path, relative_path) => {
                             if relative_path.parent() == Some(Path::new(&self.config.vendored_gems_path)) {
-                                if let Some(file_name) = relative_path.file_name() {
-                                    gems.push(VendoredGem {
-                                        path: absolute_path,
-                                        name: file_name.to_string_lossy().to_string(),
-                                    });
-                                } else {
-                                    warn!("Vendored gem path without file name: {:?}", relative_path);
-                                }
+                                let file_name = relative_path.file_name().ok_or_else(|| {
+                                    error_stack::report!(Error::Io)
+                                        .attach_printable(format!("Vendored gem path has no file name: {}", relative_path.display()))
+                                })?;
+                                gems.push(VendoredGem {
+                                    path: absolute_path,
+                                    name: file_name.to_string_lossy().to_string(),
+                                });
                             }
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
-                            match ruby_package_owner(&absolute_path) {
+                            match ruby_package_owner(&absolute_path)
+                                .attach_printable_lazy(|| format!("Failed to read ruby package: {}", absolute_path.display()))
+                            {
                                 Ok(Some(owner)) => {
                                     pkgs.push(Package {
                                         path: relative_path.clone(),
@@ -217,13 +227,13 @@ impl<'a> ProjectBuilder<'a> {
                                     });
                                 }
                                 Ok(None) => { /* No owner, do nothing */ }
-                                Err(e) => {
-                                    warn!("Error reading ruby package owner for {:?}: {:?}", absolute_path, e);
-                                }
+                                Err(e) => return Err(e),
                             }
                         }
                         EntryType::JavascriptPackage(absolute_path, relative_path) => {
-                            match javascript_package_owner(&absolute_path) {
+                            match javascript_package_owner(&absolute_path)
+                                .attach_printable_lazy(|| format!("Failed to read javascript package: {}", absolute_path.display()))
+                            {
                                 Ok(Some(owner)) => {
                                     pkgs.push(Package {
                                         path: relative_path.clone(),
@@ -232,37 +242,31 @@ impl<'a> ProjectBuilder<'a> {
                                     });
                                 }
                                 Ok(None) => { /* No owner, do nothing */ }
-                                Err(e) => {
-                                    warn!("Error reading javascript package owner for {:?}: {:?}", absolute_path, e);
-                                }
+                                Err(e) => return Err(e),
                             }
                         }
-                        EntryType::CodeownerFile(absolute_path, relative_path) => match std::fs::read_to_string(&absolute_path) {
-                            Ok(owner) => {
-                                let owner = owner.trim().to_owned();
-                                codeowners.push(DirectoryCodeownersFile {
-                                    path: relative_path.clone(),
-                                    owner,
-                                });
-                            }
-                            Err(e) => {
-                                warn!("Error reading codeowner file for {:?}: {:?}", absolute_path, e);
-                            }
-                        },
-                        EntryType::TeamFile(absolute_path, _relative_path) => match Team::from_team_file_path(absolute_path) {
-                            Ok(team) => {
-                                team_files.push(team);
-                            }
-                            Err(e) => {
-                                warn!("Error building team from team file path: {}", e);
-                            }
-                        },
+                        EntryType::CodeownerFile(absolute_path, relative_path) => {
+                            let owner = std::fs::read_to_string(&absolute_path)
+                                .change_context(Error::Io)
+                                .attach_printable_lazy(|| format!("Failed to read codeowner file: {}", absolute_path.display()))?;
+                            let owner = owner.trim().to_owned();
+                            codeowners.push(DirectoryCodeownersFile {
+                                path: relative_path.clone(),
+                                owner,
+                            });
+                        }
+                        EntryType::TeamFile(absolute_path, _relative_path) => {
+                            let team = Team::from_team_file_path(absolute_path.clone())
+                                .change_context(Error::Io)
+                                .attach_printable_lazy(|| format!("Failed to read team file: {}", absolute_path.display()))?;
+                            team_files.push(team);
+                        }
                         EntryType::NullEntry() => {}
                     }
-                    (project_files, pkgs, gems, codeowners, team_files)
+                    Ok((project_files, pkgs, gems, codeowners, team_files))
                 },
             )
-            .reduce(
+            .try_reduce(
                 || (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()),
                 |mut acc, item| {
                     acc.0.extend(item.0);
@@ -270,9 +274,9 @@ impl<'a> ProjectBuilder<'a> {
                     acc.2.extend(item.2);
                     acc.3.extend(item.3);
                     acc.4.extend(item.4);
-                    acc
+                    Ok(acc)
                 },
-            );
+            )?;
         let teams_by_name = teams
             .iter()
             .flat_map(|team| vec![(team.name.clone(), team.clone()), (team.github_team.clone(), team.clone())])
