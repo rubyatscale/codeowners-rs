@@ -36,7 +36,7 @@ where
         Ok(runner) => runner,
         Err(err) => {
             return RunResult {
-                io_errors: vec![err.to_string()],
+                io_errors: vec![format!("{:?}", err)],
                 ..Default::default()
             };
         }
