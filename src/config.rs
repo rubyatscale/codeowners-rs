@@ -63,7 +63,6 @@ fn vendored_gems_path() -> String {
 
 fn default_ignore_dirs() -> Vec<String> {
     vec![
-        ".cursor".to_owned(),
         ".git".to_owned(),
         ".idea".to_owned(),
         ".vscode".to_owned(),
