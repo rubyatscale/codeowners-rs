@@ -1,0 +1,5 @@
+---
+owned_globs:
+  - "{app,config}/**/*.rb"
+# No executable_name specified - should use default
+

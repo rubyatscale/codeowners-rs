@@ -25,6 +25,9 @@ pub struct Config {
 
     #[serde(default = "default_ignore_dirs")]
     pub ignore_dirs: Vec<String>,
+
+    #[serde(default = "default_executable_name")]
+    pub executable_name: String,
 }
 
 #[allow(dead_code)]
@@ -59,6 +62,10 @@ fn unowned_globs() -> Vec<String> {
 
 fn vendored_gems_path() -> String {
     "vendored/".to_string()
+}
+
+fn default_executable_name() -> String {
+    "codeowners".to_string()
 }
 
 fn default_ignore_dirs() -> Vec<String> {
@@ -120,6 +127,40 @@ mod tests {
             vec!["frontend/**/node_modules/**/*", "frontend/**/__generated__/**/*"]
         );
         assert_eq!(config.vendored_gems_path, "vendored/");
+        assert_eq!(config.executable_name, "codeowners");
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_config_with_custom_executable_name() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"**/*.rb\"
+            executable_name: my-custom-codeowners
+        "};
+        fs::write(&config_path, config_str)?;
+        let config_file = File::open(&config_path)?;
+        let config: Config = serde_yaml::from_reader(config_file)?;
+        assert_eq!(config.executable_name, "my-custom-codeowners");
+        Ok(())
+    }
+
+    #[test]
+    fn test_executable_name_defaults_when_not_specified() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"**/*.rb\"
+        "};
+        fs::write(&config_path, config_str)?;
+        let config_file = File::open(&config_path)?;
+        let config: Config = serde_yaml::from_reader(config_file)?;
+        assert_eq!(config.executable_name, "codeowners");
         Ok(())
     }
 }

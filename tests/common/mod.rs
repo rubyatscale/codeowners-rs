@@ -157,6 +157,7 @@ pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunCo
         codeowners_file_path,
         config_path,
         no_cache: true,
+        executable_name: None,
     }
 }
 
