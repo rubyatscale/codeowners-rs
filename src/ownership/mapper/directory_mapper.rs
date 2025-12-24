@@ -55,10 +55,6 @@ impl Mapper for DirectoryMapper {
 
         owner_matchers
     }
-
-    fn name(&self) -> String {
-        "Owner in .codeowner".to_owned()
-    }
 }
 
 #[cfg(test)]
