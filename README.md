@@ -192,7 +192,7 @@ codeowners for-team Payroll
 #### Generate but do not stage the file
 
 ```sh
-codeowners generate --skip-stage
+codeownership validate --skip-stage
 ```
 
 #### Run without using the cache

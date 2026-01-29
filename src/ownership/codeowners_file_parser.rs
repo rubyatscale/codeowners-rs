@@ -180,7 +180,7 @@ pub fn parse_for_team(team_name: String, codeowners_file: &str) -> Result<Vec<Te
     let mut output = vec![];
     let mut current_section: Option<TeamOwnership> = None;
     let input: String = codeowners_file.replace(&FileGenerator::disclaimer().join("\n"), "");
-    let error_message = "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file";
+    let error_message = "CODEOWNERS out of date. Run `codeownership validate` to update the CODEOWNERS file";
 
     for line in input.trim_start().lines() {
         match line {
@@ -345,7 +345,7 @@ mod tests {
         let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file);
         assert!(
             team_ownership
-                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file")
+                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeownership validate` to update the CODEOWNERS file")
         );
         Ok(())
     }
@@ -360,7 +360,7 @@ mod tests {
         let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file);
         assert!(
             team_ownership
-                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file")
+                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeownership validate` to update the CODEOWNERS file")
         );
         Ok(())
     }

@@ -27,7 +27,7 @@ fn test_validate_with_default_executable_name() -> Result<(), Box<dyn Error>> {
         &["validate"],
         false,
         OutputStream::Stdout,
-        predicate::str::contains("Run `codeowners generate`"),
+        predicate::str::contains("Run `codeownership validate`"),
     )?;
     Ok(())
 }
@@ -59,7 +59,7 @@ fn test_default_executable_name_full_error_message() -> Result<(), Box<dyn Error
         OutputStream::Stdout,
         predicate::eq(indoc! {"
 
-    CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
+    CODEOWNERS out of date. Run `codeownership validate` to update the CODEOWNERS file
 
     "}),
     )?;

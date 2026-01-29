@@ -15,7 +15,7 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
         OutputStream::Stdout,
         predicate::eq(indoc! {"
 
-    CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
+    CODEOWNERS out of date. Run `codeownership validate` to update the CODEOWNERS file
 
     Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways
 

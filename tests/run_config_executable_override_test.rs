@@ -91,7 +91,7 @@ fn test_run_config_executable_path_overrides_default() -> Result<(), Box<dyn Err
         error_msg
     );
     assert!(
-        !error_msg.contains("codeowners generate"),
+        !error_msg.contains("codeownership validate"),
         "Error should not contain default when overridden"
     );
 
