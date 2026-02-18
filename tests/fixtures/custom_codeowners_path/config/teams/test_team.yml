@@ -1,0 +1,6 @@
+name: TestTeam
+github:
+  team: "@TestTeam"
+  members:
+    - testmember
+
