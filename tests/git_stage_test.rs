@@ -38,7 +38,10 @@ where
     let result = func(&run_config, stage);
     assert_no_run_errors(&result);
 
-    assert!(run_config.codeowners_file_path.exists(), "CODEOWNERS file was not created");
+    assert!(
+        run_config.codeowners_file_path.as_ref().unwrap().exists(),
+        "CODEOWNERS file was not created",
+    );
     let staged = is_file_staged(&run_config.project_root, CODEOWNERS_REL);
     assert_eq!(staged, expected_staged, "unexpected staged state for CODEOWNERS");
 }

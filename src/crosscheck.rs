@@ -47,12 +47,9 @@ fn load_config(run_config: &RunConfig) -> Result<Config, String> {
 }
 
 fn build_project(config: &Config, run_config: &RunConfig, cache: &Cache) -> Result<Project, String> {
-    let mut project_builder = ProjectBuilder::new(
-        config,
-        run_config.project_root.clone(),
-        run_config.codeowners_file_path.clone(),
-        cache,
-    );
+    use crate::runner::resolve_codeowners_file_path;
+    let codeowners_file_path = resolve_codeowners_file_path(run_config, config);
+    let mut project_builder = ProjectBuilder::new(config, run_config.project_root.clone(), codeowners_file_path, cache);
     project_builder.build().map_err(|e| e.to_string())
 }
 

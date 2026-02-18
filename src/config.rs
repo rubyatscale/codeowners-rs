@@ -28,6 +28,9 @@ pub struct Config {
 
     #[serde(default = "default_executable_name")]
     pub executable_name: String,
+
+    #[serde(default = "default_codeowners_path")]
+    pub codeowners_path: String,
 }
 
 #[allow(dead_code)]
@@ -82,6 +85,10 @@ fn default_ignore_dirs() -> Vec<String> {
         "sorbet".to_owned(),
         "tmp".to_owned(),
     ]
+}
+
+fn default_codeowners_path() -> String {
+    ".github".to_string()
 }
 
 impl Config {
@@ -161,6 +168,39 @@ mod tests {
         let config_file = File::open(&config_path)?;
         let config: Config = serde_yaml::from_reader(config_file)?;
         assert_eq!(config.executable_name, "codeowners");
+        Ok(())
+    }
+
+    #[test]
+    fn test_codeowners_path_defaults_when_not_specified() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"**/*.rb\"
+        "};
+        fs::write(&config_path, config_str)?;
+        let config_file = File::open(&config_path)?;
+        let config: Config = serde_yaml::from_reader(config_file)?;
+        assert_eq!(config.codeowners_path, ".github");
+        Ok(())
+    }
+
+    #[test]
+    fn test_codeowners_path_can_be_customized() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"**/*.rb\"
+            codeowners_path: docs
+        "};
+        fs::write(&config_path, config_str)?;
+        let config_file = File::open(&config_path)?;
+        let config: Config = serde_yaml::from_reader(config_file)?;
+        assert_eq!(config.codeowners_path, "docs");
         Ok(())
     }
 }

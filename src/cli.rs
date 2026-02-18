@@ -106,7 +106,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
-    let codeowners_file_path = args.absolute_codeowners_path()?;
+    let codeowners_file_path = Some(args.absolute_codeowners_path()?);
     let project_root = args.absolute_project_root()?;
 
     let run_config = RunConfig {

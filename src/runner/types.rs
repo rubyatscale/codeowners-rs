@@ -14,7 +14,7 @@ pub struct RunResult {
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub project_root: PathBuf,
-    pub codeowners_file_path: PathBuf,
+    pub codeowners_file_path: Option<PathBuf>,
     pub config_path: PathBuf,
     pub no_cache: bool,
     pub executable_name: Option<String>,

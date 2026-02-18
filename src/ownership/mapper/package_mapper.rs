@@ -147,7 +147,7 @@ mod tests {
     use std::{error::Error, path::Path};
     #[test]
     fn test_remove_nested_packages() {
-        let packages = vec![
+        let packages = [
             Package {
                 path: Path::new("packs/a/package.yml").to_owned(),
                 package_type: PackageType::Ruby,

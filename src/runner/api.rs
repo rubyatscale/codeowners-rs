@@ -61,9 +61,10 @@ pub fn teams_for_files_from_codeowners(
     file_paths: &[String],
 ) -> error_stack::Result<HashMap<String, Option<Team>>, Error> {
     let config = config_from_run_config(run_config)?;
+    let codeowners_file_path = super::resolve_codeowners_file_path(run_config, &config);
     let res = crate::ownership::codeowners_query::teams_for_files_from_codeowners(
         &run_config.project_root,
-        &run_config.codeowners_file_path,
+        &codeowners_file_path,
         &config.team_file_glob,
         file_paths,
     )
