@@ -65,9 +65,9 @@ struct Args {
     #[command(subcommand)]
     command: Command,
 
-    /// Path for the CODEOWNERS file.
-    #[arg(long, default_value = "./.github/CODEOWNERS")]
-    codeowners_file_path: PathBuf,
+    /// Path for the CODEOWNERS file (overrides codeowners_path from the config) [default: .github/CODEOWNERS]
+    #[arg(long)]
+    codeowners_file_path: Option<PathBuf>,
     /// Path for the configuration file
     #[arg(long, default_value = "./config/code_ownership.yml")]
     config_path: PathBuf,
@@ -93,8 +93,11 @@ impl Args {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<PathBuf, RunnerError> {
-        Ok(self.absolute_path(&self.codeowners_file_path)?.clean())
+    fn absolute_codeowners_path(&self) -> Result<Option<PathBuf>, RunnerError> {
+        match &self.codeowners_file_path {
+            Some(path) => Ok(Some(self.absolute_path(path)?.clean())),
+            None => Ok(None),
+        }
     }
 
     fn absolute_path(&self, path: &Path) -> Result<PathBuf, RunnerError> {
@@ -106,7 +109,7 @@ pub fn cli() -> Result<RunResult, RunnerError> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;
-    let codeowners_file_path = Some(args.absolute_codeowners_path()?);
+    let codeowners_file_path = args.absolute_codeowners_path()?;
     let project_root = args.absolute_project_root()?;
 
     let run_config = RunConfig {
