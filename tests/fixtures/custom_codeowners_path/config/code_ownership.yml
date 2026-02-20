@@ -1,0 +1,11 @@
+owned_globs:
+  - "{config,ruby}/**/*.{rb,yml}"
+ruby_package_paths: []
+javascript_package_paths: []
+team_file_glob:
+  - config/teams/**/*.yml
+unbuilt_gems_path: gems
+unowned_globs:
+  - config/code_ownership.yml
+codeowners_path: docs
+

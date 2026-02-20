@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::Command;
 
 use error_stack::{Result, ResultExt};
@@ -20,6 +21,7 @@ pub struct Runner {
     ownership: Ownership,
     cache: Cache,
     config: Config,
+    codeowners_file_path: PathBuf,
 }
 
 pub fn version() -> String {
@@ -55,9 +57,30 @@ pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, E
         Err(msg) => Err(error_stack::Report::new(Error::Io(msg))),
     }
 }
+
+/// Resolves the CODEOWNERS file path with the following priority:
+/// 1. Explicit `codeowners_file_path` in `RunConfig` (if provided from e.g. CLI flag)
+/// 2. `CODEOWNERS_PATH` environment variable (if set and not empty)
+/// 3. Computed from `codeowners_path` directory path in config + "CODEOWNERS" filename
+/// 4. Default fallback to `.github/CODEOWNERS` (using default codeowners_path from config)
+pub(crate) fn resolve_codeowners_file_path(run_config: &RunConfig, config: &Config) -> PathBuf {
+    if let Some(ref path) = run_config.codeowners_file_path {
+        return path.clone();
+    }
+
+    if let Ok(env_path) = std::env::var("CODEOWNERS_PATH")
+        && !env_path.is_empty()
+    {
+        return run_config.project_root.join(env_path);
+    }
+
+    run_config.project_root.join(&config.codeowners_path).join("CODEOWNERS")
+}
+
 impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
         let config = config_from_run_config(run_config)?;
+        let codeowners_file_path = resolve_codeowners_file_path(run_config, &config);
 
         let cache: Cache = if run_config.no_cache {
             NoopCache::default().into()
@@ -71,12 +94,7 @@ impl Runner {
                 .into()
         };
 
-        let mut project_builder = ProjectBuilder::new(
-            &config,
-            run_config.project_root.clone(),
-            run_config.codeowners_file_path.clone(),
-            &cache,
-        );
+        let mut project_builder = ProjectBuilder::new(&config, run_config.project_root.clone(), codeowners_file_path.clone(), &cache);
         let project = project_builder.build().change_context(Error::Io(format!(
             "Can't build project: {}",
             &run_config.config_path.to_string_lossy()
@@ -93,6 +111,7 @@ impl Runner {
             ownership,
             cache,
             config,
+            codeowners_file_path,
         })
     }
 
@@ -150,10 +169,10 @@ impl Runner {
 
     pub fn generate(&self, git_stage: bool) -> RunResult {
         let content = self.ownership.generate_file();
-        if let Some(parent) = &self.run_config.codeowners_file_path.parent() {
+        if let Some(parent) = &self.codeowners_file_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        match std::fs::write(&self.run_config.codeowners_file_path, content) {
+        match std::fs::write(&self.codeowners_file_path, content) {
             Ok(_) => {
                 if git_stage {
                     self.git_stage();
@@ -178,7 +197,7 @@ impl Runner {
     fn git_stage(&self) {
         let _ = Command::new("git")
             .arg("add")
-            .arg(&self.run_config.codeowners_file_path)
+            .arg(&self.codeowners_file_path)
             .current_dir(&self.run_config.project_root)
             .output();
     }

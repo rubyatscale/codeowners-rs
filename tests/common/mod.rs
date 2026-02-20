@@ -154,7 +154,7 @@ pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunCo
     let config_path = project_root.join("config/code_ownership.yml");
     RunConfig {
         project_root,
-        codeowners_file_path,
+        codeowners_file_path: Some(codeowners_file_path),
         config_path,
         no_cache: true,
         executable_name: None,

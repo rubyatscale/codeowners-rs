@@ -35,7 +35,7 @@ team_file_glob:
 
     let run_config = RunConfig {
         project_root: temp_dir.path().to_path_buf(),
-        codeowners_file_path: temp_dir.path().join(".github/CODEOWNERS").to_path_buf(),
+        codeowners_file_path: Some(temp_dir.path().join(".github/CODEOWNERS").to_path_buf()),
         config_path: temp_dir.path().join("config/code_ownership.yml").to_path_buf(),
         no_cache: true,
         executable_name: None,
@@ -61,7 +61,7 @@ fn test_teams_for_files_from_codeowners() {
     ];
     let run_config = RunConfig {
         project_root: project_root.to_path_buf(),
-        codeowners_file_path: project_root.join(".github/CODEOWNERS").to_path_buf(),
+        codeowners_file_path: Some(project_root.join(".github/CODEOWNERS").to_path_buf()),
         config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
         no_cache: true,
         executable_name: None,
@@ -128,7 +128,7 @@ javascript_package_paths:
 
     let rc = RunConfig {
         project_root: td.path().to_path_buf(),
-        codeowners_file_path: td.path().join(".github/CODEOWNERS"),
+        codeowners_file_path: Some(td.path().join(".github/CODEOWNERS")),
         config_path: td.path().join("config/code_ownership.yml"),
         no_cache: true,
         executable_name: None,
@@ -170,7 +170,7 @@ javascript_package_paths:
 
     let rc = RunConfig {
         project_root: td.path().to_path_buf(),
-        codeowners_file_path: td.path().join(".github/CODEOWNERS"),
+        codeowners_file_path: Some(td.path().join(".github/CODEOWNERS")),
         config_path: td.path().join("config/code_ownership.yml"),
         no_cache: true,
         executable_name: None,

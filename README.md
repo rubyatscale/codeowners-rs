@@ -253,9 +253,10 @@ use codeowners::runner::{RunConfig, for_file, teams_for_files_from_codeowners};
 fn main() {
     let run_config = RunConfig {
         project_root: std::path::PathBuf::from("."),
-        codeowners_file_path: std::path::PathBuf::from(".github/CODEOWNERS"),
+        codeowners_file_path: Some(std::path::PathBuf::from(".github/CODEOWNERS")), // optional, if None provided, will be resolved from config/env
         config_path: std::path::PathBuf::from("config/code_ownership.yml"),
         no_cache: true, // set false to enable on-disk caching
+        executable_name: None,
     };
 
     // Find owner for a single file using the optimized path (not just CODEOWNERS)

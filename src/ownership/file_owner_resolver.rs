@@ -294,6 +294,7 @@ mod tests {
             cache_directory: "tmp/cache/codeowners".to_string(),
             ignore_dirs: vec![],
             executable_name: "codeowners".to_string(),
+            codeowners_path: ".github".to_string(),
         }
     }
 
