@@ -1,0 +1,10 @@
+owned_globs:
+  - "{gems}/**/*.{rb,tsx,erb}"
+team_file_glob:
+  - config/teams/**/*.yml
+unbuilt_gems_path: gems
+unowned_globs:
+vendored_gems:
+  path: "gems"
+cache_directory: tmp/cache/codeowners
+ignore_dirs: []
