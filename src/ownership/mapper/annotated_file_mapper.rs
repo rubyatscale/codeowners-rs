@@ -61,10 +61,6 @@ impl Mapper for TeamFileMapper {
 
         vec![OwnerMatcher::ExactMatches(path_to_team, Source::AnnotatedFile)]
     }
-
-    fn name(&self) -> String {
-        "Annotations at the top of file".to_owned()
-    }
 }
 
 #[cfg(test)]
