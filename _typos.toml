@@ -1,3 +1,0 @@
-[default.extend-words]
-# `fo` is used as a Rust closure parameter name (e.g., `|fo| fo.team`)
-fo = "fo"
