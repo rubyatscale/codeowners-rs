@@ -48,7 +48,7 @@ impl Display for Source {
             Source::TeamGem => write!(f, "Owner specified in Team YML's `owned_gems`"),
             Source::TeamGlob(glob) => write!(f, "Owner specified in Team YML as an owned_glob `{}`", glob),
             Source::Package(package_path, glob) => {
-                write!(f, "Owner defined in `{}` with implicity owned glob: `{}`", package_path, glob)
+                write!(f, "Owner defined in `{}` with implicitly owned glob: `{}`", package_path, glob)
             }
             Source::TeamYml => write!(f, "Teams own their configuration files"),
         }
@@ -208,7 +208,7 @@ mod tests {
         );
         assert_eq!(
             Source::Package("packs/bam/packag.yml".to_string(), "packs/bam/**/**".to_string()).to_string(),
-            "Owner defined in `packs/bam/packag.yml` with implicity owned glob: `packs/bam/**/**`"
+            "Owner defined in `packs/bam/packag.yml` with implicitly owned glob: `packs/bam/**/**`"
         );
         assert_eq!(Source::TeamYml.to_string(), "Teams own their configuration files");
     }

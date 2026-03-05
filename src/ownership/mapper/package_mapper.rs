@@ -95,7 +95,7 @@ impl PackageMapper {
         let packages: Vec<&Package> = packages.iter().filter(|package| &package.package_type == package_type).collect();
 
         // Nested packs can create a duplicate ownership false positive.
-        // We avoid it by treating nested packs as a single top level pack for the purpose of validations
+        // We avoid it by treating nested packs as a single top-level pack for the purposes of validation.
         let packages = remove_nested_packages(&packages);
 
         for package in packages {

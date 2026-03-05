@@ -95,7 +95,7 @@ fn build_codeowners_lines_in_priority(codeowners_file_path: String) -> Vec<Strin
     let codeowners_file = match fs::read_to_string(codeowners_file_path) {
         Ok(codeowners_file) => codeowners_file,
         Err(e) => {
-            // we can't return the error because it's not clonable
+            // we can't return the error because it's not cloneable
             eprintln!("Error reading codeowners file: {}", e);
             return vec![];
         }

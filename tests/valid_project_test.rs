@@ -241,7 +241,7 @@ fn test_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Error>> {
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file
-            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicitly owned glob: `javascript/packages/PayrollFlow/**/**`
         "}));
     Ok(())
 }
@@ -262,7 +262,7 @@ fn test_fast_for_file_same_team_multiple_ownerships() -> Result<(), Box<dyn Erro
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file
-            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicitly owned glob: `javascript/packages/PayrollFlow/**/**`
         "}));
     Ok(())
 }
@@ -283,7 +283,7 @@ fn test_for_file_with_2_ownerships() -> Result<(), Box<dyn Error>> {
             Team YML: config/teams/payroll.yml
             Description:
             - Owner annotation at the top of the file
-            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicity owned glob: `javascript/packages/PayrollFlow/**/**`
+            - Owner defined in `javascript/packages/PayrollFlow/package.json` with implicitly owned glob: `javascript/packages/PayrollFlow/**/**`
         "}));
 
     Ok(())
