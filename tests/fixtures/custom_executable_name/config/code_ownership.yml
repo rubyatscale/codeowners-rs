@@ -1,4 +1,4 @@
 ---
 owned_globs:
   - "{app,config}/**/*.rb"
-executable_name: "bin/codeownership"
+executable_name: "bin/codeownership validate"
