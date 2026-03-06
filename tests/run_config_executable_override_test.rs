@@ -13,21 +13,20 @@ fn test_run_config_executable_path_overrides_config_file() -> Result<(), Box<dyn
     let project_path = temp_dir.path();
     git_add_all_files(project_path);
 
-    // This fixture has executable_name: "bin/codeownership" in config
-    // But we'll override it with RunConfig.executable_path
+    // This fixture has executable_name: "bin/codeownership validate" in config
+    // But we'll override it with RunConfig.executable_name
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
-    // Use a relative path that gets displayed as-is in error messages
-    run_config.executable_name = Some("my-wrapper-tool".to_string());
+    run_config.executable_name = Some("my-wrapper-tool validate".to_string());
 
     let result = validate(&run_config, vec![]);
 
-    // Should use "my-wrapper-tool" from executable_path, NOT "bin/codeownership" from config
+    // Should use "my-wrapper-tool validate" from RunConfig, NOT "bin/codeownership validate" from config
     assert!(!result.validation_errors.is_empty(), "Expected validation errors but got none");
     let error_msg = result.validation_errors.join("\n");
     assert!(
-        error_msg.contains("Run `my-wrapper-tool generate`"),
-        "Expected error to contain 'my-wrapper-tool generate' but got: {}",
+        error_msg.contains("Run `my-wrapper-tool validate`"),
+        "Expected error to contain 'my-wrapper-tool validate' but got: {}",
         error_msg
     );
     assert!(
@@ -47,19 +46,19 @@ fn test_run_config_without_executable_path_uses_config_file() -> Result<(), Box<
     let project_path = temp_dir.path();
     git_add_all_files(project_path);
 
-    // This fixture has executable_name: "bin/codeownership" in config
+    // This fixture has executable_name: "bin/codeownership validate" in config
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
     run_config.executable_name = None; // Explicitly no override
 
     let result = validate(&run_config, vec![]);
 
-    // Should use "bin/codeownership" from config file
+    // Should use "bin/codeownership validate" from config file
     assert!(!result.validation_errors.is_empty(), "Expected validation errors but got none");
     let error_msg = result.validation_errors.join("\n");
     assert!(
-        error_msg.contains("Run `bin/codeownership generate`"),
-        "Expected error to contain 'bin/codeownership generate' but got: {}",
+        error_msg.contains("Run `bin/codeownership validate`"),
+        "Expected error to contain 'bin/codeownership validate' but got: {}",
         error_msg
     );
 
@@ -75,14 +74,14 @@ fn test_run_config_executable_path_overrides_default() -> Result<(), Box<dyn Err
     let project_path = temp_dir.path();
     git_add_all_files(project_path);
 
-    // This fixture has NO executable_name in config (uses default "codeowners")
+    // This fixture has NO executable_name in config (uses default "codeowners generate")
 
     let mut run_config = build_run_config(project_path, ".github/CODEOWNERS");
-    run_config.executable_name = Some("custom-command".to_string());
+    run_config.executable_name = Some("custom-command generate".to_string());
 
     let result = validate(&run_config, vec![]);
 
-    // Should use "custom-command" from executable_path, NOT default "codeowners"
+    // Should use "custom-command generate" from RunConfig, NOT default "codeowners generate"
     assert!(!result.validation_errors.is_empty(), "Expected validation errors but got none");
     let error_msg = result.validation_errors.join("\n");
     assert!(
