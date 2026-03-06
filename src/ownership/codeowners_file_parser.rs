@@ -71,10 +71,10 @@ fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Tea
         match glob::glob(&glob) {
             Ok(paths) => {
                 for path in paths.filter_map(Result::ok) {
-                    let team = match Team::from_team_file_path(path) {
+                    let team = match Team::from_team_file_path(path.clone()) {
                         Ok(team) => team,
                         Err(e) => {
-                            eprintln!("Error parsing team file: {}", e);
+                            eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
                             continue;
                         }
                     };
