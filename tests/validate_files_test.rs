@@ -142,3 +142,278 @@ fn test_validate_only_checks_codeowners_file() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_validate_files_respects_owned_globs_with_excluded_extensions() -> Result<(), Box<dyn Error>> {
+    // ============================================================================
+    // THIS TEST CURRENTLY FAILS ON MAIN - IT DEMONSTRATES THE BUG
+    // ============================================================================
+    //
+    // BUG DESCRIPTION:
+    // When validate is called with a file list, it validates ALL provided files
+    // without checking if they match owned_globs configuration.
+    //
+    // CONFIGURATION:
+    // valid_project has: owned_globs = "**/*.{rb,tsx,erb}"
+    // Notice: .rbi files (Sorbet interface files) are NOT in this pattern
+    //
+    // EXPECTED BEHAVIOR:
+    // - .rbi files should be SILENTLY SKIPPED (don't match owned_globs)
+    // - Only .rb files should be validated against CODEOWNERS
+    // - Command should SUCCEED because all validated files are owned
+    //
+    // ACTUAL BEHAVIOR (BUG):
+    // - ALL files are validated (including .rbi files)
+    // - .rbi files are not in CODEOWNERS (correctly excluded during generate)
+    // - .rbi files are reported as "Unowned"
+    // - Command FAILS with validation errors
+    //
+    // ROOT CAUSE:
+    // src/runner.rs lines 112-143: validate_files() iterates all file_paths
+    // without applying the owned_globs/unowned_globs filter that
+    // project_builder.rs:172 uses when no files are specified
+    //
+    // FIX NEEDED:
+    // Filter file_paths by owned_globs and unowned_globs before validation
+    // ============================================================================
+
+    // Setup: Create a temporary copy of valid_project fixture
+    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
+    let temp_dir = setup_fixture_repo(fixture_root);
+    let project_root = temp_dir.path();
+
+    // Create .rbi files (Sorbet interface files) that do NOT match owned_globs
+    // These files should be ignored by validate when specified in the file list
+    let bank_account_rbi = project_root.join("ruby/app/models/bank_account.rbi");
+    let payroll_rbi = project_root.join("ruby/app/models/payroll.rbi");
+
+    std::fs::write(
+        &bank_account_rbi,
+        "# typed: strict\n# RBI file for BankAccount\nclass BankAccount; end\n",
+    )?;
+    std::fs::write(&payroll_rbi, "# typed: strict\n# RBI file for Payroll\nclass Payroll; end\n")?;
+
+    git_add_all_files(project_root);
+
+    // Step 1: Generate CODEOWNERS
+    // This should ONLY include .rb files (not .rbi) because .rbi doesn't match owned_globs
+    let codeowners_path = project_root.join("tmp/CODEOWNERS");
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("generate")
+        .assert()
+        .success();
+
+    // Verify: CODEOWNERS contains .rb files but NOT .rbi files
+    let codeowners_content = std::fs::read_to_string(&codeowners_path)?;
+    assert!(
+        codeowners_content.contains("bank_account.rb"),
+        "CODEOWNERS should contain .rb files (they match owned_globs)"
+    );
+    assert!(
+        !codeowners_content.contains("bank_account.rbi"),
+        "CODEOWNERS should NOT contain .rbi files (they don't match owned_globs)"
+    );
+
+    // Step 2: Run validate with BOTH .rb and .rbi files in the list
+    // EXPECTED: .rbi files are silently skipped, only .rb files validated, succeeds
+    // ACTUAL (BUG): All files validated, .rbi reported as unowned, command fails
+    //
+    // ============================================================================
+    // THIS ASSERTION WILL FAIL ON MAIN (proving the bug exists)
+    // ============================================================================
+    //
+    // The command should succeed because:
+    // 1. .rbi files should be filtered out (don't match owned_globs)
+    // 2. Only .rb files should be validated
+    // 3. All .rb files are properly owned in CODEOWNERS
+    //
+    // But it currently fails because:
+    // 1. ALL files (including .rbi) are validated
+    // 2. .rbi files are not in CODEOWNERS
+    // 3. Validation error: "Unowned files detected: ruby/app/models/bank_account.rbi ..."
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("validate")
+        // Mix .rb and .rbi files in the argument list
+        .arg("ruby/app/models/bank_account.rb") // Should be validated (matches owned_globs)
+        .arg("ruby/app/models/bank_account.rbi") // Should be SKIPPED (doesn't match)
+        .arg("ruby/app/models/payroll.rb") // Should be validated (matches owned_globs)
+        .arg("ruby/app/models/payroll.rbi") // Should be SKIPPED (doesn't match)
+        .assert()
+        .success()
+        .stdout(predicate::eq(""));
+
+    Ok(())
+}
+
+// ============================================================================
+// GLOB FILTERING TESTS: Verify validate with files respects owned_globs
+// ============================================================================
+//
+// These tests ensure that when validate is called with explicit file paths,
+// it correctly filters files based on owned_globs configuration. Files that
+// don't match owned_globs should be silently skipped, not reported as unowned.
+
+#[test]
+fn test_validate_filters_multiple_non_matching_extensions() -> Result<(), Box<dyn Error>> {
+    // Test that various file types not in owned_globs are filtered out
+    // valid_project owned_globs: "{gems,config,javascript,ruby,components}/**/*.{rb,tsx,erb}"
+    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
+    let temp_dir = setup_fixture_repo(fixture_root);
+    let project_root = temp_dir.path();
+
+    // Create files with extensions NOT in owned_globs
+    std::fs::write(project_root.join("ruby/app/models/test.rbi"), "# Sorbet RBI file")?;
+    std::fs::write(project_root.join("ruby/app/models/test.md"), "# Markdown doc")?;
+    std::fs::write(project_root.join("ruby/app/models/test.txt"), "Plain text")?;
+    std::fs::write(project_root.join("ruby/app/models/test.json"), "{}")?;
+
+    git_add_all_files(project_root);
+
+    let codeowners_path = project_root.join("tmp/CODEOWNERS");
+
+    // Generate CODEOWNERS (will only include .rb, .tsx, .erb files)
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("generate")
+        .assert()
+        .success();
+
+    // Validate with a mix of matching and non-matching files
+    // All non-matching should be filtered, matching ones should succeed
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("validate")
+        .arg("ruby/app/models/payroll.rb") // matches owned_globs, is owned
+        .arg("ruby/app/models/test.rbi") // doesn't match owned_globs
+        .arg("ruby/app/models/test.md") // doesn't match owned_globs
+        .arg("ruby/app/models/test.txt") // doesn't match owned_globs
+        .arg("ruby/app/models/test.json") // doesn't match owned_globs
+        .assert()
+        .success()
+        .stdout(predicate::eq(""));
+
+    Ok(())
+}
+
+#[test]
+fn test_validate_filters_files_outside_owned_directories() -> Result<(), Box<dyn Error>> {
+    // Test that files in directories not matching owned_globs are filtered
+    // valid_project owned_globs: "{gems,config,javascript,ruby,components}/**/*.{rb,tsx,erb}"
+    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
+    let temp_dir = setup_fixture_repo(fixture_root);
+    let project_root = temp_dir.path();
+
+    // Create .rb files OUTSIDE the owned directories
+    std::fs::create_dir_all(project_root.join("scripts"))?;
+    std::fs::write(project_root.join("scripts/deploy.rb"), "# Deploy script")?;
+    std::fs::create_dir_all(project_root.join("bin"))?;
+    std::fs::write(project_root.join("bin/run.rb"), "# Run script")?;
+
+    git_add_all_files(project_root);
+
+    let codeowners_path = project_root.join("tmp/CODEOWNERS");
+
+    // Generate CODEOWNERS
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("generate")
+        .assert()
+        .success();
+
+    // Validate with files both inside and outside owned directories
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("validate")
+        .arg("ruby/app/models/payroll.rb") // inside ruby/, matches owned_globs
+        .arg("scripts/deploy.rb") // outside owned dirs, filtered
+        .arg("bin/run.rb") // outside owned dirs, filtered
+        .assert()
+        .success()
+        .stdout(predicate::eq(""));
+
+    Ok(())
+}
+
+#[test]
+fn test_validate_respects_unowned_globs() -> Result<(), Box<dyn Error>> {
+    // Test that files matching unowned_globs are filtered out even if they match owned_globs
+    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
+    let temp_dir = setup_fixture_repo(fixture_root);
+    let project_root = temp_dir.path();
+
+    // Read and modify the config to add unowned_globs
+    let config_path = project_root.join("config/code_ownership.yml");
+    let config_content = std::fs::read_to_string(&config_path)?;
+    let updated_config = config_content.replace("unowned_globs:", "unowned_globs:\n  - ruby/app/models/ignored_*.rb");
+    std::fs::write(&config_path, updated_config)?;
+
+    // Create a file that matches owned_globs but also matches unowned_globs
+    std::fs::write(
+        project_root.join("ruby/app/models/ignored_test.rb"),
+        "# This file should be ignored via unowned_globs",
+    )?;
+
+    git_add_all_files(project_root);
+
+    let codeowners_path = project_root.join("tmp/CODEOWNERS");
+
+    // Generate CODEOWNERS (ignored_test.rb should NOT be included)
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("generate")
+        .assert()
+        .success();
+
+    // Verify the ignored file is NOT in CODEOWNERS
+    let codeowners_content = std::fs::read_to_string(&codeowners_path)?;
+    assert!(
+        !codeowners_content.contains("ignored_test.rb"),
+        "ignored_test.rb should not be in CODEOWNERS"
+    );
+
+    // Validate with the ignored file - should be filtered by unowned_globs
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--codeowners-file-path")
+        .arg(&codeowners_path)
+        .arg("--no-cache")
+        .arg("validate")
+        .arg("ruby/app/models/payroll.rb") // owned, should validate
+        .arg("ruby/app/models/ignored_test.rb") // matches unowned_globs, should be filtered
+        .assert()
+        .success()
+        .stdout(predicate::eq(""));
+
+    Ok(())
+}
