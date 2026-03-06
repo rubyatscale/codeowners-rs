@@ -18,31 +18,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: false
-
-      - name: Run cargo check
-        run: cargo check
   test:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: false
 
       - name: Run cargo test with backtrace
         run: cargo test -- --nocapture
@@ -57,11 +38,6 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: false
-
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
 
@@ -71,7 +47,6 @@ jobs:
   release:
     runs-on: macos-latest
     needs:
-      - check
       - test
       - lints
     outputs:
