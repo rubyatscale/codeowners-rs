@@ -18,6 +18,15 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Run cargo check
+        run: cargo check
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -49,6 +58,7 @@ jobs:
     needs:
       - test
       - lints
+      - check
     outputs:
       new_version: ${{ steps.check_for_version_changes.outputs.new_version }}
       changed: ${{ steps.check_for_version_changes.outputs.changed }}
