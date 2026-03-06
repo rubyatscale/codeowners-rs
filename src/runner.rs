@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use error_stack::{Result, ResultExt};
@@ -151,7 +151,7 @@ impl Runner {
                     path
                 };
 
-                // Apply the same filtering logic as project_builder.rs:172
+                // Mirror the filtering applied by ProjectBuilder when walking the project
                 matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
             })
             .collect();
@@ -432,8 +432,7 @@ impl RunResult {
     }
 }
 
-/// Helper function to check if a path matches any of the provided glob patterns.
-/// This is used to filter files by owned_globs and unowned_globs configuration.
+/// Returns true if `path` matches any of the provided glob patterns.
 fn matches_globs(path: &Path, globs: &[String]) -> bool {
     match path.to_str() {
         Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
