@@ -57,10 +57,6 @@ impl Mapper for TeamGemMapper {
 
         owner_matchers
     }
-
-    fn name(&self) -> String {
-        "Team owned gems".to_owned()
-    }
 }
 
 #[cfg(test)]

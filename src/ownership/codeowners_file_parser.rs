@@ -161,6 +161,9 @@ fn codeowner_sections(codeowners_file: &str) -> Result<Vec<Section>, Box<dyn Err
 
     if let Some(section_name) = current_section {
         sections.push(Section::new(section_name, current_lines));
+    } else if !current_lines.is_empty() {
+        // If no section headers were found, treat all lines as a single section
+        sections.push(Section::new("# Generated entries".to_string(), current_lines));
     }
 
     Ok(sections)
@@ -196,8 +199,12 @@ pub fn parse_for_team(team_name: String, codeowners_file: &str) -> Result<Vec<Te
                 }
             }
             team_line if team_line.ends_with(&team_name) => {
-                let section = current_section.as_mut().ok_or(error_message)?;
+                // If no section header exists, create a default one
+                if current_section.is_none() {
+                    current_section = Some(TeamOwnership::new("# Owned Files".to_string()));
+                }
 
+                let section = current_section.as_mut().ok_or(error_message)?;
                 let glob = line.split_once(' ').ok_or(error_message)?.0.to_string();
                 section.globs.push(glob);
             }
@@ -342,10 +349,20 @@ mod tests {
             /another/owned/path @Foo
         "};
 
-        let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file);
-        assert!(
-            team_ownership
-                .is_err_and(|e| e.to_string() == "CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file")
+        let team_ownership = parse_for_team("@Foo".to_string(), codeownership_file)?;
+        // Now handles files without section headers by creating a default "# Owned Files" section
+        vecs_match(
+            &team_ownership,
+            &vec![
+                TeamOwnership {
+                    heading: "# First Section".to_string(),
+                    globs: vec!["/path/to/owned".to_string()],
+                },
+                TeamOwnership {
+                    heading: "# Owned Files".to_string(),
+                    globs: vec!["/another/owned/path".to_string()],
+                },
+            ],
         );
         Ok(())
     }
