@@ -58,6 +58,7 @@ impl<'a> ProjectBuilder<'a> {
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         builder.follow_links(false);
+        builder.require_git(false);
 
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
@@ -400,5 +401,146 @@ mod tests {
 
         let owner = ruby_package_owner(temp_file.path()).unwrap();
         assert_eq!(owner, None);
+    }
+
+    #[test]
+    fn test_gitignored_worktrees_excluded_with_claude_owned_glob() {
+        // Real scenario: .claude/**/* is in owned_globs, .claude/worktrees/ is gitignored.
+        // With require_git(false), the walker loads .gitignore by filesystem location
+        // and prunes .claude/worktrees/ before entering it — no git repo needed.
+        use crate::cache::{Cache, noop::NoopCache};
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path().to_path_buf();
+
+        // No git init — .gitignore is respected purely by filesystem location
+        fs::write(base_path.join(".gitignore"), "/.claude/worktrees/\n").unwrap();
+
+        // Config with .claude/**/* in owned_globs (matches the real Gusto config)
+        fs::create_dir_all(base_path.join("config")).unwrap();
+        fs::write(
+            base_path.join("config/code_ownership.yml"),
+            "---\nowned_globs:\n  - \"app/**/*.rb\"\n  - \".claude/**/*\"\nteam_file_glob:\n  - \"config/teams/**/*.yml\"\n",
+        )
+        .unwrap();
+
+        // Create a team
+        fs::create_dir_all(base_path.join("config/teams")).unwrap();
+        fs::write(base_path.join("config/teams/foo.yml"), "name: Foo\ngithub:\n  team: \"@Foo\"\n").unwrap();
+
+        // Create a legitimate .claude file (tracked, owned)
+        fs::create_dir_all(base_path.join(".claude/skills")).unwrap();
+        fs::write(base_path.join(".claude/skills/SKILL.md"), "# A skill\n").unwrap();
+
+        // Create files inside .claude/worktrees/ (gitignored)
+        fs::create_dir_all(base_path.join(".claude/worktrees/my-branch/app/models")).unwrap();
+        fs::write(
+            base_path.join(".claude/worktrees/my-branch/app/models/user.rb"),
+            "class User; end\n",
+        )
+        .unwrap();
+        fs::write(base_path.join(".claude/worktrees/my-branch/.gitignore"), "/.claude/worktrees/\n").unwrap();
+
+        // Build project
+        let config_path = base_path.join("config/code_ownership.yml");
+        let config_file = std::fs::File::open(&config_path).unwrap();
+        let config: crate::config::Config = serde_yaml::from_reader(config_file).unwrap();
+
+        let codeowners_file_path = base_path.join(".github/CODEOWNERS");
+        let cache: Cache = NoopCache::default().into();
+        let mut builder = ProjectBuilder::new(&config, base_path.clone(), codeowners_file_path, &cache);
+        let project = builder.build().unwrap();
+
+        let file_paths: Vec<String> = project
+            .files
+            .iter()
+            .map(|f| f.path.strip_prefix(&base_path).unwrap().to_string_lossy().to_string())
+            .collect();
+
+        // .claude/skills/SKILL.md should be included (it matches .claude/**/* and isn't gitignored)
+        assert!(
+            file_paths.iter().any(|p| p.contains(".claude/skills")),
+            "Expected .claude/skills files to be included, got: {:?}",
+            file_paths
+        );
+
+        // .claude/worktrees/ files should NOT be included (gitignored)
+        assert!(
+            !file_paths.iter().any(|p| p.contains(".claude/worktrees")),
+            "Expected NO .claude/worktrees files in project, but found: {:?}",
+            file_paths.iter().filter(|p| p.contains(".claude/worktrees")).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_gitignored_worktrees_excluded_with_git_repo_and_claude_owned_glob() {
+        // With a git repo, the walker prunes .claude/worktrees/ via .gitignore
+        // and tracked_files provides an additional layer filtering untracked files.
+        use crate::cache::{Cache, noop::NoopCache};
+        use std::fs;
+        use std::process::Command;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path().to_path_buf();
+
+        // Initialize git repo
+        Command::new("git").args(["init"]).current_dir(&base_path).output().unwrap();
+
+        fs::write(base_path.join(".gitignore"), "/.claude/worktrees/\n").unwrap();
+
+        fs::create_dir_all(base_path.join("config")).unwrap();
+        fs::write(
+            base_path.join("config/code_ownership.yml"),
+            "---\nowned_globs:\n  - \"app/**/*.rb\"\n  - \".claude/**/*\"\nteam_file_glob:\n  - \"config/teams/**/*.yml\"\n",
+        )
+        .unwrap();
+
+        fs::create_dir_all(base_path.join("config/teams")).unwrap();
+        fs::write(base_path.join("config/teams/foo.yml"), "name: Foo\ngithub:\n  team: \"@Foo\"\n").unwrap();
+
+        // Create a normal owned file and a worktree copy
+        fs::create_dir_all(base_path.join("app/models")).unwrap();
+        fs::write(base_path.join("app/models/user.rb"), "# @team Foo\nclass User; end\n").unwrap();
+
+        fs::create_dir_all(base_path.join(".claude/worktrees/my-branch/app/models")).unwrap();
+        fs::write(
+            base_path.join(".claude/worktrees/my-branch/app/models/user.rb"),
+            "class User; end\n",
+        )
+        .unwrap();
+
+        // Stage tracked files
+        Command::new("git")
+            .args(["add", ".gitignore", "config", "app"])
+            .current_dir(&base_path)
+            .output()
+            .unwrap();
+
+        let config_path = base_path.join("config/code_ownership.yml");
+        let config_file = std::fs::File::open(&config_path).unwrap();
+        let config: crate::config::Config = serde_yaml::from_reader(config_file).unwrap();
+
+        let codeowners_file_path = base_path.join(".github/CODEOWNERS");
+        let cache: Cache = NoopCache::default().into();
+        let mut builder = ProjectBuilder::new(&config, base_path.clone(), codeowners_file_path, &cache);
+        let project = builder.build().unwrap();
+
+        let file_paths: Vec<String> = project
+            .files
+            .iter()
+            .map(|f| f.path.strip_prefix(&base_path).unwrap().to_string_lossy().to_string())
+            .collect();
+
+        assert!(
+            file_paths.contains(&"app/models/user.rb".to_string()),
+            "Expected app/models/user.rb, got: {:?}",
+            file_paths
+        );
+        assert!(
+            !file_paths.iter().any(|p| p.contains(".claude/worktrees")),
+            "Expected NO .claude/worktrees files with git repo, but found: {:?}",
+            file_paths.iter().filter(|p| p.contains(".claude/worktrees")).collect::<Vec<_>>()
+        );
     }
 }
