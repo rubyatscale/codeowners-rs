@@ -68,7 +68,7 @@ fn vendored_gems_path() -> String {
 }
 
 fn default_executable_name() -> String {
-    "codeowners".to_string()
+    "codeowners generate".to_string()
 }
 
 fn default_ignore_dirs() -> Vec<String> {
@@ -134,7 +134,7 @@ mod tests {
             vec!["frontend/**/node_modules/**/*", "frontend/**/__generated__/**/*"]
         );
         assert_eq!(config.vendored_gems_path, "vendored/");
-        assert_eq!(config.executable_name, "codeowners");
+        assert_eq!(config.executable_name, "codeowners generate");
         Ok(())
     }
 
@@ -167,7 +167,7 @@ mod tests {
         fs::write(&config_path, config_str)?;
         let config_file = File::open(&config_path)?;
         let config: Config = serde_yaml::from_reader(config_file)?;
-        assert_eq!(config.executable_name, "codeowners");
+        assert_eq!(config.executable_name, "codeowners generate");
         Ok(())
     }
 
