@@ -116,7 +116,7 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
             match Team::from_team_file_path(path.clone()) {
                 Ok(team) => teams.push(team),
                 Err(e) => {
-                    eprintln!("Error parsing team file: {}, path: {}", e, path.display());
+                    eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
                     continue;
                 }
             }
