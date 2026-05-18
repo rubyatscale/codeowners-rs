@@ -217,15 +217,19 @@ mod tests {
         assert_eq!(forward, vec![a, b]);
     }
 
-    #[test]
-    fn test_compare_lines_total_order_across_special_character_set() {
-        let lines = vec![
+    fn special_character_set() -> Vec<String> {
+        vec![
             "/directory/** @bop".to_string(),
             "/directory/owner/** @bar".to_string(),
             "/directory/owner/(my_folder)/**/** @foo".to_string(),
             "/directory/owner/(my_folder)/without_glob @zoo".to_string(),
             "/directory/owner/my_folder/** @baz".to_string(),
-        ];
+        ]
+    }
+
+    #[test]
+    fn test_compare_lines_is_antisymmetric_across_special_character_set() {
+        let lines = special_character_set();
         for x in &lines {
             assert_eq!(compare_lines(x, x), Ordering::Equal);
             for y in &lines {
@@ -237,6 +241,44 @@ mod tests {
                 assert_eq!(xy.reverse(), yx, "asymmetric for {x:?} vs {y:?}");
             }
         }
+    }
+
+    #[test]
+    fn test_compare_lines_is_transitive_across_special_character_set() {
+        let lines = special_character_set();
+        for x in &lines {
+            for y in &lines {
+                for z in &lines {
+                    let xy = compare_lines(x, y);
+                    let yz = compare_lines(y, z);
+                    let xz = compare_lines(x, z);
+                    if xy != Ordering::Greater && yz != Ordering::Greater {
+                        assert_ne!(xz, Ordering::Greater, "transitivity broken: {x:?} <= {y:?} <= {z:?} but x > z");
+                    }
+                    if xy != Ordering::Less && yz != Ordering::Less {
+                        assert_ne!(xz, Ordering::Less, "transitivity broken: {x:?} >= {y:?} >= {z:?} but x < z");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_compare_lines_orders_shorter_path_before_longer_extension() {
+        let shorter = "/foo @a".to_string();
+        let longer = "/foo/bar @b".to_string();
+
+        assert_eq!(compare_lines(&shorter, &longer), Ordering::Less);
+        assert_eq!(compare_lines(&longer, &shorter), Ordering::Greater);
+    }
+
+    #[test]
+    fn test_compare_lines_falls_back_to_full_line_when_paths_equal() {
+        let a = "/foo/** @a".to_string();
+        let b = "/foo/** @b".to_string();
+
+        assert_eq!(compare_lines(&a, &b), Ordering::Less);
+        assert_eq!(compare_lines(&b, &a), Ordering::Greater);
     }
 
     #[test]
