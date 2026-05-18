@@ -49,17 +49,37 @@ impl FileGenerator {
 }
 
 pub fn compare_lines(a: &String, b: &String) -> Ordering {
-    if let Some((prefix, _)) = a.split_once("**")
-        && b.starts_with(prefix)
-    {
-        return Ordering::Less;
+    let path_a = extract_path(a);
+    let path_b = extract_path(b);
+
+    let mut comps_a = path_a.split('/');
+    let mut comps_b = path_b.split('/');
+
+    loop {
+        match (comps_a.next(), comps_b.next()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(ca), Some(cb)) => match compare_component(ca, cb) {
+                Ordering::Equal => continue,
+                ord => return ord,
+            },
+        }
     }
-    if let Some((prefix, _)) = b.split_once("**")
-        && a.starts_with(prefix)
-    {
-        return Ordering::Greater;
+}
+
+fn extract_path(line: &str) -> &str {
+    let stripped = line.strip_prefix("# ").unwrap_or(line);
+    stripped.split_once(' ').map(|(p, _)| p).unwrap_or(stripped)
+}
+
+fn compare_component(a: &str, b: &str) -> Ordering {
+    match (a == "**", b == "**") {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => a.cmp(b),
     }
-    a.cmp(b)
 }
 
 #[cfg(test)]
@@ -179,6 +199,54 @@ mod tests {
         ];
         let sorted = FileGenerator::to_sorted_lines(&entries);
         assert_eq!(sorted, vec!["/directory/owner1/** @foo", "/directory/owner2/** @bar"]);
+    }
+
+    #[test]
+    fn test_compare_lines_is_antisymmetric_for_shared_double_star_prefix() {
+        let a = "/foo/**/*bar* @org/example-team".to_string();
+        let b = "/foo/**/baz/**/* @org/example-team".to_string();
+
+        assert_eq!(compare_lines(&a, &b), Ordering::Less);
+        assert_eq!(compare_lines(&b, &a), Ordering::Greater);
+
+        let mut forward = vec![a.clone(), b.clone()];
+        let mut reverse = vec![b.clone(), a.clone()];
+        forward.sort_by(compare_lines);
+        reverse.sort_by(compare_lines);
+        assert_eq!(forward, reverse);
+        assert_eq!(forward, vec![a, b]);
+    }
+
+    #[test]
+    fn test_compare_lines_total_order_across_special_character_set() {
+        let lines = vec![
+            "/directory/** @bop".to_string(),
+            "/directory/owner/** @bar".to_string(),
+            "/directory/owner/(my_folder)/**/** @foo".to_string(),
+            "/directory/owner/(my_folder)/without_glob @zoo".to_string(),
+            "/directory/owner/my_folder/** @baz".to_string(),
+        ];
+        for x in &lines {
+            assert_eq!(compare_lines(x, x), Ordering::Equal);
+            for y in &lines {
+                if x == y {
+                    continue;
+                }
+                let xy = compare_lines(x, y);
+                let yx = compare_lines(y, x);
+                assert_eq!(xy.reverse(), yx, "asymmetric for {x:?} vs {y:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_compare_lines_ignores_disabled_comment_prefix() {
+        let enabled = "/foo/owner/** @bar".to_string();
+        let disabled = "# /foo/owner/** @bar".to_string();
+        let other = "/foo/owner/(extra)/file @baz".to_string();
+
+        assert_eq!(compare_lines(&enabled, &other), compare_lines(&disabled, &other));
+        assert_eq!(compare_lines(&other, &enabled), compare_lines(&other, &disabled));
     }
 
     #[test]
