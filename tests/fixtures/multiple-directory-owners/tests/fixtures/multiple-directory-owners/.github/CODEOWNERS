@@ -6,9 +6,3 @@
 # code/file owner is notified. Reference GitHub docs for more details:
 # https://help.github.com/en/articles/about-code-owners
 
-
-/app/consumers/**/** @barteam
-/app/services/**/** @footeam
-/app/services/exciting/**/** @barteam
-/config/teams/bar.yml @barteam
-/config/teams/foo.yml @footeam

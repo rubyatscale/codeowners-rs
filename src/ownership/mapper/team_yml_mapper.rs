@@ -42,10 +42,6 @@ impl Mapper for TeamYmlMapper {
 
         vec![OwnerMatcher::ExactMatches(path_to_team, Source::TeamYml)]
     }
-
-    fn name(&self) -> String {
-        "Team YML ownership".to_owned()
-    }
 }
 
 #[cfg(test)]
