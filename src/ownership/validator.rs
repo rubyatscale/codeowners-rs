@@ -9,6 +9,7 @@ use error_stack::Context;
 use itertools::Itertools;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
+use similar::{ChangeTag, TextDiff};
 use tracing::debug;
 use tracing::instrument;
 
@@ -29,7 +30,7 @@ enum Error {
     InvalidTeam { name: String, path: PathBuf },
     FileWithoutOwner { path: PathBuf },
     FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
-    CodeownershipFileIsStale { executable_name: String },
+    CodeownershipFileIsStale { executable_name: String, diff: String },
 }
 
 #[derive(Debug)]
@@ -127,20 +128,15 @@ impl Validator {
 
     fn validate_codeowners_file(&self) -> Vec<Error> {
         let generated_file = self.file_generator.generate_file();
+        let current_file = self.project.get_codeowners_file().unwrap_or_default();
 
-        match self.project.get_codeowners_file() {
-            Ok(current_file) => {
-                if generated_file != current_file {
-                    vec![Error::CodeownershipFileIsStale {
-                        executable_name: self.executable_name.to_string(),
-                    }]
-                } else {
-                    vec![]
-                }
-            }
-            Err(_) => vec![Error::CodeownershipFileIsStale {
+        if generated_file == current_file {
+            vec![]
+        } else {
+            vec![Error::CodeownershipFileIsStale {
                 executable_name: self.executable_name.to_string(),
-            }],
+                diff: codeowners_diff(&current_file, &generated_file),
+            }]
         }
     }
 
@@ -163,12 +159,32 @@ impl Validator {
     }
 }
 
+/// Builds a line-oriented diff between the current (on-disk) CODEOWNERS file and the
+/// freshly generated one, so that validation failures explain *what* is out of date
+/// rather than just *that* it is. Only changed lines are emitted: removals (present
+/// on disk but no longer expected) are prefixed with `-` and additions (expected but
+/// missing) are prefixed with `+`.
+fn codeowners_diff(current: &str, generated: &str) -> String {
+    let diff = TextDiff::from_lines(current, generated);
+
+    diff.iter_all_changes()
+        .filter_map(|change| {
+            let line = change.value().trim_end_matches('\n');
+            match change.tag() {
+                ChangeTag::Delete => Some(format!("-{line}")),
+                ChangeTag::Insert => Some(format!("+{line}")),
+                ChangeTag::Equal => None,
+            }
+        })
+        .join("\n")
+}
+
 impl Error {
     pub fn category(&self) -> String {
         match self {
                 Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
                 Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
-                Error::CodeownershipFileIsStale { executable_name } => {
+                Error::CodeownershipFileIsStale { executable_name, diff: _ } => {
                     format!("CODEOWNERS out of date. Run `{}` to update the CODEOWNERS file", executable_name)
                 }
                 Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
@@ -192,7 +208,13 @@ impl Error {
 
                 vec![messages.join("\n")]
             }
-            Error::CodeownershipFileIsStale { executable_name: _ } => vec![],
+            Error::CodeownershipFileIsStale { executable_name: _, diff } => {
+                if diff.is_empty() {
+                    vec![]
+                } else {
+                    vec![format!("The following changes are required (- current, + expected):\n{diff}")]
+                }
+            }
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }
     }
@@ -221,3 +243,43 @@ impl Display for Errors {
 }
 
 impl Context for Errors {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indoc::indoc;
+
+    #[test]
+    fn test_codeowners_diff_reports_added_and_removed_lines() {
+        let current = indoc! {"
+            # Team A
+            /app/a.rb @TeamA
+            /app/old.rb @TeamA
+        "};
+        let generated = indoc! {"
+            # Team A
+            /app/a.rb @TeamA
+            /app/b.rb @TeamB
+        "};
+
+        let diff = codeowners_diff(current, generated);
+
+        assert_eq!(diff, "-/app/old.rb @TeamA\n+/app/b.rb @TeamB");
+    }
+
+    #[test]
+    fn test_codeowners_diff_against_empty_file_is_all_additions() {
+        let generated = "# Team A\n/app/a.rb @TeamA\n";
+
+        let diff = codeowners_diff("", generated);
+
+        assert_eq!(diff, "+# Team A\n+/app/a.rb @TeamA");
+    }
+
+    #[test]
+    fn test_codeowners_diff_is_empty_when_identical() {
+        let file = "# Team A\n/app/a.rb @TeamA\n";
+
+        assert_eq!(codeowners_diff(file, file), "");
+    }
+}
