@@ -29,11 +29,8 @@ fn test_run_config_executable_path_overrides_config_file() -> Result<(), Box<dyn
         "Expected error to contain 'my-wrapper-tool validate' but got: {}",
         error_msg
     );
-    // Note: the generated CODEOWNERS disclaimer (shown in the diff) hardcodes
-    // "bin/codeownership validate", so we only assert the `Run` instruction itself
-    // does not fall back to the config file's executable_name.
     assert!(
-        !error_msg.contains("Run `bin/codeownership validate`"),
+        !error_msg.contains("bin/codeownership"),
         "Error should not contain config file's executable_name when overridden"
     );
 
