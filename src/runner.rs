@@ -128,6 +128,9 @@ impl Runner {
         match self.ownership.validate() {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
+                // The stale-CODEOWNERS diff (if any) rides along as informational output,
+                // printed ahead of the errors, so the actionable headline isn't buried.
+                info_messages: err.info_messages(),
                 validation_errors: vec![format!("{}", err)],
                 ..Default::default()
             },

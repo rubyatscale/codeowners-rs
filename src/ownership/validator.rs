@@ -208,15 +208,31 @@ impl Error {
 
                 vec![messages.join("\n")]
             }
-            Error::CodeownershipFileIsStale { executable_name: _, diff } => {
-                if diff.is_empty() {
-                    vec![]
-                } else {
-                    vec![format!("The following changes are required (- current, + expected):\n{diff}")]
-                }
-            }
+            // The diff is intentionally *not* rendered as part of the error. It is
+            // surfaced separately as an informational message (see `Errors::info_messages`)
+            // so that a long diff doesn't bury the actionable headline.
+            Error::CodeownershipFileIsStale { .. } => vec![],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
         }
+    }
+}
+
+impl Errors {
+    /// Supplementary detail that explains *what* is wrong without itself being an error.
+    /// The stale-CODEOWNERS diff is surfaced here, as informational output, rather than
+    /// inline with the error so that a long diff doesn't bury the actionable headline in
+    /// CI logs (and so the wrapping `code_ownership` gem raises only the headline rather
+    /// than the entire diff).
+    pub fn info_messages(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .filter_map(|error| match error {
+                Error::CodeownershipFileIsStale { diff, .. } if !diff.is_empty() => {
+                    Some(format!("The following changes are required (- current, + expected):\n{diff}"))
+                }
+                _ => None,
+            })
+            .collect()
     }
 }
 

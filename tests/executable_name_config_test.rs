@@ -41,8 +41,6 @@ fn test_custom_executable_name_full_error_message() -> Result<(), Box<dyn Error>
         false,
         OutputStream::Stdout,
         predicate::eq(indoc! {r#"
-
-    CODEOWNERS out of date. Run `bin/codeownership validate` to update the CODEOWNERS file
     The following changes are required (- current, + expected):
     -# Outdated content to trigger validation error
     -/app/old.rb @FooTeam
@@ -56,6 +54,8 @@ fn test_custom_executable_name_full_error_message() -> Result<(), Box<dyn Error>
     +# Team YML ownership
     +/config/teams/foo.yml @FooTeam
     +/config/teams/payments.yml @PaymentTeam
+
+    CODEOWNERS out of date. Run `bin/codeownership validate` to update the CODEOWNERS file
 
     "#}),
     )?;
@@ -71,8 +71,6 @@ fn test_default_executable_name_full_error_message() -> Result<(), Box<dyn Error
         false,
         OutputStream::Stdout,
         predicate::eq(indoc! {r#"
-
-    CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
     The following changes are required (- current, + expected):
     -# Outdated content to trigger validation error
     -/app/old.rb @BarTeam
@@ -81,6 +79,8 @@ fn test_default_executable_name_full_error_message() -> Result<(), Box<dyn Error
     +
     +# Team YML ownership
     +/config/teams/bar.yml @BarTeam
+
+    CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
 
     "#}),
     )?;
