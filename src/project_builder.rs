@@ -58,6 +58,18 @@ impl<'a> ProjectBuilder<'a> {
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
         builder.follow_links(false);
+        // Inclusion is determined by `tracked_files` (git ls-files) below, not by
+        // git's own ignore semantics. Without disabling these, a *global*
+        // .gitignore (core.excludesFile), local .gitignore, or .git/info/exclude
+        // rule can prune a whole directory from the walk even when its contents
+        // are force-tracked in git, silently dropping otherwise-owned files from
+        // the generated CODEOWNERS depending on the machine's git config.
+        // `.ignore` files are left enabled: they're this tool's own opt-in
+        // exclusion mechanism (see tests/fixtures/valid_project/.ignore) and are
+        // unrelated to git tracking status.
+        builder.git_global(false);
+        builder.git_ignore(false);
+        builder.git_exclude(false);
 
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
