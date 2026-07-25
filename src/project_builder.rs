@@ -73,16 +73,30 @@ impl<'a> ProjectBuilder<'a> {
 
         // Prune traversal early: skip heavy and irrelevant directories
         let ignore_dirs = self.config.ignore_dirs.clone();
+        let team_file_glob = self.config.team_file_glob.clone();
         let base_path = self.base_path.clone();
         let tracked_files = tracked_files::find_tracked_files(&self.base_path);
 
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
             let file_name = entry.file_name().to_str().unwrap_or("");
+            // Team config files are exempt from the tracked-files check below: a
+            // freshly-created team.yml defines real ownership rules the moment it
+            // exists, not scratch work someone might never commit, so requiring
+            // `git add` before a new team is considered would silently produce
+            // "unowned file" errors for anything that should now belong to it
+            // (rubyatscale/code_ownership#149). Ordinary source files are left
+            // subject to the tracked-files check, preserving the original,
+            // intentional behavior of not forcing ownership onto untracked
+            // scratch files a developer has no plan to commit (#46/#74/#76).
+            let is_team_file = path
+                .strip_prefix(&base_path)
+                .is_ok_and(|relative_path| matches_globs(relative_path, &team_file_glob));
             if let Some(tracked_files) = &tracked_files
                 && let Some(ft) = entry.file_type()
                 && ft.is_file()
                 && !tracked_files.contains_key(path)
+                && !is_team_file
             {
                 return false;
             }
