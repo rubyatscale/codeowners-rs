@@ -12,6 +12,12 @@ on:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    permissions:
+      # rustsec/audit-check reports advisories as a check run on push/PR and
+      # opens issues on the scheduled run.
+      checks: write
+      contents: read
+      issues: write
     # cargo-audit's dependency tree can require a newer rustc than this repo's
     # pinned rust-toolchain.toml (used to build the actual crate). Override
     # with the runner's default stable toolchain just for this job so

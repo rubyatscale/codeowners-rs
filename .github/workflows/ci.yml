@@ -17,6 +17,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   check:
     name: Check
@@ -55,6 +58,8 @@ jobs:
 
   release:
     runs-on: macos-latest
+    permissions:
+      contents: write
     needs:
       - test
       - lints
@@ -101,6 +106,8 @@ jobs:
   upload-mac-universal-bin:
     needs: release
     runs-on: macos-latest
+    permissions:
+      contents: write
     if: ${{needs.release.outputs.new_version}}
     steps:
       - uses: actions/checkout@v4
@@ -126,6 +133,8 @@ jobs:
     needs: release
     if: ${{needs.release.outputs.new_version}}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Update local toolchain
@@ -153,6 +162,8 @@ jobs:
       - upload-mac-universal-bin
     if: success() && ${{needs.release.outputs.new_version}}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: facebook/dotslash-publish-release@v1
