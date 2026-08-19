@@ -1,4 +1,4 @@
-use error_stack::Result;
+use error_stack::Report;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -34,7 +34,7 @@ impl<'a> ProjectFileBuilder<'a> {
         project_file
     }
 
-    fn get_project_file_from_cache(&self, path: &Path) -> Result<Option<ProjectFile>, Error> {
+    fn get_project_file_from_cache(&self, path: &Path) -> Result<Option<ProjectFile>, Report<Error>> {
         self.global_cache.get_file_owner(path).map(|entry| {
             entry.map(|e| ProjectFile {
                 path: path.to_path_buf(),

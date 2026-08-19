@@ -1,7 +1,6 @@
 use core::fmt;
 use std::path::PathBuf;
 
-use error_stack::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -26,7 +25,7 @@ pub enum Error {
     ValidationFailed,
 }
 
-impl Context for Error {}
+impl core::error::Error for Error {}
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {

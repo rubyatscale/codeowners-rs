@@ -2,18 +2,18 @@ mod cli;
 use std::process;
 
 use codeowners::runner::{Error as RunnerError, RunResult};
-use error_stack::Result;
+use error_stack::Report;
 
 use crate::cli::cli;
 
-fn main() -> Result<(), RunnerError> {
+fn main() -> Result<(), Report<RunnerError>> {
     install_logger();
     maybe_print_errors(cli()?)?;
 
     Ok(())
 }
 
-fn maybe_print_errors(result: RunResult) -> Result<(), RunnerError> {
+fn maybe_print_errors(result: RunResult) -> Result<(), Report<RunnerError>> {
     if !result.info_messages.is_empty() {
         for msg in result.info_messages {
             println!("{}", msg);

@@ -5,7 +5,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use error_stack::Context;
 use itertools::Itertools;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
@@ -258,7 +257,7 @@ impl Display for Errors {
     }
 }
 
-impl Context for Errors {}
+impl core::error::Error for Errors {}
 
 #[cfg(test)]
 mod tests {

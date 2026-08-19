@@ -1,5 +1,5 @@
 use crate::project::Error;
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, ResultExt};
 use std::{
     collections::HashMap,
     fs::{self, File, OpenOptions},
@@ -20,7 +20,7 @@ pub struct GlobalCache {
 const DEFAULT_CACHE_CAPACITY: usize = 50000;
 
 impl Caching for GlobalCache {
-    fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
+    fn get_file_owner(&self, path: &Path) -> Result<Option<FileOwnerCacheEntry>, Report<Error>> {
         if let Some(cache_mutex) = self.file_owner_cache.as_ref()
             && let Ok(cache) = cache_mutex.lock()
             && let Some(cached_entry) = cache.get(path)
@@ -42,7 +42,7 @@ impl Caching for GlobalCache {
         }
     }
 
-    fn persist_cache(&self) -> Result<(), Error> {
+    fn persist_cache(&self) -> Result<(), Report<Error>> {
         let cache_path = self.get_cache_path();
         let file = OpenOptions::new()
             .write(true)
@@ -60,7 +60,7 @@ impl Caching for GlobalCache {
         }
     }
 
-    fn delete_cache(&self) -> Result<(), Error> {
+    fn delete_cache(&self) -> Result<(), Report<Error>> {
         let cache_path = self.get_cache_path();
         tracing::debug!("Deleting cache file: {}", cache_path.display());
         fs::remove_file(cache_path).change_context(Error::Io)
@@ -68,7 +68,7 @@ impl Caching for GlobalCache {
 }
 
 impl GlobalCache {
-    pub fn new(base_path: PathBuf, cache_directory: String) -> Result<Self, Error> {
+    pub fn new(base_path: PathBuf, cache_directory: String) -> Result<Self, Report<Error>> {
         let mut cache = Self {
             base_path,
             cache_directory,
@@ -78,7 +78,7 @@ impl GlobalCache {
         Ok(cache)
     }
 
-    fn load_cache(&mut self) -> Result<(), Error> {
+    fn load_cache(&mut self) -> Result<(), Report<Error>> {
         let cache_path = self.get_cache_path();
         if !cache_path.exists() {
             self.file_owner_cache = Some(Box::new(Mutex::new(HashMap::with_capacity(DEFAULT_CACHE_CAPACITY))));
@@ -102,7 +102,7 @@ impl GlobalCache {
         cache_dir.join("project-file-cache.json")
     }
 }
-fn get_file_timestamp(path: &Path) -> Result<u64, Error> {
+fn get_file_timestamp(path: &Path) -> Result<u64, Report<Error>> {
     let metadata = fs::metadata(path).change_context(Error::Io)?;
     metadata
         .modified()
@@ -119,7 +119,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cache_dir() -> Result<(), Error> {
+    fn test_cache_dir() -> Result<(), Report<Error>> {
         let temp_dir = tempdir().change_context(Error::Io)?;
         let cache_dir = "test-codeowners-cache";
         let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;
@@ -162,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn test_corrupted_cache() -> Result<(), Error> {
+    fn test_corrupted_cache() -> Result<(), Report<Error>> {
         let temp_dir = tempdir().change_context(Error::Io)?;
         let cache_dir = "test-codeowners-cache";
         let cache = GlobalCache::new(temp_dir.path().to_path_buf(), cache_dir.to_owned())?;

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::project::Team;
 use crate::{ownership::FileOwner, runner::config_from_run_config};
+use error_stack::Report;
 
 use super::{Error, ForFileResult, RunConfig, RunResult, run};
 
@@ -37,7 +38,7 @@ pub fn crosscheck_owners(run_config: &RunConfig) -> RunResult {
 }
 
 // Returns all owners for a file without creating a Runner (performance optimized)
-pub fn owners_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Vec<FileOwner>, Error> {
+pub fn owners_for_file(run_config: &RunConfig, file_path: &str) -> Result<Vec<FileOwner>, Report<Error>> {
     let config = config_from_run_config(run_config)?;
     use crate::ownership::file_owner_resolver::find_file_owners;
     let owners = find_file_owners(&run_config.project_root, &config, std::path::Path::new(file_path)).map_err(Error::Io)?;
@@ -45,12 +46,12 @@ pub fn owners_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::
 }
 
 // Returns the highest priority owner for a file. More to come here.
-pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<FileOwner>, Error> {
+pub fn file_owner_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<FileOwner>, Report<Error>> {
     let owners = owners_for_file(run_config, file_path)?;
     Ok(owners.first().cloned())
 }
 
-pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<Team>, Error> {
+pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Report<Error>> {
     let owner = file_owner_for_file(run_config, file_path)?;
     Ok(owner.map(|fo| fo.team.clone()))
 }
@@ -59,7 +60,7 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> error_stack::Re
 pub fn teams_for_files_from_codeowners(
     run_config: &RunConfig,
     file_paths: &[String],
-) -> error_stack::Result<HashMap<String, Option<Team>>, Error> {
+) -> Result<HashMap<String, Option<Team>>, Report<Error>> {
     let config = config_from_run_config(run_config)?;
     let codeowners_file_path = super::resolve_codeowners_file_path(run_config, &config);
     let res = crate::ownership::codeowners_query::teams_for_files_from_codeowners(
@@ -72,7 +73,7 @@ pub fn teams_for_files_from_codeowners(
     Ok(res)
 }
 
-pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> error_stack::Result<Option<Team>, Error> {
+pub fn team_for_file_from_codeowners(run_config: &RunConfig, file_path: &str) -> Result<Option<Team>, Report<Error>> {
     let result = teams_for_files_from_codeowners(run_config, &[file_path.to_string()])?;
     // Since we only passed one file, there should be exactly one result
     debug_assert_eq!(result.len(), 1);

@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use codeowners::runner::RunConfig;
 use codeowners::runner::{self, Error as RunnerError, RunResult};
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, ResultExt};
 use path_clean::PathClean;
 use std::path::{Path, PathBuf};
 
@@ -82,30 +82,30 @@ struct Args {
 }
 
 impl Args {
-    fn absolute_project_root(&self) -> Result<PathBuf, RunnerError> {
+    fn absolute_project_root(&self) -> Result<PathBuf, Report<RunnerError>> {
         self.project_root.canonicalize().change_context(RunnerError::Io(format!(
             "Can't canonicalize project root: {}",
             &self.project_root.to_string_lossy()
         )))
     }
 
-    fn absolute_config_path(&self) -> Result<PathBuf, RunnerError> {
+    fn absolute_config_path(&self) -> Result<PathBuf, Report<RunnerError>> {
         Ok(self.absolute_path(&self.config_path)?.clean())
     }
 
-    fn absolute_codeowners_path(&self) -> Result<Option<PathBuf>, RunnerError> {
+    fn absolute_codeowners_path(&self) -> Result<Option<PathBuf>, Report<RunnerError>> {
         match &self.codeowners_file_path {
             Some(path) => Ok(Some(self.absolute_path(path)?.clean())),
             None => Ok(None),
         }
     }
 
-    fn absolute_path(&self, path: &Path) -> Result<PathBuf, RunnerError> {
+    fn absolute_path(&self, path: &Path) -> Result<PathBuf, Report<RunnerError>> {
         Ok(self.absolute_project_root()?.join(path))
     }
 }
 
-pub fn cli() -> Result<RunResult, RunnerError> {
+pub fn cli() -> Result<RunResult, Report<RunnerError>> {
     let args = Args::parse();
 
     let config_path = args.absolute_config_path()?;

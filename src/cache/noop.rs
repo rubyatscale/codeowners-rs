@@ -1,5 +1,5 @@
 use crate::project::Error;
-use error_stack::Result;
+use error_stack::Report;
 use std::path::Path;
 
 use super::{Caching, FileOwnerCacheEntry};
@@ -8,7 +8,7 @@ use super::{Caching, FileOwnerCacheEntry};
 pub struct NoopCache {}
 
 impl Caching for NoopCache {
-    fn get_file_owner(&self, _path: &Path) -> Result<Option<FileOwnerCacheEntry>, Error> {
+    fn get_file_owner(&self, _path: &Path) -> Result<Option<FileOwnerCacheEntry>, Report<Error>> {
         Ok(None)
     }
 
@@ -16,11 +16,11 @@ impl Caching for NoopCache {
         // noop
     }
 
-    fn persist_cache(&self) -> Result<(), Error> {
+    fn persist_cache(&self) -> Result<(), Report<Error>> {
         Ok(())
     }
 
-    fn delete_cache(&self) -> Result<(), Error> {
+    fn delete_cache(&self) -> Result<(), Report<Error>> {
         Ok(())
     }
 }

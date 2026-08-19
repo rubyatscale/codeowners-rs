@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, ResultExt};
 use fast_glob::glob_match;
 use serde::Serialize;
 
@@ -47,7 +47,7 @@ where
     runnable(runner)
 }
 
-pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, Error> {
+pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, Report<Error>> {
     match crate::config::Config::load_from_path(&run_config.config_path) {
         Ok(mut c) => {
             if let Some(executable_name) = &run_config.executable_name {
@@ -55,7 +55,7 @@ pub(crate) fn config_from_run_config(run_config: &RunConfig) -> Result<Config, E
             }
             Ok(c)
         }
-        Err(msg) => Err(error_stack::Report::new(Error::Io(msg))),
+        Err(msg) => Err(Report::new(Error::Io(msg))),
     }
 }
 
@@ -79,7 +79,7 @@ pub(crate) fn resolve_codeowners_file_path(run_config: &RunConfig, config: &Conf
 }
 
 impl Runner {
-    pub fn new(run_config: &RunConfig) -> Result<Self, Error> {
+    pub fn new(run_config: &RunConfig) -> Result<Self, Report<Error>> {
         let config = config_from_run_config(run_config)?;
         let codeowners_file_path = resolve_codeowners_file_path(run_config, &config);
 
@@ -91,7 +91,7 @@ impl Runner {
                     "Can't create cache: {}",
                     &run_config.config_path.to_string_lossy()
                 )))
-                .attach_printable(format!("Can't create cache: {}", &run_config.config_path.to_string_lossy()))?
+                .attach(format!("Can't create cache: {}", &run_config.config_path.to_string_lossy()))?
                 .into()
         };
 
@@ -264,7 +264,7 @@ impl Runner {
         crate::crosscheck::crosscheck_owners(&self.run_config, &self.cache)
     }
 
-    pub fn owners_for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, Error> {
+    pub fn owners_for_file(&self, file_path: &str) -> Result<Vec<FileOwner>, Report<Error>> {
         use crate::ownership::file_owner_resolver::find_file_owners;
         let owners = find_file_owners(&self.run_config.project_root, &self.config, std::path::Path::new(file_path)).map_err(Error::Io)?;
         Ok(owners)

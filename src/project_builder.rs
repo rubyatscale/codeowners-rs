@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use error_stack::{Report, Result, ResultExt};
+use error_stack::{Report, ResultExt};
 use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -53,7 +53,7 @@ impl<'a> ProjectBuilder<'a> {
     }
 
     #[instrument(level = "debug", skip_all, fields(base_path = %self.base_path.display()))]
-    pub fn build(&mut self) -> Result<Project, Error> {
+    pub fn build(&mut self) -> Result<Project, Report<Error>> {
         tracing::info!("Starting project build");
         let mut builder = WalkBuilder::new(&self.base_path);
         builder.hidden(false);
@@ -162,7 +162,7 @@ impl<'a> ProjectBuilder<'a> {
         self.build_project_from_entry_types(entry_types)
     }
 
-    fn build_entry_type(&self, entry: ignore::DirEntry) -> Result<EntryType, Error> {
+    fn build_entry_type(&self, entry: ignore::DirEntry) -> Result<EntryType, Report<Error>> {
         let absolute_path = entry.path();
 
         let is_dir = entry.file_type().ok_or(Error::Io).change_context(Error::Io)?.is_dir();
@@ -203,7 +203,7 @@ impl<'a> ProjectBuilder<'a> {
         }
     }
 
-    fn build_project_from_entry_types(&mut self, entry_types: Vec<EntryType>) -> Result<Project, Error> {
+    fn build_project_from_entry_types(&mut self, entry_types: Vec<EntryType>) -> Result<Project, Report<Error>> {
         type Accumulator = (
             Vec<ProjectFile>,
             Vec<Package>,
@@ -232,8 +232,8 @@ impl<'a> ProjectBuilder<'a> {
                         EntryType::Directory(absolute_path, relative_path) => {
                             if relative_path.parent() == Some(Path::new(&self.config.vendored_gems_path)) {
                                 let file_name = relative_path.file_name().ok_or_else(|| {
-                                    error_stack::report!(Error::Io)
-                                        .attach_printable(format!("Vendored gem path has no file name: {}", relative_path.display()))
+                                    Report::new(Error::Io)
+                                        .attach(format!("Vendored gem path has no file name: {}", relative_path.display()))
                                 })?;
                                 gems.push(VendoredGem {
                                     path: absolute_path,
@@ -243,7 +243,7 @@ impl<'a> ProjectBuilder<'a> {
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
                             match ruby_package_owner(&absolute_path)
-                                .attach_printable_lazy(|| format!("Failed to read ruby package: {}", absolute_path.display()))
+                                .attach_with(|| format!("Failed to read ruby package: {}", absolute_path.display()))
                             {
                                 Ok(Some(owner)) => {
                                     pkgs.push(Package {
@@ -258,7 +258,7 @@ impl<'a> ProjectBuilder<'a> {
                         }
                         EntryType::JavascriptPackage(absolute_path, relative_path) => {
                             match javascript_package_owner(&absolute_path)
-                                .attach_printable_lazy(|| format!("Failed to read javascript package: {}", absolute_path.display()))
+                                .attach_with(|| format!("Failed to read javascript package: {}", absolute_path.display()))
                             {
                                 Ok(Some(owner)) => {
                                     pkgs.push(Package {
@@ -274,7 +274,7 @@ impl<'a> ProjectBuilder<'a> {
                         EntryType::CodeownerFile(absolute_path, relative_path) => {
                             let owner = std::fs::read_to_string(&absolute_path)
                                 .change_context(Error::Io)
-                                .attach_printable_lazy(|| format!("Failed to read codeowner file: {}", absolute_path.display()))?;
+                                .attach_with(|| format!("Failed to read codeowner file: {}", absolute_path.display()))?;
                             let owner = owner.trim().to_owned();
                             codeowners.push(DirectoryCodeownersFile {
                                 path: relative_path.clone(),
@@ -284,7 +284,7 @@ impl<'a> ProjectBuilder<'a> {
                         EntryType::TeamFile(absolute_path, _relative_path) => {
                             let team = Team::from_team_file_path(absolute_path.clone())
                                 .change_context(Error::Io)
-                                .attach_printable_lazy(|| format!("Failed to read team file: {}", absolute_path.display()))?;
+                                .attach_with(|| format!("Failed to read team file: {}", absolute_path.display()))?;
                             team_files.push(team);
                         }
                         EntryType::NullEntry() => {}
@@ -336,7 +336,7 @@ fn matches_globs(path: &Path, globs: &[String]) -> bool {
     }
 }
 
-fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
+fn ruby_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
     let file = File::open(path).change_context(Error::Io)?;
     let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 
@@ -345,7 +345,7 @@ fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
 
     // Error if both are present with different values
     match (top_level_owner.as_ref(), metadata_owner.as_ref()) {
-        (Some(top), Some(meta)) if top != meta => Err(error_stack::report!(Error::Io).attach_printable(format!(
+        (Some(top), Some(meta)) if top != meta => Err(Report::new(Error::Io).attach(format!(
             "Package at {} has conflicting owners: 'owner: {}' vs 'metadata.owner: {}'. Please use only one.",
             path.display(),
             top,
@@ -355,7 +355,7 @@ fn ruby_package_owner(path: &Path) -> Result<Option<String>, Error> {
     }
 }
 
-fn javascript_package_owner(path: &Path) -> Result<Option<String>, Error> {
+fn javascript_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
     let file = File::open(path).change_context(Error::Io)?;
     let deserializer: deserializers::JavascriptPackage = serde_json::from_reader(file).change_context(Error::SerdeJson)?;
 

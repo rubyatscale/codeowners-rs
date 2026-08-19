@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use error_stack::{Context, Result, ResultExt};
+use error_stack::{Report, ResultExt};
 
 pub struct Project {
     pub base_path: PathBuf,
@@ -44,7 +44,7 @@ pub struct Team {
 }
 
 impl Team {
-    pub fn from_team_file_path(absolute_path: PathBuf) -> Result<Self, Error> {
+    pub fn from_team_file_path(absolute_path: PathBuf) -> Result<Self, Report<Error>> {
         let file = File::open(&absolute_path).change_context(Error::Io)?;
         let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
         Ok(Self {
@@ -167,10 +167,10 @@ impl fmt::Display for Error {
     }
 }
 
-impl Context for Error {}
+impl core::error::Error for Error {}
 
 impl Project {
-    pub fn get_codeowners_file(&self) -> Result<String, Error> {
+    pub fn get_codeowners_file(&self) -> Result<String, Report<Error>> {
         let codeowners_file: String = if self.codeowners_file_path.exists() {
             std::fs::read_to_string(&self.codeowners_file_path).change_context(Error::Io)?
         } else {
