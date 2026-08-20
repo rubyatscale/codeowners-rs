@@ -2,3 +2,5 @@
 .DS_Store
 /tmp
 **/project-file-cache.json
+# Local benchmark output. perf/baseline.json is committed on purpose.
+/perf/results
