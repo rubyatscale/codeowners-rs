@@ -52,7 +52,7 @@ impl<'a> ProjectBuilder<'a> {
         }
     }
 
-    #[instrument(level = "debug", skip_all, fields(base_path = %self.base_path.display()))]
+    #[instrument(name = "project_build", level = "debug", skip_all, fields(base_path = %self.base_path.display()))]
     pub fn build(&mut self) -> Result<Project, Report<Error>> {
         tracing::info!("Starting project build");
         let mut builder = WalkBuilder::new(&self.base_path);

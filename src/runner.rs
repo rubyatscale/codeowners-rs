@@ -4,6 +4,7 @@ use std::process::Command;
 use error_stack::{Report, ResultExt};
 use fast_glob::glob_match;
 use serde::Serialize;
+use tracing::debug_span;
 
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
@@ -80,20 +81,22 @@ pub(crate) fn resolve_codeowners_file_path(run_config: &RunConfig, config: &Conf
 
 impl Runner {
     pub fn new(run_config: &RunConfig) -> Result<Self, Report<Error>> {
-        let config = config_from_run_config(run_config)?;
+        let config = debug_span!("config_load").in_scope(|| config_from_run_config(run_config))?;
         let codeowners_file_path = resolve_codeowners_file_path(run_config, &config);
 
-        let cache: Cache = if run_config.no_cache {
-            NoopCache::default().into()
-        } else {
-            GlobalCache::new(run_config.project_root.clone(), config.cache_directory.clone())
-                .change_context(Error::Io(format!(
-                    "Can't create cache: {}",
-                    run_config.config_path.to_string_lossy()
-                )))
-                .attach(format!("Can't create cache: {}", run_config.config_path.to_string_lossy()))?
-                .into()
-        };
+        let cache: Cache = debug_span!("cache_init").in_scope(|| -> Result<Cache, Report<Error>> {
+            if run_config.no_cache {
+                Ok(NoopCache::default().into())
+            } else {
+                Ok(GlobalCache::new(run_config.project_root.clone(), config.cache_directory.clone())
+                    .change_context(Error::Io(format!(
+                        "Can't create cache: {}",
+                        run_config.config_path.to_string_lossy()
+                    )))
+                    .attach(format!("Can't create cache: {}", run_config.config_path.to_string_lossy()))?
+                    .into())
+            }
+        })?;
 
         let mut project_builder = ProjectBuilder::new(&config, run_config.project_root.clone(), codeowners_file_path.clone(), &cache);
         let project = project_builder.build().change_context(Error::Io(format!(
@@ -102,10 +105,12 @@ impl Runner {
         )))?;
         let ownership = Ownership::build(project);
 
-        cache.persist_cache().change_context(Error::Io(format!(
-            "Can't persist cache: {}",
-            run_config.config_path.to_string_lossy()
-        )))?;
+        debug_span!("cache_persist").in_scope(|| {
+            cache.persist_cache().change_context(Error::Io(format!(
+                "Can't persist cache: {}",
+                run_config.config_path.to_string_lossy()
+            )))
+        })?;
 
         Ok(Self {
             run_config: run_config.clone(),
@@ -159,13 +164,15 @@ impl Runner {
             })
             .collect();
 
-        for file_path in filtered_paths {
-            match team_for_file_from_codeowners(&self.run_config, &file_path) {
-                Ok(Some(_)) => {}
-                Ok(None) => unowned_files.push(file_path),
-                Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
+        debug_span!("per_file_query").in_scope(|| {
+            for file_path in filtered_paths {
+                match team_for_file_from_codeowners(&self.run_config, &file_path) {
+                    Ok(Some(_)) => {}
+                    Ok(None) => unowned_files.push(file_path),
+                    Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
+                }
             }
-        }
+        });
 
         if !unowned_files.is_empty() {
             let validation_errors = std::iter::once("Unowned files detected:".to_string())

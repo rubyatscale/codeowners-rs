@@ -116,7 +116,7 @@ impl Ownership {
         }
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(name = "ownership_validate", level = "debug", skip_all)]
     pub fn validate(&self) -> Result<(), ValidatorErrors> {
         info!("validating file ownership");
         let validator = Validator {
@@ -170,6 +170,7 @@ impl Ownership {
         file_generator.generate_file()
     }
 
+    #[instrument(name = "mapper_build", level = "debug", skip_all)]
     fn mappers(&self) -> Vec<Box<dyn Mapper>> {
         vec![
             Box::new(TeamFileMapper::build(self.project.clone())),

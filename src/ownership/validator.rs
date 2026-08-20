@@ -36,7 +36,7 @@ enum Error {
 pub struct Errors(Vec<Error>);
 
 impl Validator {
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(name = "validator_validate", level = "debug", skip_all)]
     pub fn validate(&self) -> Result<(), Errors> {
         let mut validation_errors = Vec::new();
 
@@ -56,6 +56,7 @@ impl Validator {
         }
     }
 
+    #[instrument(name = "validate_invalid_team", level = "debug", skip_all)]
     fn validate_invalid_team(&self) -> Vec<Error> {
         debug!("validating project");
         let mut errors: Vec<Error> = Vec::new();
@@ -106,6 +107,7 @@ impl Validator {
             .collect()
     }
 
+    #[instrument(name = "validate_file_ownership", level = "debug", skip_all)]
     fn validate_file_ownership(&self) -> Vec<Error> {
         let mut validation_errors = Vec::new();
 
@@ -125,6 +127,7 @@ impl Validator {
         validation_errors
     }
 
+    #[instrument(name = "validate_codeowners_file", level = "debug", skip_all)]
     fn validate_codeowners_file(&self) -> Vec<Error> {
         let generated_file = self.file_generator.generate_file();
         let current_file = self.project.get_codeowners_file().unwrap_or_default();
@@ -139,6 +142,7 @@ impl Validator {
         }
     }
 
+    #[instrument(name = "file_to_owners", level = "debug", skip_all)]
     fn file_to_owners(&self) -> Vec<(&ProjectFile, Vec<Owner>)> {
         let owner_matchers: Vec<OwnerMatcher> = self.mappers.iter().flat_map(|mapper| mapper.owner_matchers()).collect();
         let file_owner_finder = FileOwnerFinder {
