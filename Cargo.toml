@@ -5,6 +5,12 @@ edition = "2024"
 
 [profile.release]
 debug = true
+# Measurement determinism. Baseline and candidate are separate builds, so with
+# default codegen-units the codegen split can differ between them and contaminate
+# an A/B comparison directly, rather than merely widening error bars. Costs some
+# build time; worth it for the perf harness's numbers to mean anything.
+codegen-units = 1
+lto = "thin"
 
 [lib]
 path = "src/lib.rs"

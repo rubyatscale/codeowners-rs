@@ -394,6 +394,15 @@ fn run_case(case: &Case, corpus: &Path, files: &[String]) -> RunResult {
     }
 }
 
+/// Observed run-to-run spread (max - min). The harness's own precision floor for
+/// a case: deltas smaller than this cannot be distinguished from noise.
+fn spread(runs: &[u128]) -> u128 {
+    match (runs.iter().min(), runs.iter().max()) {
+        (Some(lo), Some(hi)) => hi - lo,
+        _ => 0,
+    }
+}
+
 fn median(sorted: &[u128]) -> u128 {
     match sorted.len() {
         0 => 0,
@@ -641,15 +650,15 @@ fn cmd_compare(baseline_path: &Path, candidate_path: &Path) -> Result<(), String
         );
     }
     println!();
-    println!("| Case | Baseline | Candidate | Delta | Speedup |");
-    println!("|---|---:|---:|---:|---:|");
+    println!("| Case | Baseline | Candidate | Delta | Speedup | Noise | Verdict |");
+    println!("|---|---:|---:|---:|---:|---:|---|");
     for base in &baseline.cases {
         let Some(cand) = candidates.get(base.name.as_str()) else {
-            println!("| {} | {}ms | — | missing | — |", base.name, base.best_ms);
+            println!("| {} | {}ms | — | missing | — | — | — |", base.name, base.best_ms);
             continue;
         };
         if base.status == "skipped" || cand.status == "skipped" {
-            println!("| {} | skipped | skipped | — | — |", base.name);
+            println!("| {} | skipped | skipped | — | — | — | — |", base.name);
             continue;
         }
         let delta = cand.best_ms as i128 - base.best_ms as i128;
@@ -658,14 +667,22 @@ fn cmd_compare(baseline_path: &Path, candidate_path: &Path) -> Result<(), String
         } else {
             0.0
         };
+        // A delta smaller than the run-to-run spread is not a result. Reporting
+        // `best` alone hides this: min-of-N is a biased estimator with no
+        // dispersion attached, so a 3% "win" on a case that swings 40% between
+        // runs reads exactly like a real one.
+        let noise = spread(&base.runs_ms).max(spread(&cand.runs_ms));
+        let verdict = if delta.unsigned_abs() <= noise { "**within noise**" } else { "" };
         println!(
-            "| {} | {}ms | {}ms | {}{}ms | {:.2}x |",
+            "| {} | {}ms | {}ms | {}{}ms | {:.2}x | ±{}ms | {} |",
             base.name,
             base.best_ms,
             cand.best_ms,
             if delta > 0 { "+" } else { "" },
             delta,
-            speedup
+            speedup,
+            noise,
+            verdict
         );
     }
     Ok(())

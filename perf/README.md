@@ -86,9 +86,35 @@ a hook that runs `gv` sees the smaller of the two wins, and quoting the
 
 - **best** is the headline number. **median** is shown alongside so you can see
   whether a run was noisy; all individual run times are kept in the JSON.
+- `compare` reports the observed run-to-run **spread** per case and marks any
+  delta smaller than it **within noise**. Trust that column over the delta:
+  min-of-N is a biased estimator with no dispersion attached, so a 3% "win" on a
+  case that swings 40% between runs reads exactly like a real one.
 - `validate_all_cold` is by far the noisiest case — it is IO-bound and a 50%
-  spread between runs is normal. Treat small changes there as noise, and raise
-  `--runs` if you need to trust it.
+  spread between runs is normal, which is larger than most effects worth hunting.
+  It is useful as a guard against wins that only exist warm, not as a number to
+  optimize against. Raise `--runs` a lot if you need to trust it.
+
+### Two things the numbers do not include
+
+- **Per-invocation setup is undercounted.** All cases run in one process, and
+  `teams_by_github_team_name` is `#[memoize]`d process-globally, so the warmup run
+  pays the team-file parse and no timed run ever does. A real CLI invocation pays
+  it every time. Treat published numbers as a floor for single-shot CLI cost.
+- **Fixed cost dominates small changesets.** The per-file cases are affine, not
+  proportional: on a 130k-file corpus they fit ~2.0s fixed plus ~9.9ms/file. So
+  the per-file *average* is ~2,100ms at one file and ~11ms at two thousand. For
+  the common CI case — a PR touching a handful of files — essentially all of the
+  time is the fixed project build, and the per-file rate is nearly irrelevant.
+  Quote both terms, or you will optimize the wrong end.
+
+### Phase percentages: check nesting before quoting
+
+Spans are inclusive of children, so sibling spans can be summed and nested ones
+cannot. `config_load`, `cache_init`, `project_build`, `cache_persist` and
+`per_file_query` are disjoint — percentages across those are sound. But
+`ownership_validate` ⊃ `validator_validate` ⊃ `validate_file_ownership` ⊃
+`file_to_owners`: quoting those together as shares of one total double-counts.
 - The **phase breakdown** comes from `tracing` spans inside the library. Phases
   are **inclusive of nested children**, so they do not sum to the total —
   `project_build` contains its own sub-work, and `ownership_validate` contains
