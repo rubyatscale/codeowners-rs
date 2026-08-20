@@ -329,6 +329,23 @@ const CASES: &[Case] = &[
         files: 0,
         no_cache: false,
     },
+    // `gv <paths>` is the likely real-world pre-commit / CI invocation, and it is
+    // not interchangeable with `validate <paths>`: generate needs the project
+    // build, so an optimization that bypasses that build cannot apply here.
+    // Measured separately so a win on `validate <paths>` is never mistaken for a
+    // win on the command people actually run.
+    Case {
+        name: "gv_files_100",
+        kind: Kind::GenerateAndValidate,
+        files: 100,
+        no_cache: false,
+    },
+    Case {
+        name: "gv_files_1000",
+        kind: Kind::GenerateAndValidate,
+        files: 1000,
+        no_cache: false,
+    },
     Case {
         name: "validate_all_cold",
         kind: Kind::Validate,

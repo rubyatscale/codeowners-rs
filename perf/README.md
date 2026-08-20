@@ -63,6 +63,8 @@ contain a readable `config/code_ownership.yml`.
 | `generate` | `generate` | Project build + one file generation |
 | `validate_all` | `validate` | Full ownership validation |
 | `gv` | `generate-and-validate` | The headline CI/pre-commit-hook command |
+| `gv_files_100` | `gv <100 paths>` | The likely real hook invocation |
+| `gv_files_1000` | `gv <1000 paths>` | Same, larger changeset |
 | `validate_all_cold` | `validate --no-cache` | Guards against wins that only exist warm |
 | `validate_files_1` | `validate <1 path>` | Fixed-cost floor |
 | `validate_files_100` | `validate <100 paths>` | Realistic changeset |
@@ -73,6 +75,12 @@ contain a readable `config/code_ownership.yml`.
 
 Cases needing more owned files than the corpus contains are reported as
 **skipped** with the reason, never silently shrunk.
+
+**`gv <paths>` and `validate <paths>` are not the same measurement.** `generate`
+needs the project build, so an optimization that bypasses that build speeds up
+`validate <paths>` but can do nothing for `gv <paths>`. Both are measured because
+a hook that runs `gv` sees the smaller of the two wins, and quoting the
+`validate` number for it would be wrong.
 
 ## Reading the output
 
