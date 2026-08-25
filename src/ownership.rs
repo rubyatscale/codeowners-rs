@@ -4,7 +4,7 @@ use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
     fmt::{self, Display},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tracing::{info, instrument};
@@ -122,11 +122,31 @@ impl Ownership {
         let validator = Validator {
             project: self.project.clone(),
             mappers: self.mappers(),
-            file_generator: FileGenerator { mappers: self.mappers() },
             executable_name: self.project.executable_name.clone(),
         };
 
-        validator.validate()
+        // A second set of mappers, because FileGenerator owns rather than borrows them
+        // and `Box<dyn Mapper>` is not Clone. Construction is trivial (each `build` just
+        // stores an Arc); the O(repo) work happens in `owner_matchers`/`entries`.
+        let file_generator = FileGenerator { mappers: self.mappers() };
+
+        validator.validate(&file_generator)
+    }
+
+    /// Like [`Ownership::validate`], but restricted to the supplied project-relative
+    /// paths. Skips the staleness check, which cannot be scoped — see
+    /// [`Validator::validate_files`], which also documents the two path lists. Builds no
+    /// `FileGenerator`, since nothing here generates.
+    #[instrument(name = "ownership_validate_files", level = "debug", skip_all)]
+    pub fn validate_files(&self, owned_paths: &[PathBuf], supplied_paths: &[PathBuf]) -> Result<(), ValidatorErrors> {
+        info!("validating file ownership for {} supplied paths", supplied_paths.len());
+        let validator = Validator {
+            project: self.project.clone(),
+            mappers: self.mappers(),
+            executable_name: self.project.executable_name.clone(),
+        };
+
+        validator.validate_files(owned_paths, supplied_paths)
     }
 
     #[instrument(level = "debug", skip_all)]
