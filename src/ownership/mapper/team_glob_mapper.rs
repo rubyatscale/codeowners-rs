@@ -49,10 +49,6 @@ impl Mapper for TeamGlobMapper {
 
         owner_matchers
     }
-
-    fn name(&self) -> String {
-        "Team-specific owned globs".to_owned()
-    }
 }
 
 #[cfg(test)]

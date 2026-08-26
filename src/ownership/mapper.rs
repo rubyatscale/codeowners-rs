@@ -24,7 +24,6 @@ pub use team_yml_mapper::TeamYmlMapper;
 use super::Entry;
 
 pub trait Mapper {
-    fn name(&self) -> String;
     fn entries(&self) -> Vec<Entry>;
     fn owner_matchers(&self) -> Vec<OwnerMatcher>;
 }

@@ -31,10 +31,6 @@ impl Mapper for RubyPackageMapper {
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
         PackageMapper::build(self.project.clone()).owner_matchers(&PackageType::Ruby)
     }
-
-    fn name(&self) -> String {
-        "Owner metadata key in package.yml".to_owned()
-    }
 }
 
 impl JavascriptPackageMapper {
@@ -50,10 +46,6 @@ impl Mapper for JavascriptPackageMapper {
 
     fn owner_matchers(&self) -> Vec<OwnerMatcher> {
         PackageMapper::build(self.project.clone()).owner_matchers(&PackageType::Javascript)
-    }
-
-    fn name(&self) -> String {
-        "Owner metadata key in package.json".to_owned()
     }
 }
 
