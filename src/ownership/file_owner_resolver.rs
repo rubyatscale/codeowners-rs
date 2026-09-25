@@ -185,16 +185,22 @@ fn nearest_package_owner(
         if let Some(rel_str) = parent_rel.to_str() {
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");
-                if pkg_yml.exists()
-                    && let Ok(owner) = read_ruby_package_owner(&pkg_yml)
-                    && let Some(team) = teams_by_name.get(&owner)
-                {
-                    let package_path = parent_rel.join("package.yml");
-                    let package_glob = format!("{rel_str}/**/**");
-                    return Some((
-                        team.name.clone(),
-                        Source::Package(package_path.to_string_lossy().to_string(), package_glob),
-                    ));
+                if pkg_yml.exists() {
+                    match crate::project_builder::ruby_package_owner(&pkg_yml) {
+                        Ok(Some(owner)) => {
+                            if let Some(team) = teams_by_name.get(&owner) {
+                                let package_path = parent_rel.join("package.yml");
+                                let package_glob = format!("{rel_str}/**/**");
+                                return Some((
+                                    team.name.clone(),
+                                    Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                                ));
+                            }
+                        }
+                        Ok(None) => {}
+                        // validate rejects this package, so don't fall through to an enclosing package's owner.
+                        Err(_) => return None,
+                    }
                 }
             }
             if glob_list_matches(rel_str, &config.javascript_package_paths) {
@@ -223,12 +229,6 @@ fn nearest_package_owner(
 
 fn glob_list_matches(path: &str, globs: &[String]) -> bool {
     globs.iter().any(|g| glob_match(g, path))
-}
-
-fn read_ruby_package_owner(path: &Path) -> std::result::Result<String, String> {
-    crate::project_builder::ruby_package_owner(path)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Missing owner".to_string())
 }
 
 fn read_js_package_owner(path: &Path) -> std::result::Result<String, String> {
@@ -378,6 +378,69 @@ mod tests {
             }
             _ => panic!("expected Package source for ruby"),
         }
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_conflicting_owners_yields_none() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nowner: Payroll\nmetadata:\n  owner: Benefits\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "Benefits"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        let rel_ruby = Path::new("packs/payroll/app/models/thing.rb");
+        assert!(nearest_package_owner(project_root, rel_ruby, &config, &tbn).is_none());
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_conflict_does_not_fall_through_to_outer_package() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let outer_pkg = project_root.join("packs/outer");
+        let inner_pkg = outer_pkg.join("inner");
+        std::fs::create_dir_all(&inner_pkg).unwrap();
+        std::fs::write(outer_pkg.join("package.yml"), "---\nowner: Outer\n").unwrap();
+        std::fs::write(inner_pkg.join("package.yml"), "---\nowner: InnerA\nmetadata:\n  owner: InnerB\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Outer", "InnerA", "InnerB"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        let rel_ruby = Path::new("packs/outer/inner/x.rb");
+        assert!(nearest_package_owner(project_root, rel_ruby, &config, &tbn).is_none());
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_ownerless_inner_package_falls_through_to_outer() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let outer_pkg = project_root.join("packs/outer");
+        let inner_pkg = outer_pkg.join("inner");
+        std::fs::create_dir_all(&inner_pkg).unwrap();
+        std::fs::write(outer_pkg.join("package.yml"), "---\nowner: Outer\n").unwrap();
+        std::fs::write(inner_pkg.join("package.yml"), "---\nenforce_dependencies: true\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        let t = team_named("Outer");
+        tbn.insert(t.name.clone(), t);
+
+        let rel_ruby = Path::new("packs/outer/inner/x.rb");
+        let owner = nearest_package_owner(project_root, rel_ruby, &config, &tbn).unwrap();
+        assert_eq!(owner.0, "Outer");
     }
 
     #[test]
