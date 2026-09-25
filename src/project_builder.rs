@@ -336,7 +336,7 @@ fn matches_globs(path: &Path, globs: &[String]) -> bool {
     }
 }
 
-fn ruby_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
+pub(crate) fn ruby_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
     let file = File::open(path).change_context(Error::Io)?;
     let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
 

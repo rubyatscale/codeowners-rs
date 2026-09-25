@@ -226,9 +226,9 @@ fn glob_list_matches(path: &str, globs: &[String]) -> bool {
 }
 
 fn read_ruby_package_owner(path: &Path) -> std::result::Result<String, String> {
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let deserializer: crate::project::deserializers::RubyPackage = serde_yaml::from_reader(file).map_err(|e| e.to_string())?;
-    deserializer.owner.ok_or_else(|| "Missing owner".to_string())
+    crate::project_builder::ruby_package_owner(path)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Missing owner".to_string())
 }
 
 fn read_js_package_owner(path: &Path) -> std::result::Result<String, String> {
@@ -352,6 +352,32 @@ mod tests {
             _ => panic!("expected Directory source"),
         }
         assert_eq!(result.0, "DeepTeam");
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_metadata_owner() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nmetadata:\n  owner: Payroll\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        let t = team_named("Payroll");
+        tbn.insert(t.name.clone(), t);
+
+        let rel_ruby = Path::new("packs/payroll/app/models/thing.rb");
+        let ruby_owner = nearest_package_owner(project_root, rel_ruby, &config, &tbn).unwrap();
+        assert_eq!(ruby_owner.0, "Payroll");
+        match ruby_owner.1 {
+            Source::Package(pkg_path, glob) => {
+                assert!(pkg_path.ends_with("packs/payroll/package.yml"));
+                assert_eq!(glob, "packs/payroll/**/**");
+            }
+            _ => panic!("expected Package source for ruby"),
+        }
     }
 
     #[test]
