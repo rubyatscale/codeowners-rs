@@ -12,6 +12,30 @@ pub enum OutputStream {
     Stderr,
 }
 
+// The variables that pin git to one repository, per git itself.
+#[allow(dead_code)]
+pub fn repo_local_git_env_vars() -> Vec<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--local-env-vars"])
+        .output()
+        .expect("failed to run git rev-parse --local-env-vars");
+    assert!(output.status.success(), "git rev-parse --local-env-vars failed");
+    String::from_utf8_lossy(&output.stdout).lines().map(str::to_owned).collect()
+}
+
+// Inherited GIT_DIR/GIT_INDEX_FILE (hooks, worktrees) override current_dir and aim test git at the enclosing repo.
+#[allow(dead_code)]
+pub fn assert_git_env_isolated() {
+    let leaked: Vec<String> = repo_local_git_env_vars()
+        .into_iter()
+        .filter(|var| std::env::var_os(var).is_some())
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "refusing to run git with inherited {leaked:?}; run tests through cargo, whose runner clears them (.cargo/config.toml)"
+    );
+}
+
 #[allow(dead_code)]
 pub fn run_codeowners<I, P>(
     relative_fixture_path: &str,
@@ -75,6 +99,7 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
 
 #[allow(dead_code)]
 pub fn git_reset_all(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("reset")
         .current_dir(path)
@@ -89,6 +114,7 @@ pub fn git_reset_all(path: &Path) {
 
 #[allow(dead_code)]
 pub fn git_add_all_files(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("add")
         .arg("--all")
@@ -104,6 +130,7 @@ pub fn git_add_all_files(path: &Path) {
 
 #[allow(dead_code)]
 pub fn init_git_repo(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("init")
         .current_dir(path)
@@ -131,6 +158,7 @@ pub fn init_git_repo(path: &Path) {
 
 #[allow(dead_code)]
 pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
+    assert_git_env_isolated();
     let output = Command::new("git")
         .arg("diff")
         .arg("--name-only")
