@@ -187,8 +187,8 @@ fn nearest_package_owner(
                 let pkg_yml = current.join("package.yml");
                 if pkg_yml.exists() {
                     match crate::project_builder::ruby_package_owner(&pkg_yml) {
-                        Ok(Some(owner)) => {
-                            if let Some(team) = teams_by_name.get(&owner) {
+                        Ok(owner) => {
+                            if let Some(team) = owner.and_then(|owner| teams_by_name.get(&owner)) {
                                 let package_path = parent_rel.join("package.yml");
                                 let package_glob = format!("{rel_str}/**/**");
                                 return Some((
@@ -197,9 +197,11 @@ fn nearest_package_owner(
                                 ));
                             }
                         }
-                        Ok(None) => {}
                         // validate rejects this package, so don't fall through to an enclosing package's owner.
-                        Err(_) => return None,
+                        Err(e) => {
+                            eprintln!("Error reading ruby package: {e:?}, path: {}", pkg_yml.display());
+                            return None;
+                        }
                     }
                 }
             }
