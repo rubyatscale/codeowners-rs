@@ -12,29 +12,7 @@ pub enum OutputStream {
     Stderr,
 }
 
-// The variables that pin git to one repository, per git itself.
-#[allow(dead_code)]
-pub fn repo_local_git_env_vars() -> Vec<String> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--local-env-vars"])
-        .output()
-        .expect("failed to run git rev-parse --local-env-vars");
-    assert!(output.status.success(), "git rev-parse --local-env-vars failed");
-    String::from_utf8_lossy(&output.stdout).lines().map(str::to_owned).collect()
-}
-
-// Inherited GIT_DIR/GIT_INDEX_FILE (hooks, worktrees) override current_dir and aim test git at the enclosing repo.
-#[allow(dead_code)]
-pub fn assert_git_env_isolated() {
-    let leaked: Vec<String> = repo_local_git_env_vars()
-        .into_iter()
-        .filter(|var| std::env::var_os(var).is_some())
-        .collect();
-    assert!(
-        leaked.is_empty(),
-        "refusing to run git with inherited {leaked:?}; run tests through cargo, whose runner clears them (.cargo/config.toml)"
-    );
-}
+include!("../support/git_env.rs");
 
 #[allow(dead_code)]
 pub fn run_codeowners<I, P>(
@@ -177,6 +155,8 @@ pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
 
 #[allow(dead_code)]
 pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunConfig {
+    // Callers pass the config to in-process runs that may stage.
+    assert_git_env_isolated();
     let project_root = project_root.canonicalize().expect("failed to canonicalize project root");
     let codeowners_file_path = project_root.join(codeowners_rel_path);
     let config_path = project_root.join("config/code_ownership.yml");

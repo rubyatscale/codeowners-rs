@@ -29,23 +29,7 @@ pub(crate) fn find_tracked_files(base_path: &Path) -> Option<HashMap<PathBuf, bo
 mod tests {
     use super::*;
 
-    // Mirrors tests/common::assert_git_env_isolated, which unit tests can't import.
-    fn assert_git_env_isolated() {
-        let output = Command::new("git")
-            .args(["rev-parse", "--local-env-vars"])
-            .output()
-            .expect("failed to run git rev-parse --local-env-vars");
-        assert!(output.status.success(), "git rev-parse --local-env-vars failed");
-        let leaked: Vec<String> = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|var| std::env::var_os(var).is_some())
-            .map(str::to_owned)
-            .collect();
-        assert!(
-            leaked.is_empty(),
-            "refusing to run git with inherited {leaked:?}; run tests through cargo, whose runner clears them (.cargo/config.toml)"
-        );
-    }
+    include!("../tests/support/git_env.rs");
 
     #[test]
     fn test_untracked_files() {

@@ -64,11 +64,19 @@ fn test_cargo_runner_preserves_the_exit_status() {
     assert_eq!(status.code(), Some(3), "runner must not mask a failing test binary");
 }
 
-// Re-runs the child half of `test_git_helpers_refuse_inherited_repo_env` directly, bypassing the cargo runner.
-fn run_git_helper_child(envs: &[(&str, std::path::PathBuf)]) -> (bool, String) {
+const HELPERS: &[&str] = &[
+    "init_git_repo",
+    "git_add_all_files",
+    "git_reset_all",
+    "is_file_staged",
+    "build_run_config",
+];
+
+// Runs one tests/common helper in a fresh copy of this binary, bypassing the cargo runner.
+fn run_git_helper_child(helper: &str, envs: &[(&str, std::path::PathBuf)]) -> (bool, String) {
     let mut cmd = Command::new(std::env::current_exe().unwrap());
-    cmd.args(["test_git_helpers_refuse_inherited_repo_env", "--exact", "--test-threads=1"])
-        .env(CHILD_ENV, "1");
+    cmd.args(["git_helper_child", "--exact", "--ignored", "--test-threads=1"])
+        .env(CHILD_ENV, helper);
     for (var, value) in envs {
         cmd.env(var, value);
     }
@@ -81,21 +89,46 @@ fn run_git_helper_child(envs: &[(&str, std::path::PathBuf)]) -> (bool, String) {
     (output.status.success(), log)
 }
 
+// Ignored so an ambient CHILD_ENV can't turn a parent test into a no-op; a plain `--include-ignored` run does nothing.
+#[test]
+#[ignore = "run by the tests below"]
+fn git_helper_child() {
+    let Some(helper) = std::env::var_os(CHILD_ENV) else {
+        return;
+    };
+    let temp_dir = tempfile::tempdir().unwrap();
+    let path = temp_dir.path();
+    match helper.to_str().unwrap() {
+        "init_git_repo" => common::init_git_repo(path),
+        "git_add_all_files" => common::git_add_all_files(path),
+        "git_reset_all" => common::git_reset_all(path),
+        "is_file_staged" => {
+            common::is_file_staged(path, "CODEOWNERS");
+        }
+        "build_run_config" => {
+            common::build_run_config(path, "CODEOWNERS");
+        }
+        other => panic!("unknown helper {other}"),
+    }
+}
+
 #[test]
 fn test_git_helpers_refuse_inherited_repo_env() {
-    if std::env::var_os(CHILD_ENV).is_some() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        common::init_git_repo(temp_dir.path());
-        return;
+    for helper in HELPERS {
+        // A pre-commit hook in a worktree exports both, as absolute paths.
+        let outer = tempfile::tempdir().unwrap();
+        let outer_git_dir = outer.path().join("outer.git");
+        let (succeeded, log) = run_git_helper_child(
+            helper,
+            &[("GIT_DIR", outer_git_dir.clone()), ("GIT_INDEX_FILE", outer_git_dir.join("index"))],
+        );
+        assert!(!succeeded, "{helper} should have refused: {log}");
+        assert!(
+            log.contains("refusing to run git with inherited"),
+            "{helper} failed unexpectedly: {log}"
+        );
+        assert!(!outer_git_dir.exists(), "{helper} wrote to the repo named by the inherited GIT_DIR");
     }
-
-    // A pre-commit hook in a worktree exports both, as absolute paths.
-    let outer = tempfile::tempdir().unwrap();
-    let outer_git_dir = outer.path().join("outer.git");
-    let (succeeded, log) = run_git_helper_child(&[("GIT_DIR", outer_git_dir.clone()), ("GIT_INDEX_FILE", outer_git_dir.join("index"))]);
-    assert!(!succeeded, "child should have refused: {log}");
-    assert!(log.contains("refusing to run git with inherited"), "unexpected failure: {log}");
-    assert!(!outer_git_dir.exists(), "test git wrote to the repo named by the inherited GIT_DIR");
 }
 
 #[test]
@@ -103,7 +136,7 @@ fn test_git_helpers_refuse_an_inherited_index_file_alone() {
     // `git commit -a` or `git commit <path>` in a regular clone exports only an absolute GIT_INDEX_FILE.
     let outer = tempfile::tempdir().unwrap();
     let outer_index = outer.path().join("index.lock");
-    let (succeeded, log) = run_git_helper_child(&[("GIT_INDEX_FILE", outer_index.clone())]);
+    let (succeeded, log) = run_git_helper_child("init_git_repo", &[("GIT_INDEX_FILE", outer_index.clone())]);
     assert!(!succeeded, "child should have refused: {log}");
     assert!(log.contains("\"GIT_INDEX_FILE\""), "tripwire didn't name GIT_INDEX_FILE: {log}");
     assert!(
