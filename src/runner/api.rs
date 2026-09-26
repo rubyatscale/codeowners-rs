@@ -6,6 +6,8 @@ use error_stack::Report;
 
 use super::{Error, ForFileResult, RunConfig, RunResult, run};
 
+pub use crate::ownership::file_owner_resolver::clear_team_cache;
+
 pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool, json: bool) -> RunResult {
     if from_codeowners {
         return for_file_codeowners_only_fast(run_config, file_path, json);
