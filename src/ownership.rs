@@ -122,7 +122,9 @@ impl Ownership {
         let validator = Validator {
             project: self.project.clone(),
             mappers: self.mappers(),
-            file_generator: FileGenerator { mappers: self.mappers() },
+            file_generator: FileGenerator {
+                mappers: self.codeowners_file_mappers(),
+            },
             executable_name: self.project.executable_name.clone(),
         };
 
@@ -166,7 +168,9 @@ impl Ownership {
     #[instrument(level = "debug", skip_all)]
     pub fn generate_file(&self) -> String {
         info!("generating codeowners file");
-        let file_generator = FileGenerator { mappers: self.mappers() };
+        let file_generator = FileGenerator {
+            mappers: self.codeowners_file_mappers(),
+        };
         file_generator.generate_file()
     }
 
@@ -180,6 +184,20 @@ impl Ownership {
             Box::new(JavascriptPackageMapper::build(self.project.clone())),
             Box::new(TeamYmlMapper::build(self.project.clone())),
             Box::new(TeamGemMapper::build(self.project.clone())),
+        ]
+    }
+
+    // GitHub applies the last matching CODEOWNERS line, so annotations are written last: an annotated
+    // file can still match a broader team glob that excludes it through unowned_globs.
+    fn codeowners_file_mappers(&self) -> Vec<Box<dyn Mapper>> {
+        vec![
+            Box::new(TeamGlobMapper::build(self.project.clone())),
+            Box::new(DirectoryMapper::build(self.project.clone())),
+            Box::new(RubyPackageMapper::build(self.project.clone())),
+            Box::new(JavascriptPackageMapper::build(self.project.clone())),
+            Box::new(TeamYmlMapper::build(self.project.clone())),
+            Box::new(TeamGemMapper::build(self.project.clone())),
+            Box::new(TeamFileMapper::build(self.project.clone())),
         ]
     }
 }

@@ -23,12 +23,6 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
     +# code/file owner is notified. Reference GitHub docs for more details:
     +# https://help.github.com/en/articles/about-code-owners
     +
-    +# Annotations at the top of file
-    +/gems/payroll_calculator/calculator.rb @PaymentTeam
-    +/ruby/app/models/bank_account.rb @PaymentTeam
-    +/ruby/app/models/payroll.rb @PayrollTeam
-    +/ruby/app/services/multi_owned.rb @PaymentTeam
-    +
     +# Team-specific owned globs
     +/ruby/app/payments/**/* @PaymentTeam
     +
@@ -44,6 +38,12 @@ fn test_validate() -> Result<(), Box<dyn Error>> {
     +
     +# Team owned gems
     +/gems/payroll_calculator/**/** @PayrollTeam
+    +
+    +# Annotations at the top of file
+    +/gems/payroll_calculator/calculator.rb @PaymentTeam
+    +/ruby/app/models/bank_account.rb @PaymentTeam
+    +/ruby/app/models/payroll.rb @PayrollTeam
+    +/ruby/app/services/multi_owned.rb @PaymentTeam
 
     CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
 

@@ -45,15 +45,15 @@ fn test_custom_executable_name_full_error_message() -> Result<(), Box<dyn Error>
     -# Outdated content to trigger validation error
     -/app/old.rb @FooTeam
     +
-    +# Annotations at the top of file
-    +/app/foo.rb @FooTeam
-    +
     +# Team-specific owned globs
     +/ruby/app/payments/** @PaymentTeam
     +
     +# Team YML ownership
     +/config/teams/foo.yml @FooTeam
     +/config/teams/payments.yml @PaymentTeam
+    +
+    +# Annotations at the top of file
+    +/app/foo.rb @FooTeam
 
     CODEOWNERS out of date. Run `bin/codeownership validate` to update the CODEOWNERS file
 
@@ -74,11 +74,11 @@ fn test_default_executable_name_full_error_message() -> Result<(), Box<dyn Error
     The following changes are required (- current, + expected):
     -# Outdated content to trigger validation error
     -/app/old.rb @BarTeam
-    +# Annotations at the top of file
-    +/app/bar.rb @BarTeam
-    +
     +# Team YML ownership
     +/config/teams/bar.yml @BarTeam
+    +
+    +# Annotations at the top of file
+    +/app/bar.rb @BarTeam
 
     CODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file
 

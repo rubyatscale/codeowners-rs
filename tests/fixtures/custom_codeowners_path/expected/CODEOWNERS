@@ -7,8 +7,8 @@
 # https://help.github.com/en/articles/about-code-owners
 
 
-# Annotations at the top of file
-/ruby/app/models/test.rb @TestTeam
-
 # Team YML ownership
 /config/teams/test_team.yml @TestTeam
+
+# Annotations at the top of file
+/ruby/app/models/test.rb @TestTeam

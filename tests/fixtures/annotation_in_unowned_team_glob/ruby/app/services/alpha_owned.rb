@@ -1,0 +1,2 @@
+class AlphaOwned
+end

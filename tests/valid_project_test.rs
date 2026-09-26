@@ -299,12 +299,6 @@ fn test_for_team() -> Result<(), Box<dyn Error>> {
         predicate::eq(indoc! {"
             # Code Ownership Report for `Payroll` Team
 
-            ## Annotations at the top of file
-            /javascript/packages/PayrollFlow/index.tsx
-            /ruby/app/models/payroll.rb
-            /ruby/app/views/foos/edit.erb
-            /ruby/app/views/foos/new.html.erb
-
             ## Team-specific owned globs
             This team owns nothing in this category.
 
@@ -324,6 +318,12 @@ fn test_for_team() -> Result<(), Box<dyn Error>> {
 
             ## Team owned gems
             /gems/payroll_calculator/**/**
+
+            ## Annotations at the top of file
+            /javascript/packages/PayrollFlow/index.tsx
+            /ruby/app/models/payroll.rb
+            /ruby/app/views/foos/edit.erb
+            /ruby/app/views/foos/new.html.erb
         "}),
     )?;
 

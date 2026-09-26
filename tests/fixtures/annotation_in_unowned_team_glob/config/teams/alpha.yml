@@ -1,0 +1,7 @@
+name: Alpha
+github:
+  team: '@AlphaTeam'
+owned_globs:
+  - ruby/app/**/*
+unowned_globs:
+  - ruby/app/services/beta_owned.rb

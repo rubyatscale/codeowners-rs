@@ -1,0 +1,4 @@
+owned_globs:
+  - "ruby/**/*.rb"
+team_file_glob:
+  - config/teams/**/*.yml

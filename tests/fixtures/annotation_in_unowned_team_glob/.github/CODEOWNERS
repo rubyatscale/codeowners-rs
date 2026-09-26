@@ -7,8 +7,12 @@
 # https://help.github.com/en/articles/about-code-owners
 
 
+# Team-specific owned globs
+/ruby/app/**/* @AlphaTeam
+
 # Team YML ownership
-/config/teams/test_team.yml @TestTeam
+/config/teams/alpha.yml @AlphaTeam
+/config/teams/beta.yml @BetaTeam
 
 # Annotations at the top of file
-/ruby/app/models/test.rb @TestTeam
+/ruby/app/services/beta_owned.rb @BetaTeam
