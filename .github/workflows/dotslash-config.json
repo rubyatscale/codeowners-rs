@@ -1,28 +1,29 @@
 {
-    "outputs": {
-      "codeowners": {
-        "platforms": {
-          "macos-x86_64": {
-            "regex": "^codeowners-mac",
-            "path": "codeowners",
-            "format": "tar.gz"
-          },
-          "macos-aarch64": {
-            "regex": "^codeowners-mac",
-            "path": "codeowners",
-            "format": "tar.gz"
-          },
-          "linux-x86_64": {
-            "regex": "^x86_64-unknown-linux",
-            "path": "codeowners",
-            "format": "tar.gz"
-          },
-          "linux-aarch64": {
-            "regex": "^aarch64-unknown-linux",
-            "path": "codeowners",
-            "format": "tar.gz"
-          }
+  "exclude-http-provider": true,
+  "outputs": {
+    "codeowners": {
+      "platforms": {
+        "macos-x86_64": {
+          "name": "codeowners-mac.tar.gz",
+          "path": "codeowners",
+          "format": "tar.gz"
+        },
+        "macos-aarch64": {
+          "name": "codeowners-mac.tar.gz",
+          "path": "codeowners",
+          "format": "tar.gz"
+        },
+        "linux-x86_64": {
+          "name": "x86_64-unknown-linux-gnu.tar.gz",
+          "path": "codeowners",
+          "format": "tar.gz"
+        },
+        "linux-aarch64": {
+          "name": "aarch64-unknown-linux-gnu.tar.gz",
+          "path": "codeowners",
+          "format": "tar.gz"
         }
       }
     }
   }
+}

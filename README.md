@@ -44,8 +44,68 @@ You can run `codeowners` without installing a platform-specific binary by using 
 ### Option A: DotSlash (recommended)
 
 1. Install DotSlash: see [https://dotslash-cli.com/docs/installation/](https://dotslash-cli.com/docs/installation/)
-2. Download the latest DotSlash text file from a release, for example [https://github.com/rubyatscale/codeowners-rs/releases](https://github.com/rubyatscale/codeowners-rs/releases).
-3. Execute the downloaded file with DotSlash; it will fetch and run the correct binary.
+2. Download the `codeowners` DotSlash text file from the release you want to pin
+   to: [https://github.com/rubyatscale/codeowners-rs/releases](https://github.com/rubyatscale/codeowners-rs/releases)
+3. **Commit that file into your repository** (for example at `bin/codeowners`) and
+   mark it executable with `chmod +x`.
+4. Run it like any other executable — `./bin/codeowners --help`. DotSlash fetches,
+   verifies, and caches the correct binary for the current platform on first use.
+
+Upgrading is a deliberate act: download the DotSlash file from the newer release,
+replace the committed one, and review the diff. The digests change, so the change
+is visible in code review.
+
+#### Why commit the file rather than re-download it
+
+A DotSlash file records the expected `size` and BLAKE3 `digest` of each platform's
+binary, and DotSlash refuses to unpack or execute an artifact that does not match.
+That check is only worth something if the digest itself is trusted — and the digest
+is trusted because the file lives in your repository and changes to it go through
+review. If you re-download the DotSlash file alongside the binary every time, you
+are trusting whatever the release currently claims, and the digest verifies nothing
+you did not just fetch from the same place.
+
+This is also DotSlash's own guidance: "the provenance of a DotSlash file is
+paramount", and DotSlash files "are meant to live in source control"
+([motivation](https://github.com/facebook/dotslash/blob/main/website/docs/motivation.md)).
+
+#### Verifying a release independently (optional)
+
+DotSlash verifies digests but does not check signatures. Release binaries are built
+by GitHub Actions and carry [SLSA build provenance](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds)
+attestations, which you can verify with the GitHub CLI:
+
+```sh
+gh attestation verify codeowners-mac.tar.gz --repo rubyatscale/codeowners-rs
+```
+
+To additionally require that the attestation came from this repository's release
+workflow rather than any workflow in it:
+
+```sh
+gh attestation verify codeowners-mac.tar.gz \
+  --repo rubyatscale/codeowners-rs \
+  --signer-workflow rubyatscale/codeowners-rs/.github/workflows/ci.yml
+```
+
+Attestation was added to the release pipeline after v0.3.4, so releases up to and
+including v0.3.4 have none — `gh attestation verify` reports "no matching
+attestations found" for them. That is expected for those versions and is not
+evidence of tampering.
+
+Note that macOS binaries are ad-hoc (linker) signed only — they are not signed with
+an Apple Developer ID and are not notarized. Ad-hoc signing satisfies Apple
+silicon's requirement that all code be signed, but it does not satisfy Gatekeeper.
+
+Whether that matters depends on how you fetch the binary. DotSlash and `curl` do not
+set the `com.apple.quarantine` attribute, so Gatekeeper never evaluates the binary
+and it runs normally. If you download the tarball from the releases page in a
+browser, quarantine *is* set and Gatekeeper will refuse to run it until you clear
+the attribute:
+
+```sh
+xattr -d com.apple.quarantine codeowners
+```
 
 ### Option B: From source with Cargo
 

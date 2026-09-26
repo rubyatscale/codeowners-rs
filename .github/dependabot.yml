@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Actions are pinned to full-length commit SHAs, which is the only way to
+  # consume an action as an immutable release. Dependabot bumps both the SHA
+  # and the trailing `# vX.Y.Z` comment, so the pins do not go stale.
+  # https://docs.github.com/en/actions/reference/security/secure-use
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - '*'

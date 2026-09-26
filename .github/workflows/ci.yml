@@ -20,13 +20,22 @@ env:
 permissions:
   contents: read
 
+# Two pushes to main in quick succession would otherwise be able to run two
+# `release` jobs concurrently, and a draft release is not protected by tag
+# uniqueness the way a published one is (see the release job below).
+# On main, queue rather than cancel -- cancelling mid-release would leave a
+# partial draft. Everywhere else, superseding an in-flight run is what you want.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Run cargo check
         run: cargo check
@@ -35,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Run cargo test with backtrace
         run: cargo test -- --nocapture
@@ -48,7 +57,7 @@ jobs:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
@@ -56,8 +65,14 @@ jobs:
       - name: Run cargo clippy
         run: cargo clippy --all-targets --all-features
 
+  # The release is created as a DRAFT and only published once every asset --
+  # binaries plus the generated DotSlash files -- has been uploaded. This
+  # ordering is required for immutable releases: once a release is published,
+  # GitHub rejects further asset uploads with
+  # "Cannot upload assets to an immutable release".
+  # See https://github.com/actions/attest-build-provenance/issues/734
   release:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     needs:
@@ -69,19 +84,12 @@ jobs:
       changed: ${{ steps.check_for_version_changes.outputs.changed }}
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # https://stackoverflow.com/questions/65944700/how-to-run-git-diff-in-github-actions
           # TLDR – By default this action fetches no history.
           # We need a bit of history to be able to check if we've recently updated the version in Cargo.toml
           fetch-depth: 2
-      - name: Toolchain info
-        run: |
-          cargo --version --verbose
-          rustc --version
-          cargo clippy --version
-      - name: Build
-        run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
       - name: Check for version changes in Cargo.toml
         id: check_for_version_changes
         run: |
@@ -97,59 +105,121 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create GitHub Release if current commit has updated the version in Cargo.toml
+      - name: Create draft GitHub Release if current commit has updated the version in Cargo.toml
         if: steps.check_for_version_changes.outputs.changed == 'true'
         run: |
-          gh release create ${{steps.check_for_version_changes.outputs.new_version}} --target "${{ github.sha }}" --generate-notes
+          # A draft release does not create a git tag, so GitHub does NOT enforce
+          # tag uniqueness for drafts -- `gh release create` would happily make a
+          # second draft with the same pending tag name, and the DotSlash
+          # generator resolves whichever one the API returns first. That is
+          # reachable via "Re-run all jobs" after a failed upload, so reuse an
+          # existing draft instead of creating a duplicate.
+          if [[ "$(gh release view "$NEW_VERSION" --json isDraft --jq .isDraft 2>/dev/null)" == "true" ]]; then
+            echo "Draft $NEW_VERSION already exists; reusing it."
+          else
+            gh release create "$NEW_VERSION" --target "$COMMIT_SHA" --generate-notes --draft
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.check_for_version_changes.outputs.new_version }}
+          COMMIT_SHA: ${{ github.sha }}
+
   upload-mac-universal-bin:
     needs: release
     runs-on: macos-latest
     permissions:
       contents: write
-    if: ${{needs.release.outputs.new_version}}
+      # Required by actions/attest-build-provenance: id-token to mint the OIDC
+      # token for the Sigstore signing certificate, attestations to persist the
+      # resulting attestation.
+      id-token: write
+      attestations: write
+    if: needs.release.outputs.new_version != ''
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build
         run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
 
-      - name: Upload mac universal binary
+      - name: Create universal binary
         run: |
           # This combines the intel and m1 binaries into a single binary
           lipo -create -output target/codeowners target/aarch64-apple-darwin/release/codeowners target/x86_64-apple-darwin/release/codeowners
 
+          # lipo carries over the per-architecture linker (ad-hoc) signatures,
+          # but Apple recommends re-signing the merged binary so it carries a
+          # single coherent signature. All code on Apple silicon must be at
+          # least ad-hoc signed or it is SIGKILLed on launch, so verify rather
+          # than assume. https://developer.apple.com/forums/thread/708552
+          #
+          # `--sign -` is the ad-hoc identity, not a placeholder for a cert
+          # name: no certificate, no keychain, no Developer ID, nothing to
+          # provision in CI. It only makes the binary internally consistent and
+          # asserts nothing about who built it -- provenance comes from the
+          # attestation step below, not from codesign.
+          codesign --force --sign - target/codeowners
+          codesign --verify --verbose target/codeowners
+
           # Creates artifact for homebrew. -C means run from `target` directory
+          # NOTE: any mutation of the binary must happen BEFORE signing, and
+          # any repackaging must happen BEFORE attestation, or the digest the
+          # attestation covers will not match what users download.
           tar -czf target/codeowners-mac.tar.gz -C target codeowners
 
-          # This tarball is a binary that is executable
-          gh release upload $NEW_VERSION target/codeowners-mac.tar.gz
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: target/codeowners-mac.tar.gz
 
+      - name: Upload mac universal binary
+        run: |
+          # This tarball is a binary that is executable.
+          # --clobber so re-running after a partial failure replaces the asset
+          # instead of failing on "asset already exists".
+          gh release upload "$NEW_VERSION" target/codeowners-mac.tar.gz --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
 
   upload-linux-bin:
     needs: release
-    if: ${{needs.release.outputs.new_version}}
+    if: needs.release.outputs.new_version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Update local toolchain
         run: |
-          cargo install cross
+          # Pinned so a future cross release cannot change how release binaries
+          # are built without a reviewed commit. 0.2.5 is what an unpinned
+          # `cargo install cross` resolves to today, so this is not a version
+          # bump. Deliberately not --locked: cross 0.2.5's lockfile predates
+          # current rustc and this build cannot be exercised outside `main`.
+          cargo install cross --version 0.2.5
       - name: Build linux binaries
         run: |
           cross build --release --target x86_64-unknown-linux-gnu
           cross build --release --target aarch64-unknown-linux-gnu
-      - name: Upload linux binaries
+      - name: Package linux binaries
         run: |
           tar -czf target/x86_64-unknown-linux-gnu.tar.gz -C target/x86_64-unknown-linux-gnu/release codeowners
           tar -czf target/aarch64-unknown-linux-gnu.tar.gz -C target/aarch64-unknown-linux-gnu/release codeowners
-          gh release upload $NEW_VERSION target/x86_64-unknown-linux-gnu.tar.gz
-          gh release upload $NEW_VERSION target/aarch64-unknown-linux-gnu.tar.gz
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            target/x86_64-unknown-linux-gnu.tar.gz
+            target/aarch64-unknown-linux-gnu.tar.gz
+
+      - name: Upload linux binaries
+        run: |
+          # --clobber so re-running after a partial failure replaces the assets
+          # instead of failing on "asset already exists".
+          gh release upload "$NEW_VERSION" target/x86_64-unknown-linux-gnu.tar.gz --clobber
+          gh release upload "$NEW_VERSION" target/aarch64-unknown-linux-gnu.tar.gz --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
@@ -160,13 +230,13 @@ jobs:
       - release
       - upload-linux-bin
       - upload-mac-universal-bin
-    if: success() && ${{needs.release.outputs.new_version}}
+    if: needs.release.outputs.new_version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - uses: facebook/dotslash-publish-release@v1
+      - uses: facebook/dotslash-publish-release@2539c4d8ae00a42773306c8731d2dd3724d979d2 # v1
         # This is necessary because the action uses
         # `gh release upload` to publish the generated DotSlash file(s)
         # as part of the release.
@@ -178,3 +248,22 @@ jobs:
           config: .github/workflows/dotslash-config.json
           # Tag for the release to target.
           tag: ${{ needs.release.outputs.new_version }}
+
+  # Publishing last is what makes immutable releases workable: every asset is
+  # in place before the release becomes visible and frozen.
+  publish-release:
+    name: Publish the release
+    needs:
+      - release
+      - generate-dotslash-files
+    if: needs.release.outputs.new_version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Undraft the release
+        run: |
+          gh release edit "$NEW_VERSION" --draft=false --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ needs.release.outputs.new_version }}
