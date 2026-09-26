@@ -2,6 +2,8 @@ use std::path::Path;
 
 use codeowners::runner::{self, RunConfig};
 
+mod common;
+
 fn write_file(temp_dir: &Path, file_path: &str, content: &str) {
     let file_path = temp_dir.join(file_path);
     let _ = std::fs::create_dir_all(file_path.parent().unwrap());
@@ -176,6 +178,8 @@ javascript_package_paths:
         executable_name: None,
     };
 
+    // Stages in-process, so this process's own git env decides which index it writes.
+    common::assert_git_env_isolated();
     let gv = runner::generate_and_validate(&rc, vec![], true);
     assert!(gv.io_errors.is_empty(), "io: {:?}", gv.io_errors);
     assert!(gv.validation_errors.is_empty(), "val: {:?}", gv.validation_errors);

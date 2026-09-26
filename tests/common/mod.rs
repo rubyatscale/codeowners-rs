@@ -12,6 +12,8 @@ pub enum OutputStream {
     Stderr,
 }
 
+include!("../support/git_env.rs");
+
 #[allow(dead_code)]
 pub fn run_codeowners<I, P>(
     relative_fixture_path: &str,
@@ -75,6 +77,7 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
 
 #[allow(dead_code)]
 pub fn git_reset_all(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("reset")
         .current_dir(path)
@@ -89,6 +92,7 @@ pub fn git_reset_all(path: &Path) {
 
 #[allow(dead_code)]
 pub fn git_add_all_files(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("add")
         .arg("--all")
@@ -104,6 +108,7 @@ pub fn git_add_all_files(path: &Path) {
 
 #[allow(dead_code)]
 pub fn init_git_repo(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("init")
         .current_dir(path)
@@ -131,6 +136,7 @@ pub fn init_git_repo(path: &Path) {
 
 #[allow(dead_code)]
 pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
+    assert_git_env_isolated();
     let output = Command::new("git")
         .arg("diff")
         .arg("--name-only")
@@ -149,6 +155,8 @@ pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
 
 #[allow(dead_code)]
 pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunConfig {
+    // Callers pass the config to in-process runs that may stage.
+    assert_git_env_isolated();
     let project_root = project_root.canonicalize().expect("failed to canonicalize project root");
     let codeowners_file_path = project_root.join(codeowners_rel_path);
     let config_path = project_root.join("config/code_ownership.yml");
