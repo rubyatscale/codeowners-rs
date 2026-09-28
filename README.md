@@ -214,7 +214,7 @@ codeowners gv --no-cache
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
 - `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
-- `allow_unowned_files` (default: `false`): When `true`, files in `owned_globs` that no mechanism assigns an owner are not a validation error. Every ownership mechanism, including file annotations, still applies to them. Use this when only some of your code has owners; unlike putting files in `unowned_globs`, their annotations keep working.
+- `allow_unowned_globs` (default: `[]`): Files in `owned_globs` that match these globs don't need an owner, so leaving them unowned isn't a validation error. Unlike `unowned_globs`, they're still read and every ownership mechanism, including file annotations, still applies to them. Use `['**/*']` if only some of your code has owners, or scope it, e.g. `['**/deprecated/**/*']`.
 
 Example configuration with custom executable name:
 
@@ -239,7 +239,7 @@ By default, cache is stored under `tmp/cache/codeowners` relative to the project
 
 1. Only one mechanism defines ownership for any file.
 2. All referenced teams are valid.
-3. All files in `owned_globs` are owned, unless matched by `unowned_globs` or `allow_unowned_files` is set.
+3. All files in `owned_globs` are owned, unless matched by `unowned_globs` or `allow_unowned_globs`.
 4. The generated `CODEOWNERS` file is up to date.
 
 Exit status is non-zero on errors.

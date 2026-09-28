@@ -146,21 +146,24 @@ impl Runner {
         let mut unowned_files = Vec::new();
         let mut io_errors = Vec::new();
 
+        let relative_to_root = |file_path: &str| {
+            let path = Path::new(file_path);
+            if path.is_absolute() {
+                path.strip_prefix(&self.run_config.project_root).unwrap_or(path).to_path_buf()
+            } else {
+                path.to_path_buf()
+            }
+        };
+
         // Filter files based on owned_globs and unowned_globs configuration
         // Only validate files that match owned_globs and don't match unowned_globs
         let filtered_paths: Vec<String> = file_paths
             .into_iter()
             .filter(|file_path| {
-                // Convert to relative path for glob matching
-                let path = Path::new(file_path);
-                let relative_path = if path.is_absolute() {
-                    path.strip_prefix(&self.run_config.project_root).unwrap_or(path)
-                } else {
-                    path
-                };
+                let relative_path = relative_to_root(file_path);
 
                 // Mirror the filtering applied by ProjectBuilder when walking the project
-                matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
+                matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs)
             })
             .collect();
 
@@ -168,7 +171,7 @@ impl Runner {
             for file_path in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    Ok(None) if self.config.allow_unowned_files => {}
+                    Ok(None) if matches_globs(&relative_to_root(&file_path), &self.config.allow_unowned_globs) => {}
                     Ok(None) => unowned_files.push(file_path),
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }

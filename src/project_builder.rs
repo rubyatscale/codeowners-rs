@@ -325,12 +325,12 @@ impl<'a> ProjectBuilder<'a> {
             directory_codeowner_files: directory_codeowners,
             teams_by_name,
             executable_name: self.config.executable_name.clone(),
-            allow_unowned_files: self.config.allow_unowned_files,
+            allow_unowned_globs: self.config.allow_unowned_globs.clone(),
         })
     }
 }
 
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
+pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
     match path.to_str() {
         Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
         None => false,

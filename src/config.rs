@@ -33,7 +33,7 @@ pub struct Config {
     pub codeowners_path: String,
 
     #[serde(default)]
-    pub allow_unowned_files: bool,
+    pub allow_unowned_globs: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -171,24 +171,25 @@ mod tests {
         let config_file = File::open(&config_path)?;
         let config: Config = serde_yaml::from_reader(config_file)?;
         assert_eq!(config.executable_name, "codeowners generate");
-        assert!(!config.allow_unowned_files);
+        assert!(config.allow_unowned_globs.is_empty());
         Ok(())
     }
 
     #[test]
-    fn test_parse_config_with_allow_unowned_files() -> Result<(), Box<dyn Error>> {
+    fn test_parse_config_with_allow_unowned_globs() -> Result<(), Box<dyn Error>> {
         let temp_dir = tempdir()?;
         let config_path = temp_dir.path().join("config.yml");
         let config_str = indoc! {"
             ---
             owned_globs:
               - \"**/*.rb\"
-            allow_unowned_files: true
+            allow_unowned_globs:
+              - \"**/deprecated/**/*\"
         "};
         fs::write(&config_path, config_str)?;
         let config_file = File::open(&config_path)?;
         let config: Config = serde_yaml::from_reader(config_file)?;
-        assert!(config.allow_unowned_files);
+        assert_eq!(config.allow_unowned_globs, vec!["**/deprecated/**/*"]);
         Ok(())
     }
 

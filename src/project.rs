@@ -18,7 +18,7 @@ pub struct Project {
     pub directory_codeowner_files: Vec<DirectoryCodeownersFile>,
     pub teams_by_name: HashMap<String, Team>,
     pub executable_name: String,
-    pub allow_unowned_files: bool,
+    pub allow_unowned_globs: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -223,7 +223,7 @@ mod tests {
             directory_codeowner_files: vec![],
             teams_by_name: HashMap::new(),
             executable_name: "codeowners generate".to_string(),
-            allow_unowned_files: false,
+            allow_unowned_globs: vec![],
         };
 
         let map = project.vendored_gem_by_name();

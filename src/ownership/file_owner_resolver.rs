@@ -377,7 +377,7 @@ mod tests {
             ignore_dirs: vec![],
             executable_name: "codeowners".to_string(),
             codeowners_path: ".github".to_string(),
-            allow_unowned_files: false,
+            allow_unowned_globs: vec![],
         }
     }
 

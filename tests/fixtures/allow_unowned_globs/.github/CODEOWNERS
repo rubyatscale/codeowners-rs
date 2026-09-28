@@ -12,3 +12,4 @@
 
 # Annotations at the top of file
 /app/annotated.rb @FooTeam
+/app/deprecated/annotated_old.rb @FooTeam
