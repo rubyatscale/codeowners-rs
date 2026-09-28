@@ -10,9 +10,24 @@ pub fn relative_to_buf(root: &Path, path: &Path) -> PathBuf {
     relative_to(root, path).to_path_buf()
 }
 
+/// Returns true if `path` matches any of the provided glob patterns.
+pub fn matches_globs(path: &Path, globs: &[String]) -> bool {
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| fast_glob::glob_match(glob, s)),
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn matches_globs_double_star_matches_root_level_and_nested_files() {
+        let globs = vec!["**/*".to_string()];
+        assert!(matches_globs(Path::new("root.rb"), &globs));
+        assert!(matches_globs(Path::new("app/models/user.rb"), &globs));
+    }
 
     #[test]
     fn relative_to_returns_relative_when_under_root() {

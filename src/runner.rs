@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::path_utils::matches_globs;
+
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use serde::Serialize;
 use tracing::debug_span;
 
@@ -436,14 +437,6 @@ impl RunResult {
             io_errors: vec![format!("{{\"error\": \"{}\"}}", message.replace('"', "\\\""))],
             ..Default::default()
         }
-    }
-}
-
-/// Returns true if `path` matches any of the provided glob patterns.
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
     }
 }
 

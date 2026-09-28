@@ -5,11 +5,11 @@ use std::{
 };
 
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
 
+use crate::path_utils::matches_globs;
 use crate::{
     cache::Cache,
     config::Config,
@@ -330,13 +330,6 @@ impl<'a> ProjectBuilder<'a> {
     }
 }
 
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
-    }
-}
-
 pub(crate) fn ruby_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
     let file = File::open(path).change_context(Error::Io)?;
     let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
@@ -366,6 +359,7 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Report<Error>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fast_glob::glob_match;
 
     const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
 
