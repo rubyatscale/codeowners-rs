@@ -168,6 +168,7 @@ impl Runner {
             for file_path in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
+                    Ok(None) if self.config.allow_unowned_files => {}
                     Ok(None) => unowned_files.push(file_path),
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }

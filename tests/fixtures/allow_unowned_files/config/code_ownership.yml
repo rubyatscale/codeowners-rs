@@ -1,0 +1,4 @@
+---
+owned_globs:
+  - "{app,config}/**/*.rb"
+allow_unowned_files: true

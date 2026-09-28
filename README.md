@@ -209,11 +209,12 @@ codeowners gv --no-cache
 - `ruby_package_paths` (default: `['packs/**/*', 'components/**']`)
 - `js_package_paths` / `javascript_package_paths` (default: `['frontend/**/*']`)
 - `team_file_glob` (default: `['config/teams/**/*.yml']`)
-- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`)
+- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`): Files matched here don't need an owner, and they're never read, so file annotations in them are ignored. Use this for third-party or generated code.
 - `vendored_gems_path` (default: `'vendored/'`)
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
 - `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
+- `allow_unowned_files` (default: `false`): When `true`, files in `owned_globs` that no mechanism assigns an owner are not a validation error. Every ownership mechanism, including file annotations, still applies to them. Use this when only some of your code has owners; unlike putting files in `unowned_globs`, their annotations keep working.
 
 Example configuration with custom executable name:
 
@@ -238,7 +239,7 @@ By default, cache is stored under `tmp/cache/codeowners` relative to the project
 
 1. Only one mechanism defines ownership for any file.
 2. All referenced teams are valid.
-3. All files in `owned_globs` are owned, unless matched by `unowned_globs`.
+3. All files in `owned_globs` are owned, unless matched by `unowned_globs` or `allow_unowned_files` is set.
 4. The generated `CODEOWNERS` file is up to date.
 
 Exit status is non-zero on errors.

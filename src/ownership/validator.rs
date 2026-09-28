@@ -22,6 +22,7 @@ pub struct Validator {
     pub mappers: Vec<Box<dyn Mapper>>,
     pub file_generator: FileGenerator,
     pub executable_name: String,
+    pub allow_unowned_files: bool,
 }
 
 #[derive(Debug)]
@@ -172,7 +173,9 @@ impl Validator {
             let relative_path = self.project.relative_path(&file.path).to_owned();
 
             if owners.is_empty() {
-                validation_errors.push(Error::FileWithoutOwner { path: relative_path })
+                if !self.allow_unowned_files {
+                    validation_errors.push(Error::FileWithoutOwner { path: relative_path })
+                }
             } else if owners.len() > 1 {
                 validation_errors.push(Error::FileWithMultipleOwners {
                     path: relative_path,
