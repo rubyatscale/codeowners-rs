@@ -146,14 +146,7 @@ impl Runner {
         let mut unowned_files = Vec::new();
         let mut io_errors = Vec::new();
 
-        let relative_to_root = |file_path: &str| {
-            let path = Path::new(file_path);
-            if path.is_absolute() {
-                path.strip_prefix(&self.run_config.project_root).unwrap_or(path).to_path_buf()
-            } else {
-                path.to_path_buf()
-            }
-        };
+        let relative_to_root = |file_path: &str| crate::path_utils::relative_to_buf(&self.run_config.project_root, Path::new(file_path));
 
         // Filter files based on owned_globs and unowned_globs configuration
         // Only validate files that match owned_globs and don't match unowned_globs

@@ -1,11 +1,11 @@
 use crate::project::{Project, ProjectFile};
-use crate::project_builder::matches_globs;
 use core::fmt;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use fast_glob::glob_match;
 use itertools::Itertools;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
@@ -340,6 +340,13 @@ impl Display for Errors {
 }
 
 impl core::error::Error for Errors {}
+
+fn matches_globs(path: &Path, globs: &[String]) -> bool {
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
+        None => false,
+    }
+}
 
 #[cfg(test)]
 mod tests {

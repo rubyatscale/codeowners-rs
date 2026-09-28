@@ -118,3 +118,22 @@ fn test_validate_reports_unowned_files_without_allowed_globs() -> Result<(), Box
     .stdout(predicate::str::contains("- app/deprecated/old.rb"));
     Ok(())
 }
+
+fn allow_every_unowned_file_with_one_at_the_project_root(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join("root.rb"), "puts 'no owner'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
+    )
+}
+
+#[test]
+fn test_double_star_glob_allows_unowned_files_at_the_project_root() -> Result<(), Box<dyn Error>> {
+    run_on_modified_fixture(allow_every_unowned_file_with_one_at_the_project_root, &["validate"])?
+        .success()
+        .stdout(predicate::eq(""));
+    run_on_modified_fixture(allow_every_unowned_file_with_one_at_the_project_root, &["validate", "root.rb"])?
+        .success()
+        .stdout(predicate::eq(""));
+    Ok(())
+}

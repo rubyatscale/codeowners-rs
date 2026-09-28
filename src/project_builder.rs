@@ -330,7 +330,7 @@ impl<'a> ProjectBuilder<'a> {
     }
 }
 
-pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
+fn matches_globs(path: &Path, globs: &[String]) -> bool {
     match path.to_str() {
         Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
         None => false,
