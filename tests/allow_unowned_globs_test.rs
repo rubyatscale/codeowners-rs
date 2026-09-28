@@ -33,6 +33,26 @@ fn test_validate_files_passes_for_an_unowned_file_in_an_allowed_glob() -> Result
 }
 
 #[test]
+fn test_validate_files_passes_for_an_absolute_path_in_an_allowed_glob() -> Result<(), Box<dyn Error>> {
+    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
+    let project_root = temp_dir.path();
+    git_add_all_files(project_root);
+
+    let file_absolute_path = project_root.join("app/deprecated/old.rb").canonicalize()?;
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("validate")
+        .arg(file_absolute_path)
+        .assert()
+        .success()
+        .stdout(predicate::eq(""));
+    Ok(())
+}
+
+#[test]
 fn test_annotations_still_assign_owners_in_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_codeowners(
         "allow_unowned_globs",
@@ -99,6 +119,39 @@ fn test_validate_files_reports_an_unowned_file_outside_allowed_globs() -> Result
         .failure()
         .stdout(predicate::str::contains("Unowned files detected:"))
         .stdout(predicate::str::contains("app/stray.rb"));
+    Ok(())
+}
+
+fn add_a_second_team_owning_the_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::write(
+        project_root.join("config/teams/bar.yml"),
+        "---\nname: Bar\ngithub:\n  team: '@BarTeam'\nowned_globs:\n  - app/deprecated/**/*\n",
+    )
+}
+
+#[test]
+fn test_validate_reports_multiple_owners_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    run_on_modified_fixture(add_a_second_team_owning_the_allowed_glob, &["validate"])?
+        .failure()
+        .stdout(predicate::str::contains(
+            "Code ownership should only be defined for each file in one way.",
+        ))
+        .stdout(predicate::str::contains("app/deprecated/annotated_old.rb\n owner:"));
+    Ok(())
+}
+
+fn add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join("app/deprecated/typo.rb"), "# @team Typo\nputs 'typo'\n")
+}
+
+#[test]
+fn test_validate_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    run_on_modified_fixture(add_an_annotation_naming_an_unknown_team_in_an_allowed_glob, &["validate"])?
+        .failure()
+        .stdout(predicate::str::contains("Found invalid team references"))
+        .stdout(predicate::str::contains(
+            "- app/deprecated/typo.rb is referencing an invalid team - 'Typo'",
+        ));
     Ok(())
 }
 

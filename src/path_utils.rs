@@ -11,7 +11,7 @@ pub fn relative_to_buf(root: &Path, path: &Path) -> PathBuf {
 }
 
 /// Returns true if `path` matches any of the provided glob patterns.
-pub fn matches_globs(path: &Path, globs: &[String]) -> bool {
+pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
     match path.to_str() {
         Some(s) => globs.iter().any(|glob| fast_glob::glob_match(glob, s)),
         None => false,

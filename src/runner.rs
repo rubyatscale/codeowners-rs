@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::path_utils::matches_globs;
-
 use error_stack::{Report, ResultExt};
 use serde::Serialize;
 use tracing::debug_span;
@@ -11,6 +9,7 @@ use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
+    path_utils::{matches_globs, relative_to_buf},
     project_builder::ProjectBuilder,
 };
 
@@ -147,25 +146,25 @@ impl Runner {
         let mut unowned_files = Vec::new();
         let mut io_errors = Vec::new();
 
-        let relative_to_root = |file_path: &str| crate::path_utils::relative_to_buf(&self.run_config.project_root, Path::new(file_path));
-
         // Filter files based on owned_globs and unowned_globs configuration
         // Only validate files that match owned_globs and don't match unowned_globs
-        let filtered_paths: Vec<String> = file_paths
+        let filtered_paths: Vec<(String, PathBuf)> = file_paths
             .into_iter()
-            .filter(|file_path| {
-                let relative_path = relative_to_root(file_path);
-
-                // Mirror the filtering applied by ProjectBuilder when walking the project
-                matches_globs(&relative_path, &self.config.owned_globs) && !matches_globs(&relative_path, &self.config.unowned_globs)
+            .map(|file_path| {
+                let relative_path = relative_to_buf(&self.run_config.project_root, Path::new(&file_path));
+                (file_path, relative_path)
+            })
+            // Mirror the filtering applied by ProjectBuilder when walking the project
+            .filter(|(_, relative_path)| {
+                matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
             })
             .collect();
 
         debug_span!("per_file_query").in_scope(|| {
-            for file_path in filtered_paths {
+            for (file_path, relative_path) in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    Ok(None) if matches_globs(&relative_to_root(&file_path), &self.config.allow_unowned_globs) => {}
+                    Ok(None) if matches_globs(&relative_path, &self.config.allow_unowned_globs) => {}
                     Ok(None) => unowned_files.push(file_path),
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }

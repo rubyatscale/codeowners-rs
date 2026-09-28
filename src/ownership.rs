@@ -126,7 +126,6 @@ impl Ownership {
                 mappers: self.codeowners_file_mappers(),
             },
             executable_name: self.project.executable_name.clone(),
-            allow_unowned_globs: self.project.allow_unowned_globs.clone(),
         };
 
         validator.validate()

@@ -9,10 +9,10 @@ use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
 
-use crate::path_utils::matches_globs;
 use crate::{
     cache::Cache,
     config::Config,
+    path_utils::matches_globs,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
     tracked_files,
