@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo check
         run: cargo check
@@ -35,7 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo test with backtrace
         run: cargo test -- --nocapture
@@ -48,7 +52,9 @@ jobs:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
@@ -69,8 +75,9 @@ jobs:
       changed: ${{ steps.check_for_version_changes.outputs.changed }}
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # https://stackoverflow.com/questions/65944700/how-to-run-git-diff-in-github-actions
           # TLDR – By default this action fetches no history.
           # We need a bit of history to be able to check if we've recently updated the version in Cargo.toml
@@ -100,9 +107,10 @@ jobs:
       - name: Create GitHub Release if current commit has updated the version in Cargo.toml
         if: steps.check_for_version_changes.outputs.changed == 'true'
         run: |
-          gh release create ${{steps.check_for_version_changes.outputs.new_version}} --target "${{ github.sha }}" --generate-notes
+          gh release create "$NEW_VERSION" --target "$GITHUB_SHA" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.check_for_version_changes.outputs.new_version }}
   upload-mac-universal-bin:
     needs: release
     runs-on: macos-latest
@@ -110,7 +118,9 @@ jobs:
       contents: write
     if: ${{needs.release.outputs.new_version}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build
         run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
 
@@ -136,7 +146,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Update local toolchain
         run: |
           cargo install cross
@@ -160,13 +172,13 @@ jobs:
       - release
       - upload-linux-bin
       - upload-mac-universal-bin
-    if: success() && ${{needs.release.outputs.new_version}}
+    if: success() && needs.release.outputs.new_version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - uses: facebook/dotslash-publish-release@v1
+      - uses: facebook/dotslash-publish-release@2539c4d8ae00a42773306c8731d2dd3724d979d2 # v1
         # This is necessary because the action uses
         # `gh release upload` to publish the generated DotSlash file(s)
         # as part of the release.
