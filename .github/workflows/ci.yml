@@ -178,7 +178,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: facebook/dotslash-publish-release@2539c4d8ae00a42773306c8731d2dd3724d979d2 # v1
+      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         # This is necessary because the action uses
         # `gh release upload` to publish the generated DotSlash file(s)
         # as part of the release.
