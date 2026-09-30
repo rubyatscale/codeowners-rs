@@ -21,12 +21,22 @@ fn test_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
+    // `invalid_project`, not `valid_project`: this needs a file that genuinely has no
+    // owner, and `valid_project/ruby/app/unowned.rb` does not exist -- by design, since
+    // `test_validate_with_no_files` requires that fixture to validate cleanly. Pointed at
+    // the nonexistent path, this test passed only because a nonexistent path was reported
+    // as unowned, so it was really covering typo handling while claiming to cover unowned
+    // files. Now that a path which no longer exists is skipped, that accident is gone.
+    // `invalid_project/ruby/app/unowned.rb` is a real file with no owner.
+    //
+    // Asserts the path and the exit status, not the category wording, so it stays valid
+    // however the report is phrased.
     run_codeowners(
-        "valid_project",
+        "invalid_project",
         &["validate", "ruby/app/unowned.rb"],
         false,
         OutputStream::Stdout,
-        predicate::str::contains("ruby/app/unowned.rb").and(predicate::str::contains("Unowned")),
+        predicate::str::contains("ruby/app/unowned.rb"),
     )?;
 
     Ok(())
@@ -34,12 +44,14 @@ fn test_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_validate_with_mixed_files() -> Result<(), Box<dyn Error>> {
+    // One owned file and one genuinely unowned one; see `test_validate_with_unowned_file`
+    // for why this uses `invalid_project`.
     run_codeowners(
-        "valid_project",
+        "invalid_project",
         &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"],
         false,
         OutputStream::Stdout,
-        predicate::str::contains("ruby/app/unowned.rb").and(predicate::str::contains("Unowned")),
+        predicate::str::contains("ruby/app/unowned.rb"),
     )?;
 
     Ok(())
@@ -79,7 +91,9 @@ fn test_generate_and_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
-    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
+    // `invalid_project` for the same reason as `test_validate_with_unowned_file`: it holds
+    // a file that genuinely has no owner.
+    let fixture_root = std::path::Path::new("tests/fixtures/invalid_project");
     let temp_dir = setup_fixture_repo(fixture_root);
     let project_root = temp_dir.path();
     git_add_all_files(project_root);
@@ -96,8 +110,7 @@ fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> 
         .arg("ruby/app/unowned.rb")
         .assert()
         .failure()
-        .stdout(predicate::str::contains("ruby/app/unowned.rb"))
-        .stdout(predicate::str::contains("Unowned"));
+        .stdout(predicate::str::contains("ruby/app/unowned.rb"));
 
     Ok(())
 }
