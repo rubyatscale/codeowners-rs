@@ -1,3 +1,4 @@
+use crate::path_utils::matches_globs;
 use crate::project::{Project, ProjectFile};
 use core::fmt;
 use std::collections::HashSet;
@@ -172,7 +173,9 @@ impl Validator {
             let relative_path = self.project.relative_path(&file.path).to_owned();
 
             if owners.is_empty() {
-                validation_errors.push(Error::FileWithoutOwner { path: relative_path })
+                if !matches_globs(&relative_path, &self.project.allow_unowned_globs) {
+                    validation_errors.push(Error::FileWithoutOwner { path: relative_path })
+                }
             } else if owners.len() > 1 {
                 validation_errors.push(Error::FileWithMultipleOwners {
                     path: relative_path,

@@ -1,0 +1,2 @@
+# @team Foo
+puts 'annotated'
