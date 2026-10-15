@@ -146,26 +146,45 @@ impl Runner {
         let mut unowned_files = Vec::new();
         let mut io_errors = Vec::new();
 
-        // Filter files based on owned_globs and unowned_globs configuration
-        // Only validate files that match owned_globs and don't match unowned_globs
-        let filtered_paths: Vec<String> = file_paths
-            .into_iter()
-            .filter(|file_path| {
-                // Convert to relative path for glob matching
-                let path = Path::new(file_path);
-                let relative_path = if path.is_absolute() {
-                    path.strip_prefix(&self.run_config.project_root).unwrap_or(path)
-                } else {
-                    path
-                };
+        // Normalize before anything else. A caller-supplied path has to be reduced to the
+        // project-relative form the rest of the pipeline speaks, or it silently matches
+        // nothing: `./ruby/app/x.rb`, and an absolute path that disagrees with the root
+        // about symlinks, were both dropped by the glob filter below, and the run then
+        // exited 0 having checked nothing -- a false pass in the unsafe direction.
+        //
+        // The canonical root is resolved once rather than per path, since only the retry
+        // inside `resolve_project_relative` needs it and that retry can fire for every path
+        // when a caller passes an absolute list.
+        let canonical_root = self.run_config.project_root.canonicalize().ok();
 
-                // Mirror the filtering applied by ProjectBuilder when walking the project
+        let relative_paths: Vec<PathBuf> = file_paths
+            .iter()
+            .filter_map(|file_path| {
+                crate::path_utils::resolve_project_relative(&self.run_config.project_root, canonical_root.as_deref(), Path::new(file_path))
+            })
+            // A path that no longer exists is dropped rather than reported. Changesets
+            // delete files routinely and `git diff --name-only` lists them, so reporting a
+            // deleted file as unowned fails a commit for removing code -- and a deleted
+            // file cannot have an owner. The wrapping `code_ownership` gem already filters
+            // its list by `File.exist?` before calling in; doing it here too covers callers
+            // that use the library directly.
+            //
+            // `unwrap_or(true)` because only a definite "this is not there" earns a silent
+            // skip. If the answer is unknown -- a permissions error, a broken symlink --
+            // keep the path and let the check report it, because a visible error is
+            // investigable and a silent pass is not.
+            .filter(|relative_path| self.run_config.project_root.join(relative_path).try_exists().unwrap_or(true))
+            // Mirror the filtering applied by ProjectBuilder when walking the project.
+            .filter(|relative_path| {
                 matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
             })
             .collect();
 
         debug_span!("per_file_query").in_scope(|| {
-            for file_path in filtered_paths {
+            for relative_path in relative_paths {
+                // Query with the normalized path rather than the caller's spelling, which
+                // made the query re-derive it using the same broken `strip_prefix`.
+                let file_path = relative_path.to_string_lossy().to_string();
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
                     Ok(None) => unowned_files.push(file_path),
