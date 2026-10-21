@@ -109,6 +109,21 @@ impl Entry {
     }
 }
 
+/// Tells whether anything names an owner for a project-relative path, counting owners as `validate` does, so an annotation
+/// or `.codeowner` naming a team that doesn't exist still counts. Building one goes through every project file, so reuse it.
+pub(crate) struct OwnerLookup {
+    owner_matchers: Vec<OwnerMatcher>,
+}
+
+impl OwnerLookup {
+    pub(crate) fn has_owner(&self, relative_path: &Path) -> bool {
+        let file_owner_finder = FileOwnerFinder {
+            owner_matchers: &self.owner_matchers,
+        };
+        !file_owner_finder.find(relative_path).is_empty()
+    }
+}
+
 impl Ownership {
     pub fn build(project: Project) -> Self {
         Self {
@@ -154,6 +169,12 @@ impl Ownership {
                 None => FileOwner::default(),
             })
             .collect())
+    }
+
+    pub(crate) fn owner_lookup(&self) -> OwnerLookup {
+        OwnerLookup {
+            owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
+        }
     }
 
     #[instrument(level = "debug", skip_all)]

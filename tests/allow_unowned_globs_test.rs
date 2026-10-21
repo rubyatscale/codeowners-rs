@@ -156,6 +156,40 @@ fn test_validate_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn 
 }
 
 #[test]
+fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    // A list of files is checked only against CODEOWNERS, which has no line for a team that doesn't exist.
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "app/deprecated/typo.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/typo.rb"));
+    }
+    Ok(())
+}
+
+fn annotate_the_unowned_file_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
+    fs::write(
+        project_root.join("app/deprecated/old.rb"),
+        "# @team Foo\nputs 'no longer unowned'\n",
+    )
+}
+
+#[test]
+fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
+    run_on_modified_fixture(
+        annotate_the_unowned_file_without_regenerating_codeowners,
+        &["validate", "app/deprecated/old.rb"],
+    )?
+    .failure()
+    .stdout(predicate::str::contains("Unowned files detected:"))
+    .stdout(predicate::str::contains("app/deprecated/old.rb"));
+    Ok(())
+}
+
+#[test]
 fn test_validate_reports_unowned_files_without_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_on_modified_fixture(
         |project_root| {

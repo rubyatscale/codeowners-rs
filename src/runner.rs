@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -160,11 +161,17 @@ impl Runner {
             })
             .collect();
 
+        // Built only if an allowed file needs it, and then once.
+        let owner_lookup = LazyCell::new(|| self.ownership.owner_lookup());
+
         debug_span!("per_file_query").in_scope(|| {
             for (file_path, relative_path) in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    Ok(None) if matches_globs(&relative_path, &self.config.allow_unowned_globs) => {}
+                    // As in `validate`, allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation
+                    // names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without the key.
+                    Ok(None)
+                        if matches_globs(&relative_path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&relative_path) => {}
                     Ok(None) => unowned_files.push(file_path),
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }
