@@ -69,6 +69,7 @@ pub fn teams_for_files_from_codeowners(
         &run_config.project_root,
         &codeowners_file_path,
         &config.team_file_glob,
+        config.node_limit(&run_config.project_root),
         file_paths,
     )
     .map_err(Error::Io)?;

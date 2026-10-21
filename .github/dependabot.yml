@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      cargo:
+        patterns:
+          - "*"
+        # serde-saphyr patches only its latest release, and its releases can change how YAML parses,
+        # so its bumps get their own pull request instead of waiting on unrelated breakage.
+        exclude-patterns:
+          - "serde-saphyr"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 7

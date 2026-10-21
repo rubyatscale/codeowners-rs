@@ -8,7 +8,7 @@ use std::{
 use fast_glob::glob_match;
 use glob::glob;
 
-use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache};
+use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache, yaml::NodeLimit};
 
 use super::{FileOwner, mapper::Source};
 
@@ -20,7 +20,11 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     };
     let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
 
-    let loaded = loaded_teams(teams_cache_root(project_root), config.team_file_glob.clone())?;
+    let loaded = loaded_teams(
+        teams_cache_root(project_root),
+        config.team_file_glob.clone(),
+        config.node_limit(project_root),
+    )?;
     let teams = &loaded.teams;
     let teams_by_name = &loaded.teams_by_name;
 
@@ -105,9 +109,9 @@ struct LoadedTeams {
     teams_by_name: HashMap<String, Team>,
 }
 
-type TeamCacheKey = (PathBuf, Vec<String>);
+type TeamCacheKey = (PathBuf, Vec<String>, NodeLimit);
 
-// Parsing every team file dominates a lookup, so load them once per project root and glob list and share
+// Parsing every team file dominates a lookup, so load them once per project root, glob list and node limit and share
 // the result across threads for the life of the process.
 static TEAM_CACHE: LazyLock<Mutex<TeamCache>> = LazyLock::new(Default::default);
 
@@ -122,8 +126,12 @@ fn team_cache() -> MutexGuard<'static, TeamCache> {
     TEAM_CACHE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn loaded_teams(project_root: PathBuf, team_file_globs: Vec<String>) -> std::result::Result<Arc<LoadedTeams>, String> {
-    let key = (project_root, team_file_globs);
+fn loaded_teams(
+    project_root: PathBuf,
+    team_file_globs: Vec<String>,
+    node_limit: NodeLimit,
+) -> std::result::Result<Arc<LoadedTeams>, String> {
+    let key = (project_root, team_file_globs, node_limit);
     let generation = {
         let cache = team_cache();
         if let Some(loaded) = cache.loaded.get(&key) {
@@ -132,7 +140,7 @@ fn loaded_teams(project_root: PathBuf, team_file_globs: Vec<String>) -> std::res
         cache.generation
     };
 
-    let load = load_teams(&key.0, &key.1)?;
+    let load = load_teams(&key.0, &key.1, &key.2)?;
     let teams_by_name = build_teams_by_name_map(&load.teams);
     let loaded = Arc::new(LoadedTeams {
         teams: load.teams,
@@ -178,7 +186,7 @@ struct TeamLoad {
     skipped_team_file: bool,
 }
 
-fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::Result<TeamLoad, String> {
+fn load_teams(project_root: &Path, team_file_globs: &[String], node_limit: &NodeLimit) -> std::result::Result<TeamLoad, String> {
     let mut teams: Vec<Team> = Vec::new();
     let mut skipped_team_file = false;
     for glob_str in team_file_globs {
@@ -193,7 +201,7 @@ fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::R
                     continue;
                 }
             };
-            match Team::from_team_file_path(path.clone()) {
+            match Team::from_team_file_path(path.clone(), node_limit) {
                 Ok(team) => teams.push(team),
                 Err(e) => {
                     eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
@@ -266,7 +274,7 @@ fn nearest_package_owner(
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");
                 if pkg_yml.exists() {
-                    match crate::project_builder::ruby_package_owner(&pkg_yml) {
+                    match crate::project_builder::ruby_package_owner(&pkg_yml, &config.node_limit(project_root)) {
                         Ok(owner) => {
                             if let Some(team) = owner.and_then(|owner| teams_by_name.get(&owner)) {
                                 let package_path = parent_rel.join("package.yml");
@@ -378,6 +386,8 @@ mod tests {
             executable_name: "codeowners".to_string(),
             codeowners_path: ".github".to_string(),
             allow_unowned_globs: vec![],
+            yaml_max_nodes: crate::yaml::DEFAULT_MAX_NODES,
+            path: PathBuf::from(crate::config::DEFAULT_PATH),
         }
     }
 
@@ -679,7 +689,11 @@ mod tests {
     #[test]
     fn test_clear_team_cache_during_a_load_is_not_undone_by_its_result() {
         let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let key: TeamCacheKey = (PathBuf::from("/clear-during-load"), vec!["config/teams/**/*.yml".to_string()]);
+        let key: TeamCacheKey = (
+            PathBuf::from("/clear-during-load"),
+            vec!["config/teams/**/*.yml".to_string()],
+            NodeLimit::default(),
+        );
         let loaded = || {
             Arc::new(LoadedTeams {
                 teams: Vec::new(),
@@ -826,5 +840,35 @@ mod tests {
         assert_eq!(owner_of(&config_a), Some("Payroll".to_string()));
         assert_eq!(owner_of(&config_b), Some("Billing".to_string()));
         assert_eq!(owner_of(&config_a), Some("Payroll".to_string()));
+    }
+
+    #[test]
+    fn test_team_cache_is_keyed_on_yaml_max_nodes() {
+        // A clear between the two lookups would hide a key that ignores the limit.
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path();
+        fs::create_dir_all(root.join("config/teams")).unwrap();
+        fs::write(
+            root.join("config/teams/payroll.yml"),
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - app/**/*\n",
+        )
+        .unwrap();
+        let config_with_max_nodes = |yaml_max_nodes: usize| crate::config::Config {
+            yaml_max_nodes,
+            ..build_config_for_temp("frontend/**/*", "packs/**/*", "vendored")
+        };
+        let owner_of = |config: &crate::config::Config| {
+            find_file_owners(root, config, Path::new("app/a.rb"))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        assert_eq!(
+            owner_of(&config_with_max_nodes(crate::yaml::DEFAULT_MAX_NODES)),
+            Some("Payroll".to_string())
+        );
+        assert_eq!(owner_of(&config_with_max_nodes(3)), None, "a team file over the limit is skipped");
     }
 }

@@ -2,7 +2,6 @@ use core::fmt;
 use std::{
     collections::HashMap,
     fmt::Display,
-    fs::File,
     path::{Path, PathBuf},
 };
 
@@ -45,9 +44,9 @@ pub struct Team {
 }
 
 impl Team {
-    pub fn from_team_file_path(absolute_path: PathBuf) -> Result<Self, Report<Error>> {
-        let file = File::open(&absolute_path).change_context(Error::Io)?;
-        let deserializer: deserializers::Team = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
+    pub(crate) fn from_team_file_path(absolute_path: PathBuf, node_limit: &crate::yaml::NodeLimit) -> Result<Self, Report<Error>> {
+        let bytes = std::fs::read(&absolute_path).change_context(Error::Io)?;
+        let deserializer: deserializers::Team = crate::yaml::from_project_slice(&bytes, node_limit).change_context(Error::SerdeYaml)?;
         Ok(Self {
             path: absolute_path.to_owned(),
             name: deserializer.name,
@@ -118,6 +117,7 @@ pub mod deserializers {
 
     #[derive(Deserialize)]
     pub struct Github {
+        #[serde(deserialize_with = "crate::yaml::string_or_null")]
         pub team: String,
         #[serde(default = "bool_false")]
         pub do_not_add_to_codeowners_file: bool,
@@ -125,20 +125,25 @@ pub mod deserializers {
 
     #[derive(Deserialize)]
     pub struct Ruby {
-        #[serde(default = "empty_string_vec")]
+        #[serde(default = "empty_string_vec", deserialize_with = "crate::yaml::strings_or_nulls")]
         pub owned_gems: Vec<String>,
     }
 
     #[derive(Deserialize)]
     pub struct Team {
+        #[serde(deserialize_with = "crate::yaml::string_or_null")]
         pub name: String,
         pub github: Github,
         pub ruby: Option<Ruby>,
 
-        #[serde(default = "empty_string_vec")]
+        #[serde(default = "empty_string_vec", deserialize_with = "crate::yaml::strings_or_nulls")]
         pub owned_globs: Vec<String>,
 
-        #[serde(alias = "unowned_globs", default = "empty_string_vec")]
+        #[serde(
+            alias = "unowned_globs",
+            default = "empty_string_vec",
+            deserialize_with = "crate::yaml::strings_or_nulls"
+        )]
         pub subtracted_globs: Vec<String>,
     }
 
@@ -201,6 +206,8 @@ impl Project {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
 
     #[test]
@@ -230,5 +237,73 @@ mod tests {
         assert_eq!(map.len(), 2);
         assert_eq!(map.get("a").unwrap().name, vg1.name);
         assert_eq!(map.get("b").unwrap().name, vg2.name);
+    }
+
+    fn team_from_yaml(yaml: &str) -> Result<Team, Report<Error>> {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+        Team::from_team_file_path(temp_file.path().to_path_buf(), &crate::yaml::NodeLimit::default())
+    }
+
+    #[test]
+    fn test_team_from_team_file_path_accepts_empty_values() {
+        let yaml = indoc! {"
+            name:
+            github:
+              team:
+              do_not_add_to_codeowners_file: true
+            owned_globs:
+              - app/payroll/**
+              -
+            subtracted_globs:
+              -
+            ruby:
+              owned_gems:
+                -
+        "};
+
+        let team = team_from_yaml(yaml).unwrap();
+        assert_eq!(team.name, "");
+        assert_eq!(team.github_team, "");
+        assert!(team.avoid_ownership);
+        assert_eq!(team.owned_globs, vec!["app/payroll/**".to_string(), "".to_string()]);
+        assert_eq!(team.subtracted_globs, vec!["".to_string()]);
+        assert_eq!(team.owned_gems, vec!["".to_string()]);
+    }
+
+    #[test]
+    fn test_team_from_team_file_path_ignores_duplicate_unknown_keys() {
+        let yaml = indoc! {"
+            name: Payroll
+            github:
+              team: '@acme/payroll'
+              members:
+                - a
+              members:
+                - b
+            slack_channel: '#a'
+            slack_channel: '#b'
+        "};
+
+        let team = team_from_yaml(yaml).unwrap();
+        assert_eq!(team.github_team, "@acme/payroll");
+    }
+
+    #[test]
+    fn test_team_from_team_file_path_reads_only_true_and_false_as_booleans() {
+        let yaml = "name: Payroll\ngithub:\n  team: '@acme/payroll'\n  do_not_add_to_codeowners_file: True\n";
+        assert!(team_from_yaml(yaml).unwrap().avoid_ownership);
+
+        let yaml = "name: Payroll\ngithub:\n  team: '@acme/payroll'\n  do_not_add_to_codeowners_file: yes\n";
+        assert!(team_from_yaml(yaml).is_err());
+    }
+
+    #[test]
+    fn test_team_from_team_file_path_reports_missing_field_once() {
+        let error = team_from_yaml("name: Payroll\n").unwrap_err();
+
+        let message = format!("{error:?}");
+        assert!(message.contains("missing field `github`"), "{message}");
+        assert_eq!(message.matches("missing field").count(), 1, "{message}");
     }
 }

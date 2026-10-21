@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Copies, verbatim, the license files of the crates listed below into <dir>/<crate>-<version>/ for
+# the release archives, since their licenses require redistributions of the binary to carry those
+# notices. Versions come from Cargo.lock.
+#
+# Usage: dev/license-notices <dir>
+#
+# <dir> must not exist yet, so an archive never carries notices left over from other versions. Fails
+# if a listed crate is no longer a dependency or ships no license files, so whoever drops or
+# replaces one updates the list.
+#
+# Keep this bash 3.2 compatible: the mac release job runs it with macOS's /bin/bash, while the
+# pull request check runs it on ubuntu.
+
+set -euo pipefail
+shopt -s nullglob nocaseglob
+
+crates=(
+  # serde-saphyr's parser. Its LICENSE requires redistributions to include its notice and the ones
+  # it inherited, which it keeps in .licenses/.
+  granit-parser
+  # serde-saphyr decodes reader input with it, through encoding_rs_io. Its WHATWG-derived data is
+  # under BSD-3-Clause, which requires binary redistributions to reproduce that notice.
+  encoding_rs
+)
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $0 <dir>" >&2
+  exit 2
+fi
+out=$1
+if [[ -e $out ]]; then
+  echo "$0: $out already exists" >&2
+  exit 1
+fi
+
+manifest="$(dirname "$0")/../Cargo.toml"
+metadata=$(cargo metadata --format-version 1 --locked --manifest-path "$manifest")
+mkdir -p "$out"
+
+for crate in "${crates[@]}"; do
+  # One "<version>\t<manifest path>" line per version of the crate in Cargo.lock.
+  packages=$(jq -r --arg name "$crate" \
+    '.packages[] | select(.name == $name) | "\(.version)\t\(.manifest_path)"' <<<"$metadata")
+  if [[ -z $packages ]]; then
+    echo "$0: $crate is no longer a dependency. Update the crate list in $0." >&2
+    exit 1
+  fi
+
+  while IFS=$'\t' read -r version manifest_path; do
+    src=$(dirname "$manifest_path")
+    # The license files at the crate root, plus the .licenses directory that granit-parser's LICENSE
+    # links to. Copying keeps their relative paths, so those links still resolve.
+    notices=("$src"/{LICENSE,LICENCE,COPYRIGHT,NOTICE,COPYING}*)
+    if [[ -d $src/.licenses ]]; then
+      notices+=("$src/.licenses")
+    fi
+    if [[ ${#notices[@]} -eq 0 ]]; then
+      echo "$0: $src has no license files. Check $crate's license and update $0." >&2
+      exit 1
+    fi
+
+    mkdir "$out/$crate-$version"
+    cp -RL "${notices[@]}" "$out/$crate-$version"
+  done <<<"$packages"
+done

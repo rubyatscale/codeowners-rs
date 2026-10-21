@@ -2,6 +2,7 @@
 name = "codeowners"
 version = "0.6.0"
 edition = "2024"
+license = "MIT"
 
 [profile.release]
 debug = true
@@ -17,29 +18,29 @@ path = "src/lib.rs"
 
 [dependencies]
 clap = { version = "4.5.45", features = ["derive"] }
-clap_derive = "4.5.45"
 crossbeam-channel = "0.5.15"
 error-stack = "0.8.0"
 enum_dispatch = "0.3.13"
 fast-glob = "1.0.0"
 glob = "0.3.3"
 ignore = "0.4.23"
-itertools = "0.14.0"
+itertools = "0.15.0"
 lazy_static = "1.5.0"
 # `default-features = false` drops memoize's optional `lru` dependency, which is
 # pinned to lru ^0.7 and carries RUSTSEC-2026-0253 (use-after-free in
 # `LruCache::pop()`; only fixed in lru >= 0.18.2, which memoize cannot resolve).
 # We only use bare `#[memoize]`, so the `Capacity`/`TimeToLive` options that need
 # `lru` are unused.
-memoize = { version = "0.5.1", default-features = false }
+memoize = { version = "0.6.0", default-features = false }
 path-clean = "1.0.1"
 rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
-serde_yaml = "0.9.34"
-similar = "2.6.0"
-tempfile = "3.21.0"
+# Deserialize only: `default-features = false` leaves out the serializer and YAML comment
+# capture, which we do not use.
+serde-saphyr = { version = "2.0.0", default-features = false, features = ["deserialize"] }
+similar = "3.2.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
@@ -49,3 +50,4 @@ rusty-hook = "^0.11.2"
 predicates = "3.1.3"
 pretty_assertions = "1.4.1" # Shows a more readable diff when comparing objects
 indoc = "2.0.6"
+tempfile = "3.21.0"
