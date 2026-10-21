@@ -171,7 +171,6 @@ version = "0.5.0"
 dependencies = [
  "assert_cmd",
  "clap",
- "clap_derive",
  "crossbeam-channel",
  "enum_dispatch",
  "error-stack",
