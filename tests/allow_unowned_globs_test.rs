@@ -189,6 +189,24 @@ fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Resu
     Ok(())
 }
 
+fn put_the_allowed_glob_in_unowned_globs_too(project_root: &Path) -> std::io::Result<()> {
+    add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config}/**/*.rb\"\nunowned_globs:\n  - \"app/deprecated/**/*\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_unowned_globs_take_precedence_over_allow_unowned_globs() -> Result<(), Box<dyn Error>> {
+    // A file in both is left out, so the unknown team its annotation names doesn't count. `gv`, not `validate`, because
+    // leaving files out changes CODEOWNERS.
+    run_on_modified_fixture(put_the_allowed_glob_in_unowned_globs_too, &["gv"])?
+        .success()
+        .stdout(predicate::eq(""));
+    Ok(())
+}
+
 #[test]
 fn test_validate_reports_unowned_files_without_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_on_modified_fixture(
