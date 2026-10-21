@@ -37,7 +37,9 @@ rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
-serde_yaml = "0.9.34"
+# Deserialize only: `default-features = false` leaves out the serializer and YAML comment
+# capture, which we do not use.
+serde-saphyr = { version = "2.0.0", default-features = false, features = ["deserialize"] }
 similar = "3.2.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

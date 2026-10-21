@@ -1,10 +1,6 @@
 #[cfg(test)]
 pub mod tests {
-    use std::{
-        error::Error,
-        fs::{self, File},
-        path::PathBuf,
-    };
+    use std::{error::Error, fs, path::PathBuf};
 
     use indoc::indoc;
 
@@ -111,8 +107,7 @@ pub mod tests {
             fs::write(test_config.temp_dir_path.join(&project_file.relative_path), &project_file.content)?;
         }
 
-        let config_file = File::open(test_config.temp_dir_path.join(test_config.relative_code_ownership_config_yml_path))?;
-        let config: Config = serde_yaml::from_reader(config_file)?;
+        let config = Config::load_from_path(&test_config.temp_dir_path.join(test_config.relative_code_ownership_config_yml_path))?;
 
         let codeowners_file_path = &test_config.temp_dir_path.join(".github/CODEOWNERS");
         let cache: Cache = NoopCache::default().into();
