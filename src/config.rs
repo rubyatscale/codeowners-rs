@@ -44,7 +44,7 @@ pub struct Config {
     #[serde(default = "default_codeowners_path", deserialize_with = "crate::yaml::string_or_null")]
     pub codeowners_path: String,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::yaml::strings_or_nulls")]
     pub allow_unowned_globs: Vec<String>,
 
     #[serde(default = "default_yaml_max_nodes")]
@@ -325,6 +325,8 @@ mod tests {
               -
             ignore_dirs:
               -
+            allow_unowned_globs:
+              -
             vendored_gems_path:
             cache_directory:
             executable_name:
@@ -339,6 +341,7 @@ mod tests {
             &config.team_file_glob,
             &config.unowned_globs,
             &config.ignore_dirs,
+            &config.allow_unowned_globs,
         ] {
             assert_eq!(globs, &[""]);
         }
