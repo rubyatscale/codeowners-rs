@@ -47,6 +47,8 @@ You can run `codeowners` without installing a platform-specific binary by using 
 2. Download the latest DotSlash text file from a release, for example [https://github.com/rubyatscale/codeowners-rs/releases](https://github.com/rubyatscale/codeowners-rs/releases).
 3. Execute the downloaded file with DotSlash; it will fetch and run the correct binary.
 
+Release archives after v0.5.0 also hold a `licenses` directory next to the `codeowners` binary. It has the license notices that the dependencies listed in `dev/license-notices` require redistributions of the binary to include.
+
 ### Option B: From source with Cargo
 
 Requires Rust toolchain.
@@ -214,6 +216,7 @@ codeowners gv --no-cache
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
 - `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
+- `yaml_max_nodes` (default: `20000`): The most YAML nodes (mappings, sequences and scalars) allowed in one team file or `package.yml`. A file over it, or over the limits on total scalar bytes and anchor copies that grow with it, fails with a `budget breached` error and a hint to raise this key in the config file in use. Raise it if a large team file hits the limit; real files have at most a few thousand nodes. It does not apply to the config file itself. Raising it also raises how much memory a single file can take: a file crafted to waste memory can make `codeowners` use about 280 MB more at the default and about 700 MB more at 50,000, measured on macOS, while ordinary files add almost nothing. Separately, any of these files, or the config, fails if it nests more than 16 levels deep, counting the top level. That limit can't be raised.
 
 Example configuration with custom executable name:
 

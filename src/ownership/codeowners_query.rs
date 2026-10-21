@@ -8,6 +8,7 @@ pub(crate) fn teams_for_files_from_codeowners(
     project_root: &Path,
     codeowners_file_path: &Path,
     team_file_globs: &[String],
+    node_limit: crate::yaml::NodeLimit,
     file_paths: &[String],
 ) -> Result<HashMap<String, Option<Team>>, String> {
     let relative_file_paths: Vec<PathBuf> = file_paths
@@ -26,6 +27,7 @@ pub(crate) fn teams_for_files_from_codeowners(
         codeowners_file_path: codeowners_file_path.to_path_buf(),
         project_root: project_root.to_path_buf(),
         team_file_globs: team_file_globs.to_vec(),
+        node_limit,
     };
 
     parser.teams_from_files_paths(&relative_file_paths).map_err(|e| e.to_string())

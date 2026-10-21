@@ -1,6 +1,7 @@
 use crate::{
     ownership::{FileGenerator, TeamOwnership},
     project::Team,
+    yaml::NodeLimit,
 };
 use fast_glob::glob_match;
 use memoize::memoize;
@@ -14,6 +15,7 @@ pub struct Parser {
     pub project_root: PathBuf,
     pub codeowners_file_path: PathBuf,
     pub team_file_globs: Vec<String>,
+    pub node_limit: NodeLimit,
 }
 
 impl Parser {
@@ -40,7 +42,7 @@ impl Parser {
 
         let codeowners_entries = parse_codeowners_entries(self.codeowners_file_path.to_string_lossy().into_owned());
 
-        let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
+        let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs(), self.node_limit.clone());
 
         let result: HashMap<String, Option<Team>> = file_inputs
             .par_iter()
@@ -65,13 +67,13 @@ impl Parser {
 }
 
 #[memoize]
-fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Team> {
+fn teams_by_github_team_name(team_file_glob: Vec<String>, node_limit: NodeLimit) -> HashMap<String, Team> {
     let mut teams = HashMap::new();
     for glob in team_file_glob {
         match glob::glob(&glob) {
             Ok(paths) => {
                 for path in paths.filter_map(Result::ok) {
-                    let team = match Team::from_team_file_path(path.clone()) {
+                    let team = match Team::from_team_file_path(path.clone(), &node_limit) {
                         Ok(team) => team,
                         Err(e) => {
                             eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
@@ -492,6 +494,35 @@ mod tests {
                 "/app/assets/config/manifest.js @Prefix/team-foo"
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_teams_from_files_paths_is_keyed_on_yaml_max_nodes() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempfile::tempdir()?;
+        let root = temp_dir.path();
+        fs::create_dir_all(root.join("config/teams"))?;
+        fs::write(
+            root.join("config/teams/payroll.yml"),
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\n",
+        )?;
+        fs::write(root.join("CODEOWNERS"), "# Team-specific owned globs\n/app/**/* @PayrollTeam\n")?;
+        let owner_of = |yaml_max_nodes: usize| -> Result<Option<String>, Box<dyn Error>> {
+            let parser = Parser {
+                project_root: root.to_path_buf(),
+                codeowners_file_path: root.join("CODEOWNERS"),
+                team_file_globs: vec!["config/teams/**/*.yml".to_string()],
+                node_limit: NodeLimit {
+                    max_nodes: yaml_max_nodes,
+                    ..Default::default()
+                },
+            };
+            let teams = parser.teams_from_files_paths(&[PathBuf::from("app/a.rb")])?;
+            Ok(teams["app/a.rb"].as_ref().map(|team| team.name.clone()))
+        };
+
+        assert_eq!(owner_of(crate::yaml::DEFAULT_MAX_NODES)?, Some("Payroll".to_string()));
+        assert_eq!(owner_of(3)?, None, "a team file over the limit is skipped");
         Ok(())
     }
 
