@@ -112,7 +112,8 @@ impl Entry {
 /// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation naming one
 /// still counts for its file, and a `.codeowner`, `package.yml` or `package.json` naming one for every path under its directory.
 /// It sees only files the project reads, so an annotated file, `.codeowner` or package file names no owner here if it is
-/// untracked or under ignore_dirs, as in `validate`. Building one goes through every project file, so reuse it.
+/// untracked or under a top-level directory named in ignore_dirs, as in `validate`. Building one goes through every project
+/// file, so reuse it.
 pub(crate) struct OwnerLookup {
     owner_matchers: Vec<OwnerMatcher>,
     unknown_team_roots: Vec<PathBuf>,

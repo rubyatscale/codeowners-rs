@@ -125,7 +125,7 @@ fn default_path() -> PathBuf {
 impl Config {
     pub fn load_from_path(path: &Path) -> std::result::Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("Can't open config file: {} ({})", path.to_string_lossy(), e))?;
-        // The config can't raise its own limit, and at a few hundred nodes it never needs to.
+        // The config can't raise its own limit, so its lists can hold about 20,000 entries in all.
         let config: Self = crate::yaml::from_slice(&bytes, crate::yaml::DEFAULT_MAX_NODES)
             .map_err(|e| format!("Can't parse config file: {} ({})", path.to_string_lossy(), e))?;
         Ok(Self {

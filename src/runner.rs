@@ -182,11 +182,12 @@ impl Runner {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
                     // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
-                    // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still reported, but not
-                    // as unowned, which the key allows. Only files the project reads count, though, so an annotated file,
-                    // `.codeowner` or package file names no owner here if it is untracked or under ignore_dirs, as in
-                    // `validate`. The lookup matches plain project-relative paths only, so a path with a `..`, or an absolute
-                    // one not under the project root, is never excused and is reported as unowned, as without the key.
+                    // package names a team that doesn't exist, or whose owner CODEOWNERS doesn't list yet, is still reported,
+                    // but not as unowned, which the key allows. Only files the project reads count, though, so an annotated
+                    // file, `.codeowner` or package file names no owner here if it is untracked or under a top-level directory
+                    // named in ignore_dirs, as in `validate`. The lookup matches plain project-relative paths only, so a path
+                    // with a `..`, or an absolute one not under the project root, is never excused and is reported as unowned,
+                    // as without the key.
                     Ok(None) => match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.allow_unowned_globs)) {
                         Some(path) if !owner_lookup.has_owner(&path) => {}
                         // The CODEOWNERS lookup above read the path as given, so a `./`, `//` or inner `.` made it miss the file's line.
