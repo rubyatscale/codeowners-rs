@@ -157,7 +157,8 @@ fn test_validate_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn 
 
 #[test]
 fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
-    // A list of files is checked only against CODEOWNERS, which has no line for a team that doesn't exist.
+    // A list of files isn't checked for invalid teams. CODEOWNERS has no line for this file, and its annotation keeps
+    // allow_unowned_globs from excusing it, so it's reported as unowned.
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
@@ -167,6 +168,28 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Bo
         .stdout(predicate::str::contains("Unowned files detected:"))
         .stdout(predicate::str::contains("app/deprecated/typo.rb"));
     }
+    Ok(())
+}
+
+#[test]
+fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_an_absolute_path() -> Result<(), Box<dyn Error>> {
+    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
+    let project_root = temp_dir.path();
+    add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
+    git_add_all_files(project_root);
+
+    let file_absolute_path = project_root.join("app/deprecated/typo.rb").canonicalize()?;
+
+    Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("validate")
+        .arg(file_absolute_path)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/typo.rb"));
     Ok(())
 }
 
@@ -190,6 +213,24 @@ fn test_validate_files_reports_a_package_naming_an_unknown_team_in_allowed_globs
         .failure()
         .stdout(predicate::str::contains("Unowned files detected:"))
         .stdout(predicate::str::contains("packs/typo/app/thing.rb"));
+    }
+    Ok(())
+}
+
+fn add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join("app/deprecated/.codeowner"), "Typo\n")
+}
+
+#[test]
+fn test_validate_files_reports_invalid_directory_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "app/deprecated/old.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/old.rb"));
     }
     Ok(())
 }
@@ -228,6 +269,25 @@ fn test_unowned_globs_take_precedence_over_allow_unowned_globs() -> Result<(), B
     run_on_modified_fixture(put_the_allowed_glob_in_unowned_globs_too, &["gv"])?
         .success()
         .stdout(predicate::eq(""));
+    Ok(())
+}
+
+fn put_a_codeowner_file_naming_an_unknown_team_in_both_globs(project_root: &Path) -> std::io::Result<()> {
+    put_the_allowed_glob_in_unowned_globs_too(project_root)?;
+    add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root)
+}
+
+#[test]
+fn test_validate_files_leaves_out_files_in_both_globs() -> Result<(), Box<dyn Error>> {
+    // A `.codeowner` is read even in unowned_globs. Its team has no CODEOWNERS line, so the file passes only if it's left out.
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            put_a_codeowner_file_naming_an_unknown_team_in_both_globs,
+            &[command, "app/deprecated/old.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
+    }
     Ok(())
 }
 
