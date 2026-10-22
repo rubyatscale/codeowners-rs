@@ -10,7 +10,7 @@ use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
-    path_utils::{matches_globs, relative_to_buf},
+    path_utils::{matches_globs, plain_relative, relative_to_buf},
     project_builder::ProjectBuilder,
 };
 
@@ -176,9 +176,12 @@ impl Runner {
                     Ok(Some(_)) => {}
                     // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
                     // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without
-                    // the key.
+                    // the key. The lookup matches plain project-relative paths only, so a path with a `..`, or an absolute one
+                    // not under the project root, is never excused.
                     Ok(None)
-                        if matches_globs(&relative_path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&relative_path) => {}
+                        if plain_relative(&relative_path).is_some_and(|path| {
+                            matches_globs(&path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&path)
+                        }) => {}
                     Ok(None) => unowned_files.push(file_path),
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }

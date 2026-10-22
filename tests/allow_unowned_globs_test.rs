@@ -193,6 +193,50 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_an_absolute_pa
     Ok(())
 }
 
+#[test]
+fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_a_path_with_dot_dot() -> Result<(), Box<dyn Error>> {
+    // The owner lookup can't see the annotation without resolving the `..`, so the file mustn't be excused.
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "app/deprecated/../deprecated/typo.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/../deprecated/typo.rb"));
+    }
+    Ok(())
+}
+
+fn allow_every_file_and_annotate_one_with_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
+    add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_treats_a_dot_slash_path_like_a_plain_one() -> Result<(), Box<dyn Error>> {
+    // Unlike the fixture's owned_globs, `**/*.rb` matches a path starting with `./`, so these reach the owner lookup.
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            allow_every_file_and_annotate_one_with_an_unknown_team,
+            &[command, "./app/deprecated/typo.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("./app/deprecated/typo.rb"));
+        run_on_modified_fixture(
+            allow_every_file_and_annotate_one_with_an_unknown_team,
+            &[command, "./app/deprecated/old.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
+    }
+    Ok(())
+}
+
 fn add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(project_root.join("packs/typo/app"))?;
     fs::write(project_root.join("packs/typo/package.yml"), "owner: Typo\n")?;
