@@ -109,13 +109,13 @@ impl Entry {
     }
 }
 
-/// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation,
-/// `.codeowner`, `package.yml` or `package.json` naming one still counts. It sees only files the project reads, so an annotated
-/// file, `.codeowner` or package file names no owner here if it is untracked or under ignore_dirs, as in `validate`. Building one
-/// goes through every project file, so reuse it.
+/// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation naming one
+/// still counts for its file, and a `.codeowner`, `package.yml` or `package.json` naming one for every path under its directory.
+/// It sees only files the project reads, so an annotated file, `.codeowner` or package file names no owner here if it is
+/// untracked or under ignore_dirs, as in `validate`. Building one goes through every project file, so reuse it.
 pub(crate) struct OwnerLookup {
     owner_matchers: Vec<OwnerMatcher>,
-    unknown_team_package_roots: Vec<PathBuf>,
+    unknown_team_roots: Vec<PathBuf>,
 }
 
 impl OwnerLookup {
@@ -123,8 +123,7 @@ impl OwnerLookup {
         let file_owner_finder = FileOwnerFinder {
             owner_matchers: &self.owner_matchers,
         };
-        self.unknown_team_package_roots.iter().any(|root| relative_path.starts_with(root))
-            || !file_owner_finder.find(relative_path).is_empty()
+        self.unknown_team_roots.iter().any(|root| relative_path.starts_with(root)) || !file_owner_finder.find(relative_path).is_empty()
     }
 }
 
@@ -176,18 +175,25 @@ impl Ownership {
     }
 
     pub(crate) fn owner_lookup(&self) -> OwnerLookup {
-        // The package mappers drop a package whose owner isn't a team, and `validate` reports its package.yml or package.json
-        // instead. A list of files isn't checked for that, so here the package still names an owner for its files. Its directory
-        // is matched as a path prefix, not a glob, so brackets in it are literal and a package at the project root covers every file.
+        // `validate` reports a package.yml, package.json or `.codeowner` naming a team that doesn't exist, but a list of files
+        // isn't checked for that, so here each still names an owner for the files under its directory. The package mappers drop
+        // such a package, and the directory mapper's glob misses a `.codeowner` at the project root or in a directory whose path
+        // has braces, so the directory is matched as a path prefix: brackets and braces are literal and the root covers every file.
+        let package_roots = self
+            .project
+            .packages
+            .iter()
+            .filter(|package| !self.project.teams_by_name.contains_key(&package.owner))
+            .filter_map(|package| package.package_root());
+        let directory_roots = self
+            .project
+            .directory_codeowner_files
+            .iter()
+            .filter(|directory_codeowner_file| !self.project.teams_by_name.contains_key(&directory_codeowner_file.owner))
+            .filter_map(|directory_codeowner_file| directory_codeowner_file.directory_root());
         OwnerLookup {
             owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
-            unknown_team_package_roots: self
-                .project
-                .packages
-                .iter()
-                .filter(|package| !self.project.teams_by_name.contains_key(&package.owner))
-                .filter_map(|package| package.package_root().map(Path::to_path_buf))
-                .collect(),
+            unknown_team_roots: package_roots.chain(directory_roots).map(Path::to_path_buf).collect(),
         }
     }
 

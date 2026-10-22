@@ -330,6 +330,31 @@ fn test_validate_files_passes_an_allowed_file_outside_a_package_naming_an_unknow
     Ok(())
 }
 
+// Read as a glob, `packs/{typo}` would match `packs/typo` rather than the package's own directory.
+fn add_a_braced_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("packs/{typo}/app"))?;
+    fs::write(project_root.join("packs/{typo}/package.yml"), "owner: Typo\n")?;
+    fs::write(project_root.join("packs/{typo}/app/thing.rb"), "puts 'typo'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_reports_an_allowed_file_in_a_braced_package_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_a_braced_package_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "packs/{typo}/app/thing.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("packs/{typo}/app/thing.rb"));
+    }
+    Ok(())
+}
+
 fn add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
     fs::write(project_root.join("app/deprecated/.codeowner"), "Typo\n")
 }
@@ -344,6 +369,56 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_naming_an_unkno
         .failure()
         .stdout(predicate::str::contains("Unowned files detected:"))
         .stdout(predicate::str::contains("app/deprecated/old.rb"));
+    }
+    Ok(())
+}
+
+// A glob built from the project root, `/**/**`, would match no project-relative path.
+fn allow_every_file_and_put_a_codeowner_file_naming_an_unknown_team_at_the_project_root(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join(".codeowner"), "Typo\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_reports_an_allowed_file_under_a_codeowner_at_the_root_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            allow_every_file_and_put_a_codeowner_file_naming_an_unknown_team_at_the_project_root,
+            &[command, "app/deprecated/old.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/old.rb"));
+    }
+    Ok(())
+}
+
+// Read as a glob, `app/deprecated/{legacy}` would match `app/deprecated/legacy` rather than its own directory.
+fn add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("app/deprecated/{legacy}"))?;
+    fs::write(project_root.join("app/deprecated/{legacy}/.codeowner"), "Typo\n")?;
+    fs::write(project_root.join("app/deprecated/{legacy}/thing.rb"), "puts 'typo'\n")
+}
+
+#[test]
+fn test_validate_files_reports_an_allowed_file_under_a_braced_codeowner_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "app/deprecated/{legacy}/thing.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("app/deprecated/{legacy}/thing.rb"));
+        run_on_modified_fixture(
+            add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "app/deprecated/old.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
     }
     Ok(())
 }
