@@ -131,6 +131,35 @@ fn validate_absolute_path(modify: impl FnOnce(&Path) -> std::io::Result<()>, fil
     codeowners(temp_dir.path(), &[OsStr::new("validate"), file_absolute_path.as_os_str()])
 }
 
+// A config/code_ownership.yml that replaces the fixture's. A key with no globs is left out, so unowned_globs keeps its default.
+#[derive(Default)]
+struct Config {
+    owned_globs: &'static [&'static str],
+    unowned_globs: &'static [&'static str],
+    allow_unowned_globs: &'static [&'static str],
+    executable_name: Option<&'static str>,
+}
+
+impl Config {
+    fn write(self, project_root: &Path) -> std::io::Result<()> {
+        let mut yaml = String::from("---\n");
+        for (key, globs) in [
+            ("owned_globs", self.owned_globs),
+            ("unowned_globs", self.unowned_globs),
+            ("allow_unowned_globs", self.allow_unowned_globs),
+        ] {
+            if !globs.is_empty() {
+                yaml += &format!("{key}:\n");
+                yaml.extend(globs.iter().map(|glob| format!("  - \"{glob}\"\n")));
+            }
+        }
+        if let Some(executable_name) = self.executable_name {
+            yaml += &format!("executable_name: {executable_name}\n");
+        }
+        fs::write(project_root.join("config/code_ownership.yml"), yaml)
+    }
+}
+
 fn add_unowned_file_outside_allowed_globs(project_root: &Path) -> std::io::Result<()> {
     fs::write(project_root.join("app/stray.rb"), "puts 'no owner'\n")
 }
@@ -255,10 +284,12 @@ fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown
 
 fn own_every_ruby_file_and_annotate_an_allowed_one_with_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
     add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -284,10 +315,12 @@ fn test_validate_files_treats_a_dot_slash_path_like_a_plain_one() -> Result<(), 
 }
 
 fn allow_every_file(project_root: &Path) -> std::io::Result<()> {
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
-    )
+    Config {
+        owned_globs: &["**/*.rb"],
+        allow_unowned_globs: &["**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -312,10 +345,12 @@ fn add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) 
     fs::create_dir_all(project_root.join("packs/typo/app"))?;
     fs::write(project_root.join("packs/typo/package.yml"), "owner: Typo\n")?;
     fs::write(project_root.join("packs/typo/app/thing.rb"), "puts 'typo'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/typo/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,packs}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*", "packs/typo/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 fn add_a_javascript_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
@@ -325,10 +360,12 @@ fn add_a_javascript_package_naming_an_unknown_team_in_an_allowed_glob(project_ro
         "{\"metadata\": {\"owner\": \"Typo\"}}\n",
     )?;
     fs::write(project_root.join("frontend/typo/src/thing.js"), "console.log('typo');\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,frontend}/**/*.{rb,js}\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"frontend/typo/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,frontend}/**/*.{rb,js}"],
+        allow_unowned_globs: &["app/deprecated/**/*", "frontend/typo/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -356,10 +393,12 @@ fn add_an_allowed_unowned_file_in_a_sibling_of_a_package_naming_an_unknown_team(
     add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
     fs::create_dir_all(project_root.join("packs/typo2/app"))?;
     fs::write(project_root.join("packs/typo2/app/thing.rb"), "puts 'no owner'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,packs}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*", "packs/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -382,10 +421,12 @@ fn add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob(project_roo
     fs::write(project_root.join("packs/[typo]/app/thing.rb"), "puts 'typo'\n")?;
     fs::create_dir_all(project_root.join("packs/t"))?;
     fs::write(project_root.join("packs/t/stray.rb"), "puts 'no owner'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,packs}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*", "packs/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -420,10 +461,12 @@ fn add_a_braced_package_naming_an_unknown_team_in_an_allowed_glob(project_root: 
     fs::create_dir_all(project_root.join("packs/{typo}/app"))?;
     fs::write(project_root.join("packs/{typo}/package.yml"), "owner: Typo\n")?;
     fs::write(project_root.join("packs/{typo}/app/thing.rb"), "puts 'typo'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,packs}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*", "packs/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -461,10 +504,7 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_naming_an_unkno
 // A glob built from the project root, `/**/**`, would match no project-relative path.
 fn allow_every_file_and_put_a_codeowner_file_naming_an_unknown_team_at_the_project_root(project_root: &Path) -> std::io::Result<()> {
     fs::write(project_root.join(".codeowner"), "Typo\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
-    )
+    allow_every_file(project_root)
 }
 
 #[test]
@@ -553,10 +593,12 @@ fn add_a_package_without_regenerating_codeowners(project_root: &Path) -> std::io
     fs::create_dir_all(project_root.join("packs/foo/app"))?;
     fs::write(project_root.join("packs/foo/package.yml"), "owner: Foo\n")?;
     fs::write(project_root.join("packs/foo/app/thing.rb"), "puts 'foo'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/foo/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,packs}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*", "packs/foo/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 fn add_a_javascript_package_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
@@ -566,10 +608,12 @@ fn add_a_javascript_package_without_regenerating_codeowners(project_root: &Path)
         "{\"metadata\": {\"owner\": \"Foo\"}}\n",
     )?;
     fs::write(project_root.join("frontend/foo/src/thing.js"), "console.log('foo');\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config,frontend}/**/*.{rb,js}\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"frontend/foo/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config,frontend}/**/*.{rb,js}"],
+        allow_unowned_globs: &["app/deprecated/**/*", "frontend/foo/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -598,9 +642,13 @@ fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Resu
 }
 
 fn name_an_executable(project_root: &Path) -> std::io::Result<()> {
-    let config_path = project_root.join("config/code_ownership.yml");
-    let config = fs::read_to_string(&config_path)?;
-    fs::write(config_path, config + "executable_name: bin/codeownership validate\n")
+    Config {
+        owned_globs: &["{app,config}/**/*.rb"],
+        allow_unowned_globs: &["app/deprecated/**/*"],
+        executable_name: Some("bin/codeownership validate"),
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 fn annotate_the_unowned_file_and_name_an_executable(project_root: &Path) -> std::io::Result<()> {
@@ -641,10 +689,13 @@ fn test_generate_and_validate_files_does_not_suggest_the_configured_executable()
 
 fn put_the_allowed_glob_in_unowned_globs_too(project_root: &Path) -> std::io::Result<()> {
     add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"{app,config}/**/*.rb\"\nunowned_globs:\n  - \"app/deprecated/**/*\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n",
-    )
+    Config {
+        owned_globs: &["{app,config}/**/*.rb"],
+        unowned_globs: &["app/deprecated/**/*"],
+        allow_unowned_globs: &["app/deprecated/**/*"],
+        ..Default::default()
+    }
+    .write(project_root)
 }
 
 #[test]
@@ -680,10 +731,11 @@ fn test_validate_files_leaves_out_files_in_both_globs() -> Result<(), Box<dyn Er
 fn test_validate_reports_unowned_files_without_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_on_modified_fixture(
         |project_root| {
-            fs::write(
-                project_root.join("config/code_ownership.yml"),
-                "---\nowned_globs:\n  - \"{app,config}/**/*.rb\"\n",
-            )
+            Config {
+                owned_globs: &["{app,config}/**/*.rb"],
+                ..Default::default()
+            }
+            .write(project_root)
         },
         &["validate"],
     )?
@@ -695,10 +747,7 @@ fn test_validate_reports_unowned_files_without_allowed_globs() -> Result<(), Box
 
 fn allow_every_unowned_file_with_one_at_the_project_root(project_root: &Path) -> std::io::Result<()> {
     fs::write(project_root.join("root.rb"), "puts 'no owner'\n")?;
-    fs::write(
-        project_root.join("config/code_ownership.yml"),
-        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
-    )
+    allow_every_file(project_root)
 }
 
 #[test]
