@@ -187,3 +187,24 @@ javascript_package_paths:
     let content = std::fs::read_to_string(td.path().join(".github/CODEOWNERS")).unwrap();
     assert!(!content.is_empty());
 }
+
+#[test]
+fn test_validate_files_takes_relative_paths_as_given_with_relative_root() {
+    let project_root = Path::new("tests/fixtures/valid_project");
+    let run_config = RunConfig {
+        project_root: project_root.to_path_buf(),
+        codeowners_file_path: Some(project_root.join(".github/CODEOWNERS").to_path_buf()),
+        config_path: project_root.join("config/code_ownership.yml").to_path_buf(),
+        no_cache: true,
+        executable_name: None,
+    };
+
+    // Taken as given, as the CODEOWNERS lookup takes it, this path is outside owned_globs and skipped. Stripping the root for
+    // the glob check alone would match it as ruby/app/models/payroll.rb and then find no CODEOWNERS line for it.
+    let result = runner::validate(
+        &run_config,
+        vec!["tests/fixtures/valid_project/ruby/app/models/payroll.rb".to_string()],
+    );
+    assert!(result.io_errors.is_empty(), "io: {:?}", result.io_errors);
+    assert!(result.validation_errors.is_empty(), "val: {:?}", result.validation_errors);
+}

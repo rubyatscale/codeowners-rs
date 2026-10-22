@@ -44,6 +44,9 @@ pub struct Config {
     #[serde(default = "default_codeowners_path", deserialize_with = "crate::yaml::string_or_null")]
     pub codeowners_path: String,
 
+    #[serde(default, deserialize_with = "crate::yaml::strings_or_nulls")]
+    pub optionally_owned_globs: Vec<String>,
+
     #[serde(default = "default_yaml_max_nodes")]
     pub yaml_max_nodes: usize,
 
@@ -122,7 +125,7 @@ fn default_path() -> PathBuf {
 impl Config {
     pub fn load_from_path(path: &Path) -> std::result::Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("Can't open config file: {} ({})", path.to_string_lossy(), e))?;
-        // The config can't raise its own limit, and at a few hundred nodes it never needs to.
+        // The config can't raise its own limit, so its lists can hold about 20,000 entries in all.
         let config: Self = crate::yaml::from_slice(&bytes, crate::yaml::DEFAULT_MAX_NODES)
             .map_err(|e| format!("Can't parse config file: {} ({})", path.to_string_lossy(), e))?;
         Ok(Self {
@@ -173,6 +176,7 @@ mod tests {
         );
         assert_eq!(config.vendored_gems_path, "vendored/");
         assert_eq!(config.executable_name, "codeowners generate");
+        assert!(config.optionally_owned_globs.is_empty());
         assert_eq!(config.yaml_max_nodes, 20_000);
         Ok(())
     }
@@ -255,6 +259,23 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_config_with_optionally_owned_globs() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.yml");
+        let config_str = indoc! {"
+            ---
+            owned_globs:
+              - \"**/*.rb\"
+            optionally_owned_globs:
+              - \"**/deprecated/**/*\"
+        "};
+        fs::write(&config_path, config_str)?;
+        let config = Config::load_from_path(&config_path)?;
+        assert_eq!(config.optionally_owned_globs, vec!["**/deprecated/**/*"]);
+        Ok(())
+    }
+
+    #[test]
     fn test_codeowners_path_defaults_when_not_specified() -> Result<(), Box<dyn Error>> {
         let temp_dir = tempdir()?;
         let config_path = temp_dir.path().join("config.yml");
@@ -304,6 +325,8 @@ mod tests {
               -
             ignore_dirs:
               -
+            optionally_owned_globs:
+              -
             vendored_gems_path:
             cache_directory:
             executable_name:
@@ -318,6 +341,7 @@ mod tests {
             &config.team_file_glob,
             &config.unowned_globs,
             &config.ignore_dirs,
+            &config.optionally_owned_globs,
         ] {
             assert_eq!(globs, &[""]);
         }

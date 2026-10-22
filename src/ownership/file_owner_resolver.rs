@@ -385,6 +385,7 @@ mod tests {
             ignore_dirs: vec![],
             executable_name: "codeowners".to_string(),
             codeowners_path: ".github".to_string(),
+            optionally_owned_globs: vec![],
             yaml_max_nodes: crate::yaml::DEFAULT_MAX_NODES,
             path: PathBuf::from(crate::config::DEFAULT_PATH),
         }
