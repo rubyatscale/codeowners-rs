@@ -152,7 +152,13 @@ impl Runner {
         let filtered_paths: Vec<(String, PathBuf)> = file_paths
             .into_iter()
             .map(|file_path| {
-                let relative_path = relative_to_buf(&self.run_config.project_root, Path::new(&file_path));
+                let path = Path::new(&file_path);
+                // As in the CODEOWNERS lookup, a relative path is already relative to the project root, even when that root is relative.
+                let relative_path = if path.is_absolute() {
+                    relative_to_buf(&self.run_config.project_root, path)
+                } else {
+                    path.to_path_buf()
+                };
                 (file_path, relative_path)
             })
             // Mirror the filtering applied by ProjectBuilder when walking the project
