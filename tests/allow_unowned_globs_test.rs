@@ -45,6 +45,22 @@ fn test_validate_files_passes_for_an_absolute_path_in_an_allowed_glob() -> Resul
     Ok(())
 }
 
+#[test]
+fn test_validate_files_passes_for_an_annotated_and_an_unowned_file_in_an_allowed_glob() -> Result<(), Box<dyn Error>> {
+    // What a pre-commit hook checks when a commit edits both. An allowed file that names an owner is reported only if
+    // CODEOWNERS doesn't list it, and CODEOWNERS lists the annotated one.
+    for command in ["validate", "gv"] {
+        run_codeowners(
+            FIXTURE,
+            &[command, "app/deprecated/annotated_old.rb", "app/deprecated/old.rb"],
+            true,
+            OutputStream::Stdout,
+            predicate::eq(""),
+        )?;
+    }
+    Ok(())
+}
+
 // The `for-file` tests pin that it reports an allowed file's owner as it would without allow_unowned_globs.
 #[test]
 fn test_for_file_reports_annotations_in_allowed_globs() -> Result<(), Box<dyn Error>> {
@@ -332,6 +348,27 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_naming_an_unkno
     Ok(())
 }
 
+#[test]
+fn test_validate_reports_a_package_or_codeowner_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    // The package mappers drop the package, leaving its file with no owner, but the file is allowed. The `.codeowner`
+    // gives annotated_old.rb a second owner, so `validate` would fail even if the `.codeowner` itself went unreported.
+    let files: [(FixtureChange, &str); 2] = [
+        (add_a_package_naming_an_unknown_team_in_an_allowed_glob, "packs/typo/package.yml"),
+        (
+            add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
+            "app/deprecated/.codeowner",
+        ),
+    ];
+    for (add_file, file) in files {
+        let invalid_team = format!("- {file} is referencing an invalid team - 'Typo'");
+        run_on_modified_fixture(add_file, &["validate"])?
+            .failure()
+            .stdout(predicate::str::contains(invalid_team))
+            .stdout(predicate::str::contains("Some files are missing ownership").not());
+    }
+    Ok(())
+}
+
 fn annotate_the_unowned_file_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
     fs::write(
         project_root.join("app/deprecated/old.rb"),
@@ -339,15 +376,40 @@ fn annotate_the_unowned_file_without_regenerating_codeowners(project_root: &Path
     )
 }
 
+fn give_the_unowned_file_a_team_glob_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
+    fs::write(
+        project_root.join("config/teams/foo.yml"),
+        "---\nname: Foo\ngithub:\n  team: '@FooTeam'\nowned_globs:\n  - app/deprecated/old.rb\n",
+    )
+}
+
+fn add_a_package_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("packs/foo/app"))?;
+    fs::write(project_root.join("packs/foo/package.yml"), "owner: Foo\n")?;
+    fs::write(project_root.join("packs/foo/app/thing.rb"), "puts 'foo'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/foo/**/*\"\n",
+    )
+}
+
 #[test]
 fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
-    run_on_modified_fixture(
-        annotate_the_unowned_file_without_regenerating_codeowners,
-        &["validate", "app/deprecated/old.rb"],
-    )?
-    .failure()
-    .stdout(predicate::str::contains("Unowned files detected:"))
-    .stdout(predicate::str::contains("app/deprecated/old.rb"));
+    // `validate`, not `gv`, which would add each file to CODEOWNERS.
+    let owners: [(FixtureChange, &str); 3] = [
+        (annotate_the_unowned_file_without_regenerating_codeowners, "app/deprecated/old.rb"),
+        (
+            give_the_unowned_file_a_team_glob_without_regenerating_codeowners,
+            "app/deprecated/old.rb",
+        ),
+        (add_a_package_without_regenerating_codeowners, "packs/foo/app/thing.rb"),
+    ];
+    for (add_owner, file) in owners {
+        run_on_modified_fixture(add_owner, &["validate", file])?
+            .failure()
+            .stdout(predicate::str::contains("Unowned files detected:"))
+            .stdout(predicate::str::contains(file));
+    }
     Ok(())
 }
 
