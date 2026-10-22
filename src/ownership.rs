@@ -4,7 +4,7 @@ use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
     fmt::{self, Display},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tracing::{info, instrument};
@@ -113,6 +113,7 @@ impl Entry {
 /// `.codeowner`, `package.yml` or `package.json` naming one still counts. Building one goes through every project file, so reuse it.
 pub(crate) struct OwnerLookup {
     owner_matchers: Vec<OwnerMatcher>,
+    unknown_team_package_roots: Vec<PathBuf>,
 }
 
 impl OwnerLookup {
@@ -120,7 +121,8 @@ impl OwnerLookup {
         let file_owner_finder = FileOwnerFinder {
             owner_matchers: &self.owner_matchers,
         };
-        !file_owner_finder.find(relative_path).is_empty()
+        self.unknown_team_package_roots.iter().any(|root| relative_path.starts_with(root))
+            || !file_owner_finder.find(relative_path).is_empty()
     }
 }
 
@@ -172,22 +174,19 @@ impl Ownership {
     }
 
     pub(crate) fn owner_lookup(&self) -> OwnerLookup {
-        let mut owner_matchers: Vec<OwnerMatcher> = self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect();
         // The package mappers drop a package whose owner isn't a team, and `validate` reports its package.yml or package.json
-        // instead. A list of files isn't checked for that, so here the package still names an owner for its files.
-        for package in &self.project.packages {
-            if let Some(package_root) = package.package_root()
-                && !self.project.teams_by_name.contains_key(&package.owner)
-            {
-                let glob = format!("{}/**/**", package_root.to_string_lossy());
-                owner_matchers.push(OwnerMatcher::new_glob(
-                    glob.clone(),
-                    package.owner.clone(),
-                    Source::Package(package.path.to_string_lossy().to_string(), glob),
-                ));
-            }
+        // instead. A list of files isn't checked for that, so here the package still names an owner for its files. Its directory
+        // is matched as a path prefix, not a glob, so brackets in it are literal and a package at the project root covers every file.
+        OwnerLookup {
+            owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
+            unknown_team_package_roots: self
+                .project
+                .packages
+                .iter()
+                .filter(|package| !self.project.teams_by_name.contains_key(&package.owner))
+                .filter_map(|package| package.package_root().map(Path::to_path_buf))
+                .collect(),
         }
-        OwnerLookup { owner_matchers }
     }
 
     #[instrument(level = "debug", skip_all)]

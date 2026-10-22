@@ -8,6 +8,8 @@ use common::{OutputStream, git_add_all_files, run_codeowners, setup_fixture_repo
 
 const FIXTURE: &str = "tests/fixtures/allow_unowned_globs";
 
+type FixtureChange = fn(&Path) -> std::io::Result<()>;
+
 #[test]
 fn test_validate_passes_with_unowned_files_in_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_codeowners("allow_unowned_globs", &["validate"], true, OutputStream::Stdout, predicate::eq(""))?;
@@ -247,16 +249,75 @@ fn add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) 
     )
 }
 
+fn add_a_javascript_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("frontend/typo/src"))?;
+    fs::write(
+        project_root.join("frontend/typo/package.json"),
+        "{\"metadata\": {\"owner\": \"Typo\"}}\n",
+    )?;
+    fs::write(project_root.join("frontend/typo/src/thing.js"), "console.log('typo');\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,frontend}/**/*.{rb,js}\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"frontend/typo/**/*\"\n",
+    )
+}
+
 #[test]
 fn test_validate_files_reports_a_package_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    let packages: [(FixtureChange, &str); 2] = [
+        (add_a_package_naming_an_unknown_team_in_an_allowed_glob, "packs/typo/app/thing.rb"),
+        (
+            add_a_javascript_package_naming_an_unknown_team_in_an_allowed_glob,
+            "frontend/typo/src/thing.js",
+        ),
+    ];
+    for (add_package, file) in packages {
+        for command in ["validate", "gv"] {
+            run_on_modified_fixture(add_package, &[command, file])?
+                .failure()
+                .stdout(predicate::str::contains("Unowned files detected:"))
+                .stdout(predicate::str::contains(file));
+        }
+    }
+    Ok(())
+}
+
+// Read as a glob, `packs/[typo]` would match `packs/t` rather than the package's own directory.
+fn add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("packs/[typo]/app"))?;
+    fs::write(project_root.join("packs/[typo]/package.yml"), "owner: Typo\n")?;
+    fs::write(project_root.join("packs/[typo]/app/thing.rb"), "puts 'typo'\n")?;
+    fs::create_dir_all(project_root.join("packs/t"))?;
+    fs::write(project_root.join("packs/t/stray.rb"), "puts 'no owner'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_reports_a_bracketed_package_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
-            add_a_package_naming_an_unknown_team_in_an_allowed_glob,
-            &[command, "packs/typo/app/thing.rb"],
+            add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "packs/[typo]/app/thing.rb"],
         )?
         .failure()
         .stdout(predicate::str::contains("Unowned files detected:"))
-        .stdout(predicate::str::contains("packs/typo/app/thing.rb"));
+        .stdout(predicate::str::contains("packs/[typo]/app/thing.rb"));
+    }
+    Ok(())
+}
+
+#[test]
+fn test_validate_files_passes_an_allowed_file_outside_a_package_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "packs/t/stray.rb", "app/deprecated/old.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
     }
     Ok(())
 }
