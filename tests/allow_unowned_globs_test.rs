@@ -170,6 +170,30 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Bo
     Ok(())
 }
 
+fn add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("packs/typo/app"))?;
+    fs::write(project_root.join("packs/typo/package.yml"), "owner: Typo\n")?;
+    fs::write(project_root.join("packs/typo/app/thing.rb"), "puts 'typo'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/typo/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_reports_a_package_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_a_package_naming_an_unknown_team_in_an_allowed_glob,
+            &[command, "packs/typo/app/thing.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains("packs/typo/app/thing.rb"));
+    }
+    Ok(())
+}
+
 fn annotate_the_unowned_file_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
     fs::write(
         project_root.join("app/deprecated/old.rb"),

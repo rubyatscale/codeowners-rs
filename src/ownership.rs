@@ -109,8 +109,8 @@ impl Entry {
     }
 }
 
-/// Tells whether anything names an owner for a project-relative path, counting owners as `validate` does, so an annotation
-/// or `.codeowner` naming a team that doesn't exist still counts. Building one goes through every project file, so reuse it.
+/// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation,
+/// `.codeowner`, `package.yml` or `package.json` naming one still counts. Building one goes through every project file, so reuse it.
 pub(crate) struct OwnerLookup {
     owner_matchers: Vec<OwnerMatcher>,
 }
@@ -172,9 +172,22 @@ impl Ownership {
     }
 
     pub(crate) fn owner_lookup(&self) -> OwnerLookup {
-        OwnerLookup {
-            owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
+        let mut owner_matchers: Vec<OwnerMatcher> = self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect();
+        // The package mappers drop a package whose owner isn't a team, and `validate` reports its package.yml or package.json
+        // instead. A list of files isn't checked for that, so here the package still names an owner for its files.
+        for package in &self.project.packages {
+            if let Some(package_root) = package.package_root()
+                && !self.project.teams_by_name.contains_key(&package.owner)
+            {
+                let glob = format!("{}/**/**", package_root.to_string_lossy());
+                owner_matchers.push(OwnerMatcher::new_glob(
+                    glob.clone(),
+                    package.owner.clone(),
+                    Source::Package(package.path.to_string_lossy().to_string(), glob),
+                ));
+            }
         }
+        OwnerLookup { owner_matchers }
     }
 
     #[instrument(level = "debug", skip_all)]

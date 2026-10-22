@@ -168,8 +168,9 @@ impl Runner {
             for (file_path, relative_path) in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    // As in `validate`, allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation
-                    // names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without the key.
+                    // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
+                    // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without
+                    // the key.
                     Ok(None)
                         if matches_globs(&relative_path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&relative_path) => {}
                     Ok(None) => unowned_files.push(file_path),
