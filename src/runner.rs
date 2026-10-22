@@ -176,8 +176,10 @@ impl Runner {
                     Ok(Some(_)) => {}
                     // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
                     // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without
-                    // the key. The lookup matches plain project-relative paths only, so a path with a `..`, or an absolute one
-                    // not under the project root, is never excused.
+                    // the key. Only files the project reads count, though, so an annotated file, `.codeowner` or package file
+                    // names no owner here if it is untracked or under ignore_dirs, as in `validate`. The lookup matches plain
+                    // project-relative paths only, so a path with a `..`, or an absolute one not under the project root, is
+                    // never excused.
                     Ok(None)
                         if plain_relative(&relative_path).is_some_and(|path| {
                             matches_globs(&path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&path)
