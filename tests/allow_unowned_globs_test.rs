@@ -9,6 +9,10 @@ use common::{OutputStream, git_add_all_files, run_codeowners, setup_fixture_repo
 
 const FIXTURE: &str = "allow_unowned_globs";
 
+// As printed with the default executable_name.
+const UNLISTED_OWNER_HEADING: &str = "Files matching allow_unowned_globs name an owner that CODEOWNERS doesn't list. \
+    Check the team name, or run `codeowners generate` to update the CODEOWNERS file:";
+
 type FixtureChange = fn(&Path) -> std::io::Result<()>;
 
 #[test]
@@ -178,15 +182,36 @@ fn test_validate_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn 
 #[test]
 fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown_team() -> Result<(), Box<dyn Error>> {
     // A list of files isn't checked for invalid teams. CODEOWNERS has no line for this file, and its annotation keeps
-    // allow_unowned_globs from excusing it, so it's reported as unowned.
+    // allow_unowned_globs from excusing it, so it's reported, but not as unowned.
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
             &[command, "app/deprecated/typo.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
-        .stdout(predicate::str::contains("app/deprecated/typo.rb"));
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
+        .stdout(predicate::str::contains("app/deprecated/typo.rb"))
+        .stdout(predicate::str::contains("Unowned files detected:").not());
+    }
+    Ok(())
+}
+
+fn add_an_unowned_file_and_an_allowed_one_naming_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
+    add_unowned_file_outside_allowed_globs(project_root)?;
+    add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)
+}
+
+#[test]
+fn test_validate_files_reports_allowed_and_unowned_files_under_separate_headings() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_an_unowned_file_and_an_allowed_one_naming_an_unknown_team,
+            &[command, "app/deprecated/typo.rb", "app/stray.rb"],
+        )?
+        .failure()
+        .stdout(predicate::eq(format!(
+            "Unowned files detected:\n  app/stray.rb\n{UNLISTED_OWNER_HEADING}\n  app/deprecated/typo.rb\n"
+        )));
     }
     Ok(())
 }
@@ -198,14 +223,15 @@ fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown
         "app/deprecated/typo.rb",
     )?
     .failure()
-    .stdout(predicate::str::contains("Unowned files detected:"))
+    .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
     .stdout(predicate::str::contains("app/deprecated/typo.rb"));
     Ok(())
 }
 
 #[test]
 fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown_team_by_path_with_dot_dot() -> Result<(), Box<dyn Error>> {
-    // The owner lookup can't see the annotation without resolving the `..`, so the file mustn't be excused.
+    // The owner lookup can't see the annotation without resolving the `..`, so the file mustn't be excused. It's reported
+    // as unowned, as without the key.
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
@@ -235,7 +261,7 @@ fn test_validate_files_treats_a_dot_slash_path_like_a_plain_one() -> Result<(), 
             &[command, "./app/deprecated/typo.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("./app/deprecated/typo.rb"));
         run_on_modified_fixture(
             allow_every_file_and_annotate_one_with_an_unknown_team,
@@ -283,7 +309,7 @@ fn test_validate_files_reports_an_allowed_file_in_a_package_naming_an_unknown_te
         for command in ["validate", "gv"] {
             run_on_modified_fixture(add_package, &[command, file])?
                 .failure()
-                .stdout(predicate::str::contains("Unowned files detected:"))
+                .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
                 .stdout(predicate::str::contains(file));
         }
     }
@@ -311,7 +337,7 @@ fn test_validate_files_reports_an_allowed_file_in_a_bracketed_package_naming_an_
             &[command, "packs/[typo]/app/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("packs/[typo]/app/thing.rb"));
     }
     Ok(())
@@ -349,7 +375,7 @@ fn test_validate_files_reports_an_allowed_file_in_a_braced_package_naming_an_unk
             &[command, "packs/{typo}/app/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("packs/{typo}/app/thing.rb"));
     }
     Ok(())
@@ -367,7 +393,7 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_naming_an_unkno
             &[command, "app/deprecated/old.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("app/deprecated/old.rb"));
     }
     Ok(())
@@ -390,7 +416,7 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_at_the_root_nam
             &[command, "app/deprecated/old.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("app/deprecated/old.rb"));
     }
     Ok(())
@@ -411,7 +437,7 @@ fn test_validate_files_reports_an_allowed_file_under_a_braced_codeowner_naming_a
             &[command, "app/deprecated/{legacy}/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
         .stdout(predicate::str::contains("app/deprecated/{legacy}/thing.rb"));
         run_on_modified_fixture(
             add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
@@ -482,9 +508,29 @@ fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Resu
     for (add_owner, file) in owners {
         run_on_modified_fixture(add_owner, &["validate", file])?
             .failure()
-            .stdout(predicate::str::contains("Unowned files detected:"))
+            .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
             .stdout(predicate::str::contains(file));
     }
+    Ok(())
+}
+
+fn annotate_the_unowned_file_and_name_an_executable(project_root: &Path) -> std::io::Result<()> {
+    annotate_the_unowned_file_without_regenerating_codeowners(project_root)?;
+    let config_path = project_root.join("config/code_ownership.yml");
+    let config = fs::read_to_string(&config_path)?;
+    fs::write(config_path, config + "executable_name: bin/codeownership validate\n")
+}
+
+#[test]
+fn test_validate_files_suggests_the_configured_executable_for_an_allowed_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
+    run_on_modified_fixture(
+        annotate_the_unowned_file_and_name_an_executable,
+        &["validate", "app/deprecated/old.rb"],
+    )?
+    .failure()
+    .stdout(predicate::str::contains(
+        "run `bin/codeownership validate` to update the CODEOWNERS file:\n  app/deprecated/old.rb\n",
+    ));
     Ok(())
 }
 

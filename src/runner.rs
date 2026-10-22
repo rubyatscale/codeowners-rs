@@ -145,6 +145,7 @@ impl Runner {
 
     fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
         let mut unowned_files = Vec::new();
+        let mut allowed_files_with_unlisted_owners = Vec::new();
         let mut io_errors = Vec::new();
 
         // Filter files based on owned_globs and unowned_globs configuration
@@ -175,26 +176,36 @@ impl Runner {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
                     // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
-                    // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still unowned, as without
-                    // the key. Only files the project reads count, though, so an annotated file, `.codeowner` or package file
-                    // names no owner here if it is untracked or under ignore_dirs, as in `validate`. The lookup matches plain
-                    // project-relative paths only, so a path with a `..`, or an absolute one not under the project root, is
-                    // never excused.
-                    Ok(None)
-                        if plain_relative(&relative_path).is_some_and(|path| {
-                            matches_globs(&path, &self.config.allow_unowned_globs) && !owner_lookup.has_owner(&path)
-                        }) => {}
-                    Ok(None) => unowned_files.push(file_path),
+                    // package names a team that doesn't exist, or that CODEOWNERS doesn't list yet, is still reported, but not
+                    // as unowned, which the key allows. Only files the project reads count, though, so an annotated file,
+                    // `.codeowner` or package file names no owner here if it is untracked or under ignore_dirs, as in
+                    // `validate`. The lookup matches plain project-relative paths only, so a path with a `..`, or an absolute
+                    // one not under the project root, is never excused and is reported as unowned, as without the key.
+                    Ok(None) => match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.allow_unowned_globs)) {
+                        Some(path) if owner_lookup.has_owner(&path) => allowed_files_with_unlisted_owners.push(file_path),
+                        Some(_) => {}
+                        None => unowned_files.push(file_path),
+                    },
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }
             }
         });
 
+        let mut validation_errors = Vec::new();
         if !unowned_files.is_empty() {
-            let validation_errors = std::iter::once("Unowned files detected:".to_string())
-                .chain(unowned_files.into_iter().map(|file| format!("  {}", file)))
-                .collect();
+            validation_errors.push("Unowned files detected:".to_string());
+            validation_errors.extend(unowned_files.into_iter().map(|file| format!("  {}", file)));
+        }
+        if !allowed_files_with_unlisted_owners.is_empty() {
+            validation_errors.push(format!(
+                "Files matching allow_unowned_globs name an owner that CODEOWNERS doesn't list. \
+                 Check the team name, or run `{}` to update the CODEOWNERS file:",
+                self.config.executable_name
+            ));
+            validation_errors.extend(allowed_files_with_unlisted_owners.into_iter().map(|file| format!("  {}", file)));
+        }
 
+        if !validation_errors.is_empty() {
             return RunResult {
                 validation_errors,
                 io_errors,
