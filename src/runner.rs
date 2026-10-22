@@ -126,7 +126,7 @@ impl Runner {
         if file_paths.is_empty() {
             self.validate_all()
         } else {
-            self.validate_files(file_paths)
+            self.validate_files(file_paths, false)
         }
     }
 
@@ -143,7 +143,7 @@ impl Runner {
         }
     }
 
-    fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
+    fn validate_files(&self, file_paths: Vec<String>, codeowners_generated: bool) -> RunResult {
         let mut unowned_files = Vec::new();
         let mut allowed_files_with_unlisted_owners = Vec::new();
         let mut io_errors = Vec::new();
@@ -205,10 +205,16 @@ impl Runner {
             validation_errors.extend(unowned_files.into_iter().map(|file| format!("  {}", file)));
         }
         if !allowed_files_with_unlisted_owners.is_empty() {
+            // `gv` has just written CODEOWNERS, so updating it again can't help, and only a team that doesn't exist is left out.
+            let or_update_codeowners = if codeowners_generated {
+                String::new()
+            } else {
+                format!(", or run `{}` to update the CODEOWNERS file", self.config.executable_name)
+            };
             validation_errors.push(format!(
                 "Files matching allow_unowned_globs name an owner that CODEOWNERS doesn't list. \
-                 Check the team name, or run `{}` to update the CODEOWNERS file:",
-                self.config.executable_name
+                 Check the team name in each one's annotation, `.codeowner` or package{}:",
+                or_update_codeowners
             ));
             validation_errors.extend(allowed_files_with_unlisted_owners.into_iter().map(|file| format!("  {}", file)));
         }
@@ -255,7 +261,11 @@ impl Runner {
         if run_result.has_errors() {
             return run_result;
         }
-        self.validate(file_paths)
+        if file_paths.is_empty() {
+            self.validate_all()
+        } else {
+            self.validate_files(file_paths, true)
+        }
     }
 
     fn git_stage(&self) {
