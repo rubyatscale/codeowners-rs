@@ -1,31 +1,32 @@
-use assert_cmd::prelude::*;
+use assert_cmd::{assert::Assert, prelude::*};
 use indoc::indoc;
 use predicates::prelude::*;
-use std::{error::Error, fs, path::Path, process::Command};
+use std::{error::Error, ffi::OsStr, fs, path::Path, process::Command};
+use tempfile::TempDir;
 
 mod common;
 use common::{OutputStream, git_add_all_files, run_codeowners, setup_fixture_repo};
 
-const FIXTURE: &str = "tests/fixtures/allow_unowned_globs";
+const FIXTURE: &str = "allow_unowned_globs";
 
 type FixtureChange = fn(&Path) -> std::io::Result<()>;
 
 #[test]
 fn test_validate_passes_with_unowned_files_in_allowed_globs() -> Result<(), Box<dyn Error>> {
-    run_codeowners("allow_unowned_globs", &["validate"], true, OutputStream::Stdout, predicate::eq(""))?;
+    run_codeowners(FIXTURE, &["validate"], true, OutputStream::Stdout, predicate::eq(""))?;
     Ok(())
 }
 
 #[test]
 fn test_generate_and_validate_passes_with_unowned_files_in_allowed_globs() -> Result<(), Box<dyn Error>> {
-    run_codeowners("allow_unowned_globs", &["gv"], true, OutputStream::Stdout, predicate::eq(""))?;
+    run_codeowners(FIXTURE, &["gv"], true, OutputStream::Stdout, predicate::eq(""))?;
     Ok(())
 }
 
 #[test]
 fn test_validate_files_passes_for_an_unowned_file_in_an_allowed_glob() -> Result<(), Box<dyn Error>> {
     run_codeowners(
-        "allow_unowned_globs",
+        FIXTURE,
         &["validate", "app/deprecated/old.rb"],
         true,
         OutputStream::Stdout,
@@ -36,19 +37,7 @@ fn test_validate_files_passes_for_an_unowned_file_in_an_allowed_glob() -> Result
 
 #[test]
 fn test_validate_files_passes_for_an_absolute_path_in_an_allowed_glob() -> Result<(), Box<dyn Error>> {
-    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
-    let project_root = temp_dir.path();
-    git_add_all_files(project_root);
-
-    let file_absolute_path = project_root.join("app/deprecated/old.rb").canonicalize()?;
-
-    Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .arg("validate")
-        .arg(file_absolute_path)
-        .assert()
+    validate_absolute_path(|_| Ok(()), "app/deprecated/old.rb")?
         .success()
         .stdout(predicate::eq(""));
     Ok(())
@@ -57,7 +46,7 @@ fn test_validate_files_passes_for_an_absolute_path_in_an_allowed_glob() -> Resul
 #[test]
 fn test_annotations_still_assign_owners_in_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_codeowners(
-        "allow_unowned_globs",
+        FIXTURE,
         &["for-file", "app/deprecated/annotated_old.rb"],
         true,
         OutputStream::Stdout,
@@ -75,7 +64,7 @@ fn test_annotations_still_assign_owners_in_allowed_globs() -> Result<(), Box<dyn
 #[test]
 fn test_unowned_file_in_an_allowed_glob_is_reported_as_unowned() -> Result<(), Box<dyn Error>> {
     run_codeowners(
-        "allow_unowned_globs",
+        FIXTURE,
         &["for-file", "app/deprecated/old.rb"],
         true,
         OutputStream::Stdout,
@@ -84,21 +73,31 @@ fn test_unowned_file_in_an_allowed_glob_is_reported_as_unowned() -> Result<(), B
     Ok(())
 }
 
-fn run_on_modified_fixture(
-    modify: impl FnOnce(&Path) -> std::io::Result<()>,
-    args: &[&str],
-) -> Result<assert_cmd::assert::Assert, Box<dyn Error>> {
-    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
-    let project_root = temp_dir.path();
-    modify(project_root)?;
-    git_add_all_files(project_root);
-    let assert = Command::cargo_bin("codeowners")?
+fn modified_fixture(modify: impl FnOnce(&Path) -> std::io::Result<()>) -> Result<TempDir, Box<dyn Error>> {
+    let temp_dir = setup_fixture_repo(&Path::new("tests/fixtures").join(FIXTURE));
+    modify(temp_dir.path())?;
+    git_add_all_files(temp_dir.path());
+    Ok(temp_dir)
+}
+
+fn codeowners(project_root: &Path, args: &[impl AsRef<OsStr>]) -> Result<Assert, Box<dyn Error>> {
+    Ok(Command::cargo_bin("codeowners")?
         .arg("--project-root")
         .arg(project_root)
         .arg("--no-cache")
         .args(args)
-        .assert();
-    Ok(assert)
+        .assert())
+}
+
+fn run_on_modified_fixture(modify: impl FnOnce(&Path) -> std::io::Result<()>, args: &[&str]) -> Result<Assert, Box<dyn Error>> {
+    let temp_dir = modified_fixture(modify)?;
+    codeowners(temp_dir.path(), args)
+}
+
+fn validate_absolute_path(modify: impl FnOnce(&Path) -> std::io::Result<()>, file: &str) -> Result<Assert, Box<dyn Error>> {
+    let temp_dir = modified_fixture(modify)?;
+    let file_absolute_path = temp_dir.path().join(file).canonicalize()?;
+    codeowners(temp_dir.path(), &[OsStr::new("validate"), file_absolute_path.as_os_str()])
 }
 
 fn add_unowned_file_outside_allowed_globs(project_root: &Path) -> std::io::Result<()> {
@@ -175,23 +174,13 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Bo
 
 #[test]
 fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_an_absolute_path() -> Result<(), Box<dyn Error>> {
-    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
-    let project_root = temp_dir.path();
-    add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
-    git_add_all_files(project_root);
-
-    let file_absolute_path = project_root.join("app/deprecated/typo.rb").canonicalize()?;
-
-    Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .arg("validate")
-        .arg(file_absolute_path)
-        .assert()
-        .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
-        .stdout(predicate::str::contains("app/deprecated/typo.rb"));
+    validate_absolute_path(
+        add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
+        "app/deprecated/typo.rb",
+    )?
+    .failure()
+    .stdout(predicate::str::contains("Unowned files detected:"))
+    .stdout(predicate::str::contains("app/deprecated/typo.rb"));
     Ok(())
 }
 
