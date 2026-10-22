@@ -177,8 +177,9 @@ impl Ownership {
     pub(crate) fn owner_lookup(&self) -> OwnerLookup {
         // `validate` reports a package.yml, package.json or `.codeowner` naming a team that doesn't exist, but a list of files
         // isn't checked for that, so here each still names an owner for the files under its directory. The package mappers drop
-        // such a package, and the directory mapper's glob misses a `.codeowner` at the project root or in a directory whose path
-        // has braces, so the directory is matched as a path prefix: brackets and braces are literal and the root covers every file.
+        // such a package, and the directory mapper's glob misses a `.codeowner` at the project root and reads braces as alternatives,
+        // matching `app/legacy` for one in `app/{legacy}`. So the directory is matched as a path prefix, which replaces that glob
+        // for such a `.codeowner`: brackets and braces are literal and the root covers every file.
         let package_roots = self
             .project
             .packages
@@ -192,7 +193,19 @@ impl Ownership {
             .filter(|directory_codeowner_file| !self.project.teams_by_name.contains_key(&directory_codeowner_file.owner))
             .filter_map(|directory_codeowner_file| directory_codeowner_file.directory_root());
         OwnerLookup {
-            owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
+            owner_matchers: self
+                .mappers()
+                .iter()
+                .flat_map(|mapper| mapper.owner_matchers())
+                .filter(|owner_matcher| match owner_matcher {
+                    OwnerMatcher::Glob {
+                        source: Source::Directory(_),
+                        team_name,
+                        ..
+                    } => self.project.teams_by_name.contains_key(team_name),
+                    _ => true,
+                })
+                .collect(),
             unknown_team_roots: package_roots.chain(directory_roots).map(Path::to_path_buf).collect(),
         }
     }

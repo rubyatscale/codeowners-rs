@@ -426,7 +426,9 @@ fn test_validate_files_reports_an_allowed_file_under_a_codeowner_at_the_root_nam
 fn add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(project_root.join("app/deprecated/{legacy}"))?;
     fs::write(project_root.join("app/deprecated/{legacy}/.codeowner"), "Typo\n")?;
-    fs::write(project_root.join("app/deprecated/{legacy}/thing.rb"), "puts 'typo'\n")
+    fs::write(project_root.join("app/deprecated/{legacy}/thing.rb"), "puts 'typo'\n")?;
+    fs::create_dir_all(project_root.join("app/deprecated/legacy"))?;
+    fs::write(project_root.join("app/deprecated/legacy/thing.rb"), "puts 'no owner'\n")
 }
 
 #[test]
@@ -441,7 +443,7 @@ fn test_validate_files_reports_an_allowed_file_under_a_braced_codeowner_naming_a
         .stdout(predicate::str::contains("app/deprecated/{legacy}/thing.rb"));
         run_on_modified_fixture(
             add_a_braced_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
-            &[command, "app/deprecated/old.rb"],
+            &[command, "app/deprecated/legacy/thing.rb", "app/deprecated/old.rb"],
         )?
         .success()
         .stdout(predicate::eq(""));
@@ -484,6 +486,10 @@ fn give_the_unowned_file_a_team_glob_without_regenerating_codeowners(project_roo
     )
 }
 
+fn add_a_codeowner_file_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join("app/deprecated/.codeowner"), "Foo\n")
+}
+
 fn add_a_package_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(project_root.join("packs/foo/app"))?;
     fs::write(project_root.join("packs/foo/package.yml"), "owner: Foo\n")?;
@@ -497,12 +503,13 @@ fn add_a_package_without_regenerating_codeowners(project_root: &Path) -> std::io
 #[test]
 fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
     // `validate`, not `gv`, which would add each file to CODEOWNERS.
-    let owners: [(FixtureChange, &str); 3] = [
+    let owners: [(FixtureChange, &str); 4] = [
         (annotate_the_unowned_file_without_regenerating_codeowners, "app/deprecated/old.rb"),
         (
             give_the_unowned_file_a_team_glob_without_regenerating_codeowners,
             "app/deprecated/old.rb",
         ),
+        (add_a_codeowner_file_without_regenerating_codeowners, "app/deprecated/old.rb"),
         (add_a_package_without_regenerating_codeowners, "packs/foo/app/thing.rb"),
     ];
     for (add_owner, file) in owners {
