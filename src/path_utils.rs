@@ -36,6 +36,18 @@ pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
 mod tests {
     use super::*;
 
+    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
+
+    #[test]
+    fn test_matches_globs() {
+        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
+    }
+
+    #[test]
+    fn test_glob_match() {
+        assert!(fast_glob::glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
+
     #[test]
     fn matches_globs_double_star_matches_root_level_and_nested_files() {
         let globs = vec!["**/*".to_string()];

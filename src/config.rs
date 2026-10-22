@@ -176,6 +176,7 @@ mod tests {
         );
         assert_eq!(config.vendored_gems_path, "vendored/");
         assert_eq!(config.executable_name, "codeowners generate");
+        assert!(config.allow_unowned_globs.is_empty());
         assert_eq!(config.yaml_max_nodes, 20_000);
         Ok(())
     }
@@ -254,7 +255,6 @@ mod tests {
         fs::write(&config_path, config_str)?;
         let config = Config::load_from_path(&config_path)?;
         assert_eq!(config.executable_name, "codeowners generate");
-        assert!(config.allow_unowned_globs.is_empty());
         Ok(())
     }
 

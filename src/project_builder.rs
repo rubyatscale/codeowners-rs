@@ -368,19 +368,6 @@ mod tests {
     use indoc::indoc;
 
     use super::*;
-    use fast_glob::glob_match;
-
-    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
-
-    #[test]
-    fn test_matches_globs() {
-        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
-    }
-
-    #[test]
-    fn test_glob_match() {
-        assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
-    }
 
     #[test]
     fn test_ruby_package_owner_top_level() {
