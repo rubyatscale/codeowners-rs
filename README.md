@@ -217,7 +217,7 @@ codeowners gv --no-cache
 - `vendored_gems_path` (default: `'vendored/'`)
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
-- `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
+- `executable_name` (default: `'codeowners generate'`): The command that validation errors tell you to run to update the CODEOWNERS file. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
 - `yaml_max_nodes` (default: `20000`): The most YAML nodes (mappings, sequences and scalars) allowed in one team file or `package.yml`. A file over it, or over the limits on total scalar bytes and anchor copies that grow with it, fails with a `budget breached` error and a hint to raise this key in the config file in use. Raise it if a large team file hits the limit; real files have at most a few thousand nodes. It does not apply to the config file itself, which is always held to the default of 20,000 nodes, about one per list entry. Raising it also raises how much memory a single file can take: a file crafted to waste memory can make `codeowners` use about 280 MB more at the default and about 700 MB more at 50,000, measured on macOS, while ordinary files add almost nothing. Separately, any of these files, or the config, fails if it nests more than 16 levels deep, counting the top level. That limit can't be raised.
 
 Example configuration with custom executable name:
@@ -225,7 +225,7 @@ Example configuration with custom executable name:
 ```yaml
 owned_globs:
   - '{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx}'
-executable_name: 'bin/codeownership'  # For Ruby gem wrapper
+executable_name: 'bin/codeownership validate'  # For Ruby gem wrapper
 ```
 
 See examples in `tests/fixtures/**/config/` for reference setups.
