@@ -170,6 +170,12 @@ impl Runner {
 
         // Built only if an allowed file needs it, and then once.
         let owner_lookup = LazyCell::new(|| self.ownership.owner_lookup());
+        let listed_in_codeowners = |path: &Path| {
+            matches!(
+                team_for_file_from_codeowners(&self.run_config, &path.to_string_lossy()),
+                Ok(Some(_))
+            )
+        };
 
         debug_span!("per_file_query").in_scope(|| {
             for (file_path, relative_path) in filtered_paths {
@@ -182,8 +188,10 @@ impl Runner {
                     // `validate`. The lookup matches plain project-relative paths only, so a path with a `..`, or an absolute
                     // one not under the project root, is never excused and is reported as unowned, as without the key.
                     Ok(None) => match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.allow_unowned_globs)) {
-                        Some(path) if owner_lookup.has_owner(&path) => allowed_files_with_unlisted_owners.push(file_path),
-                        Some(_) => {}
+                        Some(path) if !owner_lookup.has_owner(&path) => {}
+                        // The CODEOWNERS lookup above read the path as given, so a `./`, `//` or inner `.` made it miss the file's line.
+                        Some(path) if path.as_os_str() != relative_path.as_os_str() && listed_in_codeowners(&path) => {}
+                        Some(_) => allowed_files_with_unlisted_owners.push(file_path),
                         None => unowned_files.push(file_path),
                     },
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),

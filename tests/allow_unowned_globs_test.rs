@@ -244,8 +244,37 @@ fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown
     Ok(())
 }
 
-fn allow_every_file_and_annotate_one_with_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
+fn own_every_ruby_file_and_annotate_an_allowed_one_with_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
     add_an_annotation_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_treats_a_dot_slash_path_like_a_plain_one() -> Result<(), Box<dyn Error>> {
+    // Unlike the fixture's owned_globs, `**/*.rb` matches a path starting with `./`. The allowed glob doesn't, so these
+    // reach the owner lookup only if it's matched against the plain path.
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            own_every_ruby_file_and_annotate_an_allowed_one_with_an_unknown_team,
+            &[command, "./app/deprecated/typo.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
+        .stdout(predicate::str::contains("./app/deprecated/typo.rb"));
+        run_on_modified_fixture(
+            own_every_ruby_file_and_annotate_an_allowed_one_with_an_unknown_team,
+            &[command, "./app/deprecated/old.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
+    }
+    Ok(())
+}
+
+fn allow_every_file(project_root: &Path) -> std::io::Result<()> {
     fs::write(
         project_root.join("config/code_ownership.yml"),
         "---\nowned_globs:\n  - \"**/*.rb\"\nallow_unowned_globs:\n  - \"**/*\"\n",
@@ -253,22 +282,19 @@ fn allow_every_file_and_annotate_one_with_an_unknown_team(project_root: &Path) -
 }
 
 #[test]
-fn test_validate_files_treats_a_dot_slash_path_like_a_plain_one() -> Result<(), Box<dyn Error>> {
-    // Unlike the fixture's owned_globs, `**/*.rb` matches a path starting with `./`, so these reach the owner lookup.
+fn test_validate_files_looks_up_an_allowed_file_in_codeowners_by_its_plain_path() -> Result<(), Box<dyn Error>> {
+    // Read as given, none of these paths matches annotated_old.rb's line in CODEOWNERS, and the owner lookup finds its
+    // annotation.
     for command in ["validate", "gv"] {
-        run_on_modified_fixture(
-            allow_every_file_and_annotate_one_with_an_unknown_team,
-            &[command, "./app/deprecated/typo.rb"],
-        )?
-        .failure()
-        .stdout(predicate::str::contains(UNLISTED_OWNER_HEADING))
-        .stdout(predicate::str::contains("./app/deprecated/typo.rb"));
-        run_on_modified_fixture(
-            allow_every_file_and_annotate_one_with_an_unknown_team,
-            &[command, "./app/deprecated/old.rb"],
-        )?
-        .success()
-        .stdout(predicate::eq(""));
+        for file in [
+            "./app/deprecated/annotated_old.rb",
+            "app//deprecated/annotated_old.rb",
+            "app/./deprecated/annotated_old.rb",
+        ] {
+            run_on_modified_fixture(allow_every_file, &[command, file])?
+                .success()
+                .stdout(predicate::eq(""));
+        }
     }
     Ok(())
 }
