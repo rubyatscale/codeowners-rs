@@ -121,10 +121,12 @@ pub(crate) struct OwnerLookup {
 
 impl OwnerLookup {
     pub(crate) fn has_owner(&self, relative_path: &Path) -> bool {
-        let file_owner_finder = FileOwnerFinder {
-            owner_matchers: &self.owner_matchers,
-        };
-        self.unknown_team_roots.iter().any(|root| relative_path.starts_with(root)) || !file_owner_finder.find(relative_path).is_empty()
+        // FileOwnerFinder::find returns an owner exactly when some matcher names a team, but builds every owner to do it.
+        self.unknown_team_roots.iter().any(|root| relative_path.starts_with(root))
+            || self
+                .owner_matchers
+                .iter()
+                .any(|owner_matcher| owner_matcher.owner_for(relative_path).0.is_some())
     }
 }
 
