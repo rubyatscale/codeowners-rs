@@ -351,6 +351,30 @@ fn test_validate_files_reports_an_allowed_file_in_a_package_naming_an_unknown_te
     Ok(())
 }
 
+// `packs/typo` is a string prefix of `packs/typo2` but not a path prefix, so the package names no owner for the file there.
+fn add_an_allowed_unowned_file_in_a_sibling_of_a_package_naming_an_unknown_team(project_root: &Path) -> std::io::Result<()> {
+    add_a_package_naming_an_unknown_team_in_an_allowed_glob(project_root)?;
+    fs::create_dir_all(project_root.join("packs/typo2/app"))?;
+    fs::write(project_root.join("packs/typo2/app/thing.rb"), "puts 'no owner'\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,packs}/**/*.rb\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"packs/**/*\"\n",
+    )
+}
+
+#[test]
+fn test_validate_files_passes_an_allowed_file_in_a_sibling_of_a_package_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_an_allowed_unowned_file_in_a_sibling_of_a_package_naming_an_unknown_team,
+            &[command, "packs/typo2/app/thing.rb"],
+        )?
+        .success()
+        .stdout(predicate::eq(""));
+    }
+    Ok(())
+}
+
 // Read as a glob, `packs/[typo]` would match `packs/t` rather than the package's own directory.
 fn add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob(project_root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(project_root.join("packs/[typo]/app"))?;
@@ -535,10 +559,23 @@ fn add_a_package_without_regenerating_codeowners(project_root: &Path) -> std::io
     )
 }
 
+fn add_a_javascript_package_without_regenerating_codeowners(project_root: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(project_root.join("frontend/foo/src"))?;
+    fs::write(
+        project_root.join("frontend/foo/package.json"),
+        "{\"metadata\": {\"owner\": \"Foo\"}}\n",
+    )?;
+    fs::write(project_root.join("frontend/foo/src/thing.js"), "console.log('foo');\n")?;
+    fs::write(
+        project_root.join("config/code_ownership.yml"),
+        "---\nowned_globs:\n  - \"{app,config,frontend}/**/*.{rb,js}\"\nallow_unowned_globs:\n  - \"app/deprecated/**/*\"\n  - \"frontend/foo/**/*\"\n",
+    )
+}
+
 #[test]
 fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
     // `validate`, not `gv`, which would add each file to CODEOWNERS.
-    let owners: [(FixtureChange, &str); 4] = [
+    let owners: [(FixtureChange, &str); 5] = [
         (annotate_the_unowned_file_without_regenerating_codeowners, "app/deprecated/old.rb"),
         (
             give_the_unowned_file_a_team_glob_without_regenerating_codeowners,
@@ -546,6 +583,10 @@ fn test_validate_files_reports_an_allowed_file_missing_from_codeowners() -> Resu
         ),
         (add_a_codeowner_file_without_regenerating_codeowners, "app/deprecated/old.rb"),
         (add_a_package_without_regenerating_codeowners, "packs/foo/app/thing.rb"),
+        (
+            add_a_javascript_package_without_regenerating_codeowners,
+            "frontend/foo/src/thing.js",
+        ),
     ];
     for (add_owner, file) in owners {
         run_on_modified_fixture(add_owner, &["validate", file])?
