@@ -212,7 +212,7 @@ codeowners gv --no-cache
 - `ruby_package_paths` (default: `['packs/**/*', 'components/**']`)
 - `js_package_paths` / `javascript_package_paths` (default: `['frontend/**/*']`)
 - `team_file_glob` (default: `['config/teams/**/*.yml']`)
-- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`): Files matched here are left out of the project: they don't need an owner, validation doesn't check them, and file annotations in them are ignored. Use this for third-party or generated code.
+- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`): Files matched here are left out of the project: they don't need an owner, validation doesn't check them, and file annotations in them are ignored. A `.codeowner`, `package.yml` or `package.json` among them is still read, though, so its owner still goes into CODEOWNERS and an invalid team in it is still reported. Use this for third-party or generated code.
 - `vendored_gems_path` (default: `'vendored/'`)
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
