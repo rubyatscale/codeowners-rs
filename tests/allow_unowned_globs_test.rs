@@ -13,6 +13,8 @@ type FixtureChange = fn(&Path) -> std::io::Result<()>;
 
 #[test]
 fn test_validate_passes_with_unowned_files_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+    // The fixture's CODEOWNERS lists `app/deprecated/annotated_old.rb`, so if annotations in allowed globs stop
+    // counting, this also fails, with CODEOWNERS out of date.
     run_codeowners(FIXTURE, &["validate"], true, OutputStream::Stdout, predicate::eq(""))?;
     Ok(())
 }
@@ -43,8 +45,9 @@ fn test_validate_files_passes_for_an_absolute_path_in_an_allowed_glob() -> Resul
     Ok(())
 }
 
+// The `for-file` tests pin that it reports an allowed file's owner as it would without allow_unowned_globs.
 #[test]
-fn test_annotations_still_assign_owners_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+fn test_for_file_reports_annotations_in_allowed_globs() -> Result<(), Box<dyn Error>> {
     run_codeowners(
         FIXTURE,
         &["for-file", "app/deprecated/annotated_old.rb"],
@@ -62,7 +65,7 @@ fn test_annotations_still_assign_owners_in_allowed_globs() -> Result<(), Box<dyn
 }
 
 #[test]
-fn test_unowned_file_in_an_allowed_glob_is_reported_as_unowned() -> Result<(), Box<dyn Error>> {
+fn test_for_file_reports_an_unowned_file_in_an_allowed_glob_as_unowned() -> Result<(), Box<dyn Error>> {
     run_codeowners(
         FIXTURE,
         &["for-file", "app/deprecated/old.rb"],
@@ -157,7 +160,7 @@ fn test_validate_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown_team() -> Result<(), Box<dyn Error>> {
     // A list of files isn't checked for invalid teams. CODEOWNERS has no line for this file, and its annotation keeps
     // allow_unowned_globs from excusing it, so it's reported as unowned.
     for command in ["validate", "gv"] {
@@ -173,7 +176,7 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs() -> Result<(), Bo
 }
 
 #[test]
-fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_an_absolute_path() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown_team_by_absolute_path() -> Result<(), Box<dyn Error>> {
     validate_absolute_path(
         add_an_annotation_naming_an_unknown_team_in_an_allowed_glob,
         "app/deprecated/typo.rb",
@@ -185,7 +188,7 @@ fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_an_absolute_pa
 }
 
 #[test]
-fn test_validate_files_reports_invalid_teams_in_allowed_globs_for_a_path_with_dot_dot() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_whose_annotation_names_an_unknown_team_by_path_with_dot_dot() -> Result<(), Box<dyn Error>> {
     // The owner lookup can't see the annotation without resolving the `..`, so the file mustn't be excused.
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
@@ -252,7 +255,7 @@ fn add_a_javascript_package_naming_an_unknown_team_in_an_allowed_glob(project_ro
 }
 
 #[test]
-fn test_validate_files_reports_a_package_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_in_a_package_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
     let packages: [(FixtureChange, &str); 2] = [
         (add_a_package_naming_an_unknown_team_in_an_allowed_glob, "packs/typo/app/thing.rb"),
         (
@@ -285,7 +288,7 @@ fn add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob(project_roo
 }
 
 #[test]
-fn test_validate_files_reports_a_bracketed_package_naming_an_unknown_team_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_in_a_bracketed_package_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_a_bracketed_package_naming_an_unknown_team_in_an_allowed_glob,
@@ -316,7 +319,7 @@ fn add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob(project_root: 
 }
 
 #[test]
-fn test_validate_files_reports_invalid_directory_teams_in_allowed_globs() -> Result<(), Box<dyn Error>> {
+fn test_validate_files_reports_an_allowed_file_under_a_codeowner_naming_an_unknown_team() -> Result<(), Box<dyn Error>> {
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_a_codeowner_file_naming_an_unknown_team_in_an_allowed_glob,
