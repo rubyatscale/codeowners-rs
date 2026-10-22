@@ -1,5 +1,5 @@
 ---
 owned_globs:
   - "{app,config}/**/*.rb"
-allow_unowned_globs:
+optionally_owned_globs:
   - "app/deprecated/**/*"

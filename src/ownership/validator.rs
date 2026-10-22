@@ -176,7 +176,7 @@ impl Validator {
                 let relative_path = project.relative_path(&file.path).to_owned();
 
                 if owners.is_empty() {
-                    if matches_globs(&relative_path, &project.allow_unowned_globs) {
+                    if matches_globs(&relative_path, &project.optionally_owned_globs) {
                         None
                     } else {
                         Some(Error::FileWithoutOwner { path: relative_path })

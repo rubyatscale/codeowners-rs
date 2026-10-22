@@ -45,7 +45,7 @@ pub struct Config {
     pub codeowners_path: String,
 
     #[serde(default, deserialize_with = "crate::yaml::strings_or_nulls")]
-    pub allow_unowned_globs: Vec<String>,
+    pub optionally_owned_globs: Vec<String>,
 
     #[serde(default = "default_yaml_max_nodes")]
     pub yaml_max_nodes: usize,
@@ -176,7 +176,7 @@ mod tests {
         );
         assert_eq!(config.vendored_gems_path, "vendored/");
         assert_eq!(config.executable_name, "codeowners generate");
-        assert!(config.allow_unowned_globs.is_empty());
+        assert!(config.optionally_owned_globs.is_empty());
         assert_eq!(config.yaml_max_nodes, 20_000);
         Ok(())
     }
@@ -259,19 +259,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_config_with_allow_unowned_globs() -> Result<(), Box<dyn Error>> {
+    fn test_parse_config_with_optionally_owned_globs() -> Result<(), Box<dyn Error>> {
         let temp_dir = tempdir()?;
         let config_path = temp_dir.path().join("config.yml");
         let config_str = indoc! {"
             ---
             owned_globs:
               - \"**/*.rb\"
-            allow_unowned_globs:
+            optionally_owned_globs:
               - \"**/deprecated/**/*\"
         "};
         fs::write(&config_path, config_str)?;
         let config = Config::load_from_path(&config_path)?;
-        assert_eq!(config.allow_unowned_globs, vec!["**/deprecated/**/*"]);
+        assert_eq!(config.optionally_owned_globs, vec!["**/deprecated/**/*"]);
         Ok(())
     }
 
@@ -325,7 +325,7 @@ mod tests {
               -
             ignore_dirs:
               -
-            allow_unowned_globs:
+            optionally_owned_globs:
               -
             vendored_gems_path:
             cache_directory:
@@ -341,7 +341,7 @@ mod tests {
             &config.team_file_glob,
             &config.unowned_globs,
             &config.ignore_dirs,
-            &config.allow_unowned_globs,
+            &config.optionally_owned_globs,
         ] {
             assert_eq!(globs, &[""]);
         }

@@ -327,7 +327,7 @@ impl<'a> ProjectBuilder<'a> {
             directory_codeowner_files: directory_codeowners,
             teams_by_name,
             executable_name: self.config.executable_name.clone(),
-            allow_unowned_globs: self.config.allow_unowned_globs.clone(),
+            optionally_owned_globs: self.config.optionally_owned_globs.clone(),
         })
     }
 }

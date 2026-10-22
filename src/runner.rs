@@ -145,7 +145,7 @@ impl Runner {
 
     fn validate_files(&self, file_paths: Vec<String>, codeowners_generated: bool) -> RunResult {
         let mut unowned_files = Vec::new();
-        let mut allowed_files_with_unlisted_owners = Vec::new();
+        let mut optionally_owned_files_with_unlisted_owners = Vec::new();
         let mut io_errors = Vec::new();
 
         // Filter files based on owned_globs and unowned_globs configuration
@@ -168,7 +168,7 @@ impl Runner {
             })
             .collect();
 
-        // Built only if an allowed file needs it, and then once.
+        // Built only if an optionally owned file needs it, and then once.
         let owner_lookup = LazyCell::new(|| self.ownership.owner_lookup());
         let listed_in_codeowners = |path: &Path| {
             matches!(
@@ -181,20 +181,22 @@ impl Runner {
             for (file_path, relative_path) in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    // allow_unowned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
+                    // optionally_owned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
                     // package names a team that doesn't exist, or whose owner CODEOWNERS doesn't list yet, is still reported,
                     // but not as unowned, which the key allows. Only files the project reads count, though, so an annotated
                     // file, `.codeowner` or package file names no owner here if it is untracked or under a top-level directory
                     // named in ignore_dirs, as in `validate`. The lookup matches plain project-relative paths only, so a path
                     // with a `..`, or an absolute one not under the project root, is never excused and is reported as unowned,
                     // as without the key.
-                    Ok(None) => match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.allow_unowned_globs)) {
-                        Some(path) if !owner_lookup.has_owner(&path) => {}
-                        // The CODEOWNERS lookup above read the path as given, so a `./`, `//` or inner `.` made it miss the file's line.
-                        Some(path) if path.as_os_str() != relative_path.as_os_str() && listed_in_codeowners(&path) => {}
-                        Some(_) => allowed_files_with_unlisted_owners.push(file_path),
-                        None => unowned_files.push(file_path),
-                    },
+                    Ok(None) => {
+                        match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.optionally_owned_globs)) {
+                            Some(path) if !owner_lookup.has_owner(&path) => {}
+                            // The CODEOWNERS lookup above read the path as given, so a `./`, `//` or inner `.` missed the file's line.
+                            Some(path) if path.as_os_str() != relative_path.as_os_str() && listed_in_codeowners(&path) => {}
+                            Some(_) => optionally_owned_files_with_unlisted_owners.push(file_path),
+                            None => unowned_files.push(file_path),
+                        }
+                    }
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }
             }
@@ -205,7 +207,7 @@ impl Runner {
             validation_errors.push("Unowned files detected:".to_string());
             validation_errors.extend(unowned_files.into_iter().map(|file| format!("  {}", file)));
         }
-        if !allowed_files_with_unlisted_owners.is_empty() {
+        if !optionally_owned_files_with_unlisted_owners.is_empty() {
             // `gv` has just written CODEOWNERS, so updating it again can't help, and only a team that doesn't exist is left out.
             let or_update_codeowners = if codeowners_generated {
                 String::new()
@@ -213,11 +215,15 @@ impl Runner {
                 format!(", or run `{}` to update the CODEOWNERS file", self.config.executable_name)
             };
             validation_errors.push(format!(
-                "Files matching allow_unowned_globs name an owner that CODEOWNERS doesn't list. \
+                "Files matching optionally_owned_globs name an owner that CODEOWNERS doesn't list. \
                  Check the team name in each one's annotation, `.codeowner` or package{}:",
                 or_update_codeowners
             ));
-            validation_errors.extend(allowed_files_with_unlisted_owners.into_iter().map(|file| format!("  {}", file)));
+            validation_errors.extend(
+                optionally_owned_files_with_unlisted_owners
+                    .into_iter()
+                    .map(|file| format!("  {}", file)),
+            );
         }
 
         if !validation_errors.is_empty() {
