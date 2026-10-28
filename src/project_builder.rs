@@ -5,7 +5,6 @@ use std::{
 };
 
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
@@ -13,6 +12,7 @@ use tracing::instrument;
 use crate::{
     cache::Cache,
     config::Config,
+    path_utils::matches_globs,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
     tracked_files,
@@ -327,14 +327,8 @@ impl<'a> ProjectBuilder<'a> {
             directory_codeowner_files: directory_codeowners,
             teams_by_name,
             executable_name: self.config.executable_name.clone(),
+            optionally_owned_globs: self.config.optionally_owned_globs.clone(),
         })
-    }
-}
-
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
     }
 }
 
@@ -374,18 +368,6 @@ mod tests {
     use indoc::indoc;
 
     use super::*;
-
-    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
-
-    #[test]
-    fn test_matches_globs() {
-        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
-    }
-
-    #[test]
-    fn test_glob_match() {
-        assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
-    }
 
     #[test]
     fn test_ruby_package_owner_top_level() {

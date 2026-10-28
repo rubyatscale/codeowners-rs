@@ -4,7 +4,7 @@ use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
     error::Error,
     fmt::{self, Display},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tracing::{info, instrument};
@@ -109,6 +109,27 @@ impl Entry {
     }
 }
 
+/// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation naming one
+/// still counts for its file, and a `.codeowner`, `package.yml` or `package.json` naming one for every path under its directory.
+/// It sees only files the project reads, so an annotated file, `.codeowner` or package file names no owner here if it is
+/// untracked or under a top-level directory named in ignore_dirs, as in `validate`. Building one goes through every project
+/// file, so reuse it.
+pub(crate) struct OwnerLookup {
+    owner_matchers: Vec<OwnerMatcher>,
+    unknown_team_roots: Vec<PathBuf>,
+}
+
+impl OwnerLookup {
+    pub(crate) fn has_owner(&self, relative_path: &Path) -> bool {
+        // FileOwnerFinder::find returns an owner exactly when some matcher names a team, but builds every owner to do it.
+        self.unknown_team_roots.iter().any(|root| relative_path.starts_with(root))
+            || self
+                .owner_matchers
+                .iter()
+                .any(|owner_matcher| owner_matcher.owner_for(relative_path).0.is_some())
+    }
+}
+
 impl Ownership {
     pub fn build(project: Project) -> Self {
         Self {
@@ -154,6 +175,42 @@ impl Ownership {
                 None => FileOwner::default(),
             })
             .collect())
+    }
+
+    pub(crate) fn owner_lookup(&self) -> OwnerLookup {
+        // `validate` reports a package.yml, package.json or `.codeowner` naming a team that doesn't exist, but a list of files
+        // isn't checked for that, so here each still names an owner for the files under its directory. The package mappers drop
+        // such a package, and the directory mapper's glob misses a `.codeowner` at the project root and reads braces as alternatives,
+        // matching `app/legacy` for one in `app/{legacy}`. So the directory is matched as a path prefix, which replaces that glob
+        // for such a `.codeowner`: brackets and braces are literal and the root covers every file.
+        let package_roots = self
+            .project
+            .packages
+            .iter()
+            .filter(|package| !self.project.teams_by_name.contains_key(&package.owner))
+            .filter_map(|package| package.package_root());
+        let directory_roots = self
+            .project
+            .directory_codeowner_files
+            .iter()
+            .filter(|directory_codeowner_file| !self.project.teams_by_name.contains_key(&directory_codeowner_file.owner))
+            .filter_map(|directory_codeowner_file| directory_codeowner_file.directory_root());
+        OwnerLookup {
+            owner_matchers: self
+                .mappers()
+                .iter()
+                .flat_map(|mapper| mapper.owner_matchers())
+                .filter(|owner_matcher| match owner_matcher {
+                    OwnerMatcher::Glob {
+                        source: Source::Directory(_),
+                        team_name,
+                        ..
+                    } => self.project.teams_by_name.contains_key(team_name),
+                    _ => true,
+                })
+                .collect(),
+            unknown_team_roots: package_roots.chain(directory_roots).map(Path::to_path_buf).collect(),
+        }
     }
 
     #[instrument(level = "debug", skip_all)]

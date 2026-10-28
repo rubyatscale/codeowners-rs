@@ -68,8 +68,9 @@ cargo install --git https://github.com/rubyatscale/codeowners-rs codeowners
    js_package_paths: []
    unowned_globs:
      - db/**/*
-     - app/services/some_file1.rb
      - frontend/javascripts/**/__generated__/**/*
+   optionally_owned_globs:
+     - app/services/some_file1.rb
    ```
 
 2. **Declare Teams**  
@@ -211,19 +212,20 @@ codeowners gv --no-cache
 - `ruby_package_paths` (default: `['packs/**/*', 'components/**']`)
 - `js_package_paths` / `javascript_package_paths` (default: `['frontend/**/*']`)
 - `team_file_glob` (default: `['config/teams/**/*.yml']`)
-- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`)
+- `unowned_globs` (default: `['frontend/**/node_modules/**/*', 'frontend/**/__generated__/**/*']`): Files matched here are left out of the project: they don't need an owner, validation doesn't check them, and file annotations in them are ignored. A `.codeowner`, `package.yml` or `package.json` among them is still read, though, so its owner still goes into CODEOWNERS and an invalid team in it is still reported. A team file among them is still read too, so it still defines its team and keeps its own line in CODEOWNERS. Use this for third-party or generated code.
+- `optionally_owned_globs` (default: `[]`, added in 0.6.0): Files in `owned_globs` that match these globs don't need an owner. It doesn't add to `owned_globs`, so a file must match both. Unlike `unowned_globs`, file annotations in them still count, and a full `validate` or `gv` still runs every other check, so a file there can't have more than one owner or name an invalid team. Given a list of files, as in a git hook, `validate` and `gv` look each one up in CODEOWNERS and don't check for more than one owner. An optionally owned file with no line passes only if nothing names an owner for it, so one whose annotation, `.codeowner` or package names a team that doesn't exist, or whose owner CODEOWNERS doesn't list yet, is reported under "Files matching optionally_owned_globs name an owner that CODEOWNERS doesn't list". As in a full `validate`, an annotation, `.codeowner` or package file doesn't count if the file is untracked or in a top-level directory named in `ignore_dirs`, so a new file's own annotation counts once the file is staged. Use `['**/*']` if only some of your code has owners, or scope it, e.g. `['**/deprecated/**/*']`. `unowned_globs` takes precedence, so a file that matches both is left out. If you use `unowned_globs: ['**/*']` only so that files can go unowned, replace it with `optionally_owned_globs: ['**/*']` to make annotations work, and run `codeowners gv` to add a CODEOWNERS line for each annotated file. The files that `unowned_globs` left out are then read and checked like any other owned file, which takes longer and may turn up problems that were hidden before. Keep third-party and generated code in `unowned_globs`. Versions before 0.6.0 ignore the key without a warning, so they still report unowned files in these globs.
 - `vendored_gems_path` (default: `'vendored/'`)
 - `cache_directory` (default: `'tmp/cache/codeowners'`)
 - `ignore_dirs` (default includes: `.git`, `node_modules`, `tmp`, etc.)
-- `executable_name` (default: `'codeowners'`): Customize the command name shown in validation error messages. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
-- `yaml_max_nodes` (default: `20000`): The most YAML nodes (mappings, sequences and scalars) allowed in one team file or `package.yml`. A file over it, or over the limits on total scalar bytes and anchor copies that grow with it, fails with a `budget breached` error and a hint to raise this key in the config file in use. Raise it if a large team file hits the limit; real files have at most a few thousand nodes. It does not apply to the config file itself. Raising it also raises how much memory a single file can take: a file crafted to waste memory can make `codeowners` use about 280 MB more at the default and about 700 MB more at 50,000, measured on macOS, while ordinary files add almost nothing. Separately, any of these files, or the config, fails if it nests more than 16 levels deep, counting the top level. That limit can't be raised.
+- `executable_name` (default: `'codeowners generate'`): The command that validation errors tell you to run to update the CODEOWNERS file. Useful when using `codeowners-rs` via wrappers like the [code_ownership](https://github.com/rubyatscale/code_ownership) Ruby gem.
+- `yaml_max_nodes` (default: `20000`): The most YAML nodes (mappings, sequences and scalars) allowed in one team file or `package.yml`. A file over it, or over the limits on total scalar bytes and anchor copies that grow with it, fails with a `budget breached` error and a hint to raise this key in the config file in use. Raise it if a large team file hits the limit; real files have at most a few thousand nodes. It does not apply to the config file itself, which is always held to the default of 20,000 nodes, about one per list entry. Raising it also raises how much memory a single file can take: a file crafted to waste memory can make `codeowners` use about 280 MB more at the default and about 700 MB more at 50,000, measured on macOS, while ordinary files add almost nothing. Separately, any of these files, or the config, fails if it nests more than 16 levels deep, counting the top level. That limit can't be raised.
 
 Example configuration with custom executable name:
 
 ```yaml
 owned_globs:
   - '{app,components,config,frontend,lib,packs,spec}/**/*.{rb,rake,js,jsx,ts,tsx}'
-executable_name: 'bin/codeownership'  # For Ruby gem wrapper
+executable_name: 'bin/codeownership validate'  # For Ruby gem wrapper
 ```
 
 See examples in `tests/fixtures/**/config/` for reference setups.
@@ -241,7 +243,7 @@ By default, cache is stored under `tmp/cache/codeowners` relative to the project
 
 1. Only one mechanism defines ownership for any file.
 2. All referenced teams are valid.
-3. All files in `owned_globs` are owned, unless matched by `unowned_globs`.
+3. All files in `owned_globs` are owned, unless matched by `unowned_globs` or `optionally_owned_globs`.
 4. The generated `CODEOWNERS` file is up to date.
 
 Exit status is non-zero on errors.

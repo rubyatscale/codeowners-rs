@@ -1,3 +1,4 @@
+use crate::path_utils::matches_globs;
 use crate::project::{Project, ProjectFile};
 use core::fmt;
 use std::collections::HashSet;
@@ -6,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use itertools::Itertools;
+use rayon::prelude::IntoParallelIterator;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
 use similar::{ChangeTag, TextDiff};
@@ -166,22 +168,29 @@ impl Validator {
 
     #[instrument(name = "validate_file_ownership", level = "debug", skip_all)]
     fn validate_file_ownership(&self) -> Vec<Error> {
-        let mut validation_errors = Vec::new();
+        let project = &self.project;
 
-        for (file, owners) in self.file_to_owners() {
-            let relative_path = self.project.relative_path(&file.path).to_owned();
+        self.file_to_owners()
+            .into_par_iter()
+            .filter_map(|(file, owners)| {
+                let relative_path = project.relative_path(&file.path).to_owned();
 
-            if owners.is_empty() {
-                validation_errors.push(Error::FileWithoutOwner { path: relative_path })
-            } else if owners.len() > 1 {
-                validation_errors.push(Error::FileWithMultipleOwners {
-                    path: relative_path,
-                    owners,
-                })
-            }
-        }
-
-        validation_errors
+                if owners.is_empty() {
+                    if matches_globs(&relative_path, &project.optionally_owned_globs) {
+                        None
+                    } else {
+                        Some(Error::FileWithoutOwner { path: relative_path })
+                    }
+                } else if owners.len() > 1 {
+                    Some(Error::FileWithMultipleOwners {
+                        path: relative_path,
+                        owners,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     #[instrument(name = "validate_codeowners_file", level = "debug", skip_all)]
