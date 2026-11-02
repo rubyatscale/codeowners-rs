@@ -185,6 +185,40 @@ pub mod tests {
         )
     }
 
+    pub fn build_ownership_with_directory_codeowners_with_glob_metacharacters() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(
+            TestProjectFile {
+                relative_path: "app/{old}/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "!legacy/.codeowner".to_owned(),
+                content: "Foo\n".to_owned(),
+            }
+        )
+    }
+
+    #[cfg(unix)]
+    pub fn build_ownership_with_directory_codeowner_with_an_asterisk() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(TestProjectFile {
+            relative_path: "app/*/.codeowner".to_owned(),
+            content: "Baz\n".to_owned(),
+        })
+    }
+
+    pub fn build_ownership_with_directory_codeowners_at_the_project_root() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(
+            TestProjectFile {
+                relative_path: ".codeowner".to_owned(),
+                content: "Bam\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/.codeowner".to_owned(),
+                content: "Bar\n".to_owned(),
+            }
+        )
+    }
+
     pub fn build_ownership_with_all_mappers() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
             TestProjectFile {
@@ -250,6 +284,10 @@ pub mod tests {
                     content: "// @team Bar\n".to_owned(),
                 },
                 TestProjectFile {
+                    relative_path: "packs/{admin}/comp.ts".to_owned(),
+                    content: "// @team Foo\n".to_owned(),
+                },
+                TestProjectFile {
                     relative_path: "packs/bar/comp.rb".to_owned(),
                     content: "# @team Bar\n".to_owned(),
                 },
@@ -307,6 +345,28 @@ pub mod tests {
         let test_config = TestConfig::new(temp_dir.path().to_path_buf(), vec![]);
         build_ownership(test_config)
     }
+
+    pub fn build_ownership_with_team_yml_and_gem_codeowners_with_glob_metacharacters() -> Result<Ownership, Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+
+        let test_config = TestConfig {
+            team_names: vec![],
+            ..TestConfig::new(
+                temp_dir.path().to_path_buf(),
+                vec![
+                    TestProjectFile {
+                        relative_path: "config/teams/[ops].yml".to_owned(),
+                        content: "name: Ops\ngithub:\n  team: \"@Ops\"\nruby:\n  owned_gems:\n    - \"{taco}\"\n".to_owned(),
+                    },
+                    TestProjectFile {
+                        relative_path: "gems/{taco}/sauce.rb".to_owned(),
+                        content: "class Taco::Sauce\nend\n".to_owned(),
+                    },
+                ],
+            )
+        };
+        build_ownership(test_config)
+    }
     pub fn build_ownership_with_package_codeowners() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
             TestProjectFile {
@@ -326,6 +386,41 @@ pub mod tests {
                 content: "class PackageOwned\nend\n".to_owned(),
             }
         )
+    }
+
+    pub fn build_ownership_with_package_codeowners_with_glob_metacharacters() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(
+            TestProjectFile {
+                relative_path: "packs/[ab]/package.yml".to_owned(),
+                content: "owner: Foo\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/{legacy}/package.yml".to_owned(),
+                content: "owner: Bar\n".to_owned(),
+            }
+        )
+    }
+
+    pub fn build_ownership_with_package_codeowners_at_the_project_root() -> Result<Ownership, Box<dyn Error>> {
+        let temp_dir = tempdir()?;
+
+        let test_config = TestConfig {
+            code_ownership_config_yml: format!("{DEFAULT_CODE_OWNERSHIP_YML}ruby_package_paths:\n  - \"**/*\"\n"),
+            ..TestConfig::new(
+                temp_dir.path().to_path_buf(),
+                vec![
+                    TestProjectFile {
+                        relative_path: "package.yml".to_owned(),
+                        content: "owner: Foo\n".to_owned(),
+                    },
+                    TestProjectFile {
+                        relative_path: "packs/inner/package.yml".to_owned(),
+                        content: "owner: Bar\n".to_owned(),
+                    },
+                ],
+            )
+        };
+        build_ownership(test_config)
     }
 
     pub fn vecs_match<T: PartialEq + std::fmt::Debug>(a: &Vec<T>, b: &Vec<T>) {

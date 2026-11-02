@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::Entry;
+use super::escaper::escape_glob;
 use super::{Mapper, OwnerMatcher};
 use crate::ownership::mapper::Source;
 use crate::project::Project;
@@ -23,7 +24,7 @@ impl Mapper for TeamYmlMapper {
 
         for team in &self.project.teams {
             entries.push(Entry {
-                path: self.project.relative_path(&team.path).to_string_lossy().to_string(),
+                path: escape_glob(&self.project.relative_path(&team.path).to_string_lossy()),
                 github_team: team.github_team.to_owned(),
                 team_name: team.name.to_owned(),
                 disabled: team.avoid_ownership,
@@ -52,7 +53,10 @@ impl Mapper for TeamYmlMapper {
 mod tests {
     use std::error::Error;
 
-    use crate::common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_team_yml_codeowners, vecs_match};
+    use crate::common_test::tests::{
+        build_ownership_with_all_mappers, build_ownership_with_team_yml_and_gem_codeowners_with_glob_metacharacters,
+        build_ownership_with_team_yml_codeowners, vecs_match,
+    };
 
     use super::*;
     #[test]
@@ -106,6 +110,22 @@ mod tests {
                 ]),
                 Source::TeamYml,
             )],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_entries_with_glob_metacharacters() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_team_yml_and_gem_codeowners_with_glob_metacharacters()?;
+        let mapper = TeamYmlMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.entries(),
+            &vec![Entry {
+                path: "config/teams/\\[ops\\].yml".to_owned(),
+                github_team: "@Ops".to_owned(),
+                team_name: "Ops".to_owned(),
+                disabled: false,
+            }],
         );
         Ok(())
     }
