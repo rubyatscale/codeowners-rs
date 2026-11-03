@@ -591,7 +591,7 @@ mod tests {
     fn test_nearest_package_owner_describes_a_package_by_the_glob_validate_matches() {
         let td = tempdir().unwrap();
         let project_root = td.path();
-        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let config = build_config_for_temp("**/*", "packs/**/*", "vendored");
 
         let ruby_pkg = project_root.join("packs/{payroll}");
         std::fs::create_dir_all(&ruby_pkg).unwrap();
@@ -599,6 +599,7 @@ mod tests {
         let js_pkg = project_root.join("frontend/[flow]");
         std::fs::create_dir_all(&js_pkg).unwrap();
         std::fs::write(js_pkg.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+        std::fs::write(project_root.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
 
         let mut tbn: HashMap<String, Team> = HashMap::new();
         for name in ["Payroll", "UX"] {
@@ -609,6 +610,7 @@ mod tests {
         for (file, package_path, glob) in [
             ("packs/{payroll}/a.rb", "packs/{payroll}/package.yml", "packs/\\{payroll\\}/**/**"),
             ("frontend/[flow]/a.ts", "frontend/[flow]/package.json", "frontend/\\[flow\\]/**/**"),
+            ("app/a.ts", "package.json", "**/**"),
         ] {
             let (_, source) = nearest_package_owner(project_root, Path::new(file), &config, &tbn).unwrap();
             assert_eq!(source, Source::Package(package_path.to_string(), glob.to_string()));

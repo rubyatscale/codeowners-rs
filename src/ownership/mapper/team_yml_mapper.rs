@@ -120,12 +120,20 @@ mod tests {
         let mapper = TeamYmlMapper::build(ownership.project.clone());
         vecs_match(
             &mapper.entries(),
-            &vec![Entry {
-                path: "config/teams/\\[ops\\].yml".to_owned(),
-                github_team: "@Ops".to_owned(),
-                team_name: "Ops".to_owned(),
-                disabled: false,
-            }],
+            &vec![
+                Entry {
+                    path: "config/teams/\\[ops\\].yml".to_owned(),
+                    github_team: "@Ops".to_owned(),
+                    team_name: "Ops".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "config/teams/\\{dev\\}.yml".to_owned(),
+                    github_team: "@Dev".to_owned(),
+                    team_name: "Dev".to_owned(),
+                    disabled: false,
+                },
+            ],
         );
         Ok(())
     }

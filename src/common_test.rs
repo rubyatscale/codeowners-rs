@@ -372,6 +372,10 @@ pub mod tests {
                         content: "name: Ops\ngithub:\n  team: \"@Ops\"\nruby:\n  owned_gems:\n    - \"{taco}\"\n".to_owned(),
                     },
                     TestProjectFile {
+                        relative_path: "config/teams/{dev}.yml".to_owned(),
+                        content: "name: Dev\ngithub:\n  team: \"@Dev\"\n".to_owned(),
+                    },
+                    TestProjectFile {
                         relative_path: "gems/{taco}/sauce.rb".to_owned(),
                         content: "class Taco::Sauce\nend\n".to_owned(),
                     },
