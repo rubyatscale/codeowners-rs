@@ -170,13 +170,15 @@ js_package_paths:
 
 - `generate` (`g`): Generate the CODEOWNERS file and write it to `--codeowners-file-path`.
   - Flags: `--skip-stage, -s` to avoid `git add` after writing
-- `validate` (`v`): Validate the CODEOWNERS file and configuration.
-- `generate-and-validate` (`gv`): Run `generate` then `validate`.
+- `validate [files...]` (`v`): Validate the CODEOWNERS file and configuration. Given files, it checks only their ownership, a fast mode for git hooks.
+- `generate-and-validate [files...]` (`gv`): Run `generate` then `validate`.
   - Flags: `--skip-stage, -s`
 - `for-file <path>` (`f`): Print the owner of a file.
   - Flags: `--from-codeowners` to resolve using only the CODEOWNERS rules
 - `for-team <name>` (`t`): Print ownership report for a team.
 - `delete-cache` (`d`): Delete the persisted cache.
+
+A path given to `validate`, `gv` or `for-file` may be relative to the project root or absolute.
 
 ### Examples
 
