@@ -13,12 +13,18 @@ use crate::{config::Config, project::Team, project_file_builder::build_project_f
 use super::{FileOwner, mapper::Source};
 
 pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) -> Result<Vec<FileOwner>, String> {
-    let absolute_file_path = if file_path.is_absolute() {
-        file_path.to_path_buf()
-    } else {
-        project_root.join(file_path)
+    let (absolute_file_path, relative_file_path) = match crate::path_utils::project_relative_path(project_root, file_path) {
+        Some(relative_file_path) => (project_root.join(&relative_file_path), relative_file_path),
+        None => {
+            let absolute_file_path = if file_path.is_absolute() {
+                file_path.to_path_buf()
+            } else {
+                project_root.join(file_path)
+            };
+            let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
+            (absolute_file_path, relative_file_path)
+        }
     };
-    let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
 
     let loaded = loaded_teams(
         teams_cache_root(project_root),

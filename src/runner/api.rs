@@ -58,7 +58,7 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<T
     Ok(owner.map(|fo| fo.team.clone()))
 }
 
-// For an array of file paths, return a map of file path to its owning team
+// For an array of file paths, return a map of each file path, as given, to its owning team
 pub fn teams_for_files_from_codeowners(
     run_config: &RunConfig,
     file_paths: &[String],
