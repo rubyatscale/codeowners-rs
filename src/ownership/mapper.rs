@@ -27,6 +27,8 @@ use super::Entry;
 pub trait Mapper {
     fn name(&self) -> String;
     fn entries(&self) -> Vec<Entry>;
+    /// A matcher names a team that exists by its `name`, even where a file names it by GitHub team, since `validate` counts
+    /// each name matching a file as a separate owner.
     fn owner_matchers(&self) -> Vec<OwnerMatcher>;
 }
 pub type TeamName = String;

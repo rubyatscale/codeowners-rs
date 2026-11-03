@@ -43,9 +43,16 @@ impl Mapper for DirectoryMapper {
         let mut owner_matchers = Vec::new();
 
         for file in &self.project.directory_codeowner_files {
+            // A `.codeowner` can name its team by GitHub team.
+            let team_name = self
+                .project
+                .teams_by_name
+                .get(&file.owner)
+                .map(|team| team.name.clone())
+                .unwrap_or_else(|| file.owner.clone());
             owner_matchers.push(OwnerMatcher::new_glob(
                 directory_glob(&file.directory_root().map(|p| p.to_string_lossy()).unwrap_or_default()),
-                file.owner.to_owned(),
+                team_name,
                 Source::Directory(file.directory_root().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()),
             ));
         }
@@ -66,6 +73,7 @@ mod tests {
     use crate::common_test::tests::build_ownership_with_directory_codeowner_with_an_asterisk;
     use crate::common_test::tests::{
         build_ownership_with_directory_codeowners, build_ownership_with_directory_codeowners_at_the_project_root,
+        build_ownership_with_directory_codeowners_naming_a_github_team_and_an_unknown_team,
         build_ownership_with_directory_codeowners_with_brackets, build_ownership_with_directory_codeowners_with_glob_metacharacters,
         vecs_match,
     };
@@ -168,6 +176,28 @@ mod tests {
                     "app/\\[consumers\\]/deep/nesting/\\[nestdir\\]/**/**".to_string(),
                     "Foo".to_string(),
                     Source::Directory("app/[consumers]/deep/nesting/[nestdir]".to_string()),
+                ),
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers_name_a_team_by_its_name() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_directory_codeowners_naming_a_github_team_and_an_unknown_team()?;
+        let mapper = DirectoryMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.owner_matchers(),
+            &vec![
+                OwnerMatcher::new_glob(
+                    "app/by_handle/**/**".to_owned(),
+                    "Bar".to_owned(),
+                    Source::Directory("app/by_handle".to_owned()),
+                ),
+                OwnerMatcher::new_glob(
+                    "app/typo/**/**".to_owned(),
+                    "Typo".to_owned(),
+                    Source::Directory("app/typo".to_owned()),
                 ),
             ],
         );

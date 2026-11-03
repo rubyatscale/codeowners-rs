@@ -41,7 +41,7 @@ impl Mapper for TeamGlobMapper {
                 owner_matchers.push(OwnerMatcher::new_glob_with_candidate_subtracted_globs(
                     owned_glob.clone(),
                     &team_subtracted_globs,
-                    team.github_team.clone(),
+                    team.name.clone(),
                     Source::TeamGlob(owned_glob.clone()),
                 ))
             }
@@ -90,7 +90,7 @@ mod tests {
             &vec![OwnerMatcher::new_glob_with_candidate_subtracted_globs(
                 "packs/bar/**".to_owned(),
                 &[],
-                "@Baz".to_owned(),
+                "Baz".to_owned(),
                 Source::TeamGlob("packs/bar/**".to_owned()),
             )],
         );
@@ -107,7 +107,7 @@ mod tests {
             &vec![OwnerMatcher::new_glob_with_candidate_subtracted_globs(
                 "packs/bar/**".to_owned(),
                 &["packs/bar/excluded/**".to_owned()],
-                "@Baz".to_owned(),
+                "Baz".to_owned(),
                 Source::TeamGlob("packs/bar/**".to_owned()),
             )],
         );

@@ -256,6 +256,26 @@ fn test_a_codeowner_file_in_a_directory_overrides_one_at_the_project_root() -> R
 }
 
 #[test]
+fn test_validate_counts_a_team_reached_two_ways_as_one_owner() -> Result<(), Box<dyn Error>> {
+    // If `validate` counted a team glob's or a `.codeowner`'s team by its GitHub team, each file would have two owners.
+    let project = generated_project(&[
+        (
+            "config/teams/foo.yml",
+            "name: Foo\ngithub:\n  team: \"@org/foo\"\nowned_globs:\n  - \"lib/**\"\n",
+        ),
+        (".codeowner", "Foo\n"),
+        ("lib/x.rb", "puts 1\n"),
+        ("app/.codeowner", "@org/bar\n"),
+        ("app/annotated.rb", "# @team Bar\n"),
+    ])?;
+    for (file, team) in [("lib/x.rb", "Foo"), ("app/annotated.rb", "Bar")] {
+        assert_owner(project.path(), file, team)?;
+    }
+    codeowners(project.path(), &["validate"])?.success().stdout(predicate::eq(""));
+    Ok(())
+}
+
+#[test]
 fn test_a_package_nested_in_one_at_the_project_root_owns_its_files() -> Result<(), Box<dyn Error>> {
     let project = generated_project(&[
         ("config/code_ownership.yml", RUBY_PACKAGES_ANYWHERE),

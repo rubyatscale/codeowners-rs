@@ -219,6 +219,19 @@ pub mod tests {
         )
     }
 
+    pub fn build_ownership_with_directory_codeowners_naming_a_github_team_and_an_unknown_team() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(
+            TestProjectFile {
+                relative_path: "app/by_handle/.codeowner".to_owned(),
+                content: "@Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "app/typo/.codeowner".to_owned(),
+                content: "Typo\n".to_owned(),
+            }
+        )
+    }
+
     pub fn build_ownership_with_all_mappers() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
             TestProjectFile {
