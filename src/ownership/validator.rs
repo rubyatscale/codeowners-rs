@@ -292,10 +292,12 @@ impl Error {
                     format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)
                 };
                 if let Some(inherits_from) = inherits_from {
-                    message.push_str(&format!(
-                        "; this directory is currently inheriting its owner from {}",
+                    let inherits_from = if inherits_from.as_os_str().is_empty() {
+                        "the project root".into()
+                    } else {
                         inherits_from.to_string_lossy()
-                    ));
+                    };
+                    message.push_str(&format!("; this directory is currently inheriting its owner from {inherits_from}"));
                 }
                 vec![message]
             }

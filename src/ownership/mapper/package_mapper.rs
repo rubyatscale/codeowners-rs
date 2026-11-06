@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::escaper::directory_glob;
 use super::{Entry, Source};
 use super::{Mapper, OwnerMatcher};
 use crate::project::{Package, PackageType, Project};
@@ -75,7 +76,7 @@ impl PackageMapper {
 
                 if let Some(team) = team {
                     entries.push(Entry {
-                        path: format!("{}/**/**", package_root),
+                        path: directory_glob(&package_root),
                         github_team: team.github_team.to_owned(),
                         team_name: team.name.to_owned(),
                         disabled: team.avoid_ownership,
@@ -105,9 +106,9 @@ impl PackageMapper {
 
                 if let Some(team) = team {
                     owner_matchers.push(OwnerMatcher::new_glob(
-                        format!("{}/**/**", package_root),
+                        directory_glob(&package_root),
                         team.name.to_owned(),
-                        Source::Package(package.path.to_string_lossy().to_string(), format!("{}/**/**", package_root)),
+                        Source::Package(package.path.to_string_lossy().to_string(), directory_glob(&package_root)),
                     ));
                 }
             }
@@ -139,7 +140,11 @@ fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
 mod tests {
     use super::*;
     use crate::{
-        common_test::tests::{build_ownership_with_all_mappers, build_ownership_with_package_codeowners, vecs_match},
+        common_test::tests::{
+            build_ownership_with_all_mappers, build_ownership_with_package_codeowners,
+            build_ownership_with_package_codeowners_at_the_project_root, build_ownership_with_package_codeowners_with_glob_metacharacters,
+            vecs_match,
+        },
         ownership::mapper::RubyPackageMapper,
         project::{Package, PackageType},
     };
@@ -181,6 +186,36 @@ mod tests {
     }
 
     #[test]
+    fn test_remove_nested_packages_with_a_package_at_the_project_root() {
+        let packages = [
+            Package {
+                path: Path::new("packs/a/package.yml").to_owned(),
+                package_type: PackageType::Ruby,
+                owner: "owner_a".to_owned(),
+            },
+            Package {
+                path: Path::new("package.yml").to_owned(),
+                package_type: PackageType::Ruby,
+                owner: "owner_root".to_owned(),
+            },
+            Package {
+                path: Path::new("packs/b/package.yml").to_owned(),
+                package_type: PackageType::Ruby,
+                owner: "owner_b".to_owned(),
+            },
+        ];
+
+        let packages = packages.iter().collect_vec();
+
+        let package_paths = super::remove_nested_packages(&packages)
+            .iter()
+            .map(|package| package.path.to_str().unwrap())
+            .collect_vec();
+
+        assert_eq!(package_paths, vec!["package.yml"]);
+    }
+
+    #[test]
     fn test_entries() -> Result<(), Box<dyn Error>> {
         let ownership = build_ownership_with_all_mappers()?;
         let mapper = RubyPackageMapper::build(ownership.project.clone());
@@ -214,6 +249,92 @@ mod tests {
                     Source::Package("packs/foo/package.yml".to_owned(), "packs/foo/**/**".to_owned()),
                 ),
             ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_entries_with_glob_metacharacters() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_package_codeowners_with_glob_metacharacters()?;
+        let mapper = RubyPackageMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.entries(),
+            &vec![
+                Entry {
+                    path: "packs/\\[ab\\]/**/**".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "packs/\\{legacy\\}/**/**".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers_with_glob_metacharacters() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_package_codeowners_with_glob_metacharacters()?;
+        let mapper = PackageMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.owner_matchers(&PackageType::Ruby),
+            &vec![
+                OwnerMatcher::new_glob(
+                    "packs/\\[ab\\]/**/**".to_owned(),
+                    "Foo".to_owned(),
+                    Source::Package("packs/[ab]/package.yml".to_owned(), "packs/\\[ab\\]/**/**".to_owned()),
+                ),
+                OwnerMatcher::new_glob(
+                    "packs/\\{legacy\\}/**/**".to_owned(),
+                    "Bar".to_owned(),
+                    Source::Package("packs/{legacy}/package.yml".to_owned(), "packs/\\{legacy\\}/**/**".to_owned()),
+                ),
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_entries_at_the_project_root() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_package_codeowners_at_the_project_root()?;
+        let mapper = RubyPackageMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.entries(),
+            &vec![
+                Entry {
+                    path: "**/**".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "packs/inner/**/**".to_owned(),
+                    github_team: "@Bar".to_owned(),
+                    team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers_at_the_project_root() -> Result<(), Box<dyn Error>> {
+        // The root package encloses the other, so only it is matched, as for any nested package.
+        let ownership = build_ownership_with_package_codeowners_at_the_project_root()?;
+        let mapper = PackageMapper::build(ownership.project.clone());
+        vecs_match(
+            &mapper.owner_matchers(&PackageType::Ruby),
+            &vec![OwnerMatcher::new_glob(
+                "**/**".to_owned(),
+                "Foo".to_owned(),
+                Source::Package("package.yml".to_owned(), "**/**".to_owned()),
+            )],
         );
         Ok(())
     }

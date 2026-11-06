@@ -506,7 +506,26 @@ fn test_validate_files_reports_an_optionally_owned_file_under_a_codeowner_naming
     Ok(())
 }
 
-// A glob built from the project root, `/**/**`, would match no project-relative path.
+// `validate` reports an empty `.codeowner` like one naming a team that doesn't exist.
+fn add_an_empty_codeowner_file_in_an_optionally_owned_glob(project_root: &Path) -> std::io::Result<()> {
+    fs::write(project_root.join("app/deprecated/.codeowner"), "")
+}
+
+#[test]
+fn test_validate_files_reports_an_optionally_owned_file_under_an_empty_codeowner() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(
+            add_an_empty_codeowner_file_in_an_optionally_owned_glob,
+            &[command, "app/deprecated/old.rb"],
+        )?
+        .failure()
+        .stdout(predicate::str::contains(unlisted_owner_heading(command)))
+        .stdout(predicate::str::contains("app/deprecated/old.rb"));
+    }
+    Ok(())
+}
+
+// The project root's glob is `**/**`, since `<directory>/**/**` would be `/**/**` there and match no project-relative path.
 fn make_every_file_optionally_owned_and_put_a_codeowner_file_naming_an_unknown_team_at_the_project_root(
     project_root: &Path,
 ) -> std::io::Result<()> {
@@ -529,7 +548,7 @@ fn test_validate_files_reports_an_optionally_owned_file_under_a_codeowner_at_the
     Ok(())
 }
 
-// Read as a glob, `app/deprecated/{legacy}` would match `app/deprecated/legacy` rather than its own directory.
+// Unescaped, `app/deprecated/{legacy}/**/**` would match files in `app/deprecated/legacy` rather than its own directory.
 fn add_a_braced_codeowner_file_naming_an_unknown_team_in_an_optionally_owned_glob(project_root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(project_root.join("app/deprecated/{legacy}"))?;
     fs::write(project_root.join("app/deprecated/{legacy}/.codeowner"), "Typo\n")?;

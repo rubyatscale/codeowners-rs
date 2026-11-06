@@ -10,7 +10,10 @@ use glob::glob;
 
 use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache, yaml::NodeLimit};
 
-use super::{FileOwner, mapper::Source};
+use super::{
+    FileOwner,
+    mapper::{Source, directory_glob},
+};
 
 pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) -> Result<Vec<FileOwner>, String> {
     let absolute_file_path = if file_path.is_absolute() {
@@ -278,7 +281,7 @@ fn nearest_package_owner(
                         Ok(owner) => {
                             if let Some(team) = owner.and_then(|owner| teams_by_name.get(&owner)) {
                                 let package_path = parent_rel.join("package.yml");
-                                let package_glob = format!("{rel_str}/**/**");
+                                let package_glob = directory_glob(rel_str);
                                 return Some((
                                     team.name.clone(),
                                     Source::Package(package_path.to_string_lossy().to_string(), package_glob),
@@ -300,7 +303,7 @@ fn nearest_package_owner(
                     && let Some(team) = teams_by_name.get(&owner)
                 {
                     let package_path = parent_rel.join("package.json");
-                    let package_glob = format!("{rel_str}/**/**");
+                    let package_glob = directory_glob(rel_str);
                     return Some((
                         team.name.clone(),
                         Source::Package(package_path.to_string_lossy().to_string(), package_glob),
@@ -581,6 +584,36 @@ mod tests {
                 assert_eq!(glob, "frontend/flow/**/**");
             }
             _ => panic!("expected Package source for js"),
+        }
+    }
+
+    #[test]
+    fn test_nearest_package_owner_describes_a_package_by_the_glob_validate_matches() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/{payroll}");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nowner: Payroll\n").unwrap();
+        let js_pkg = project_root.join("frontend/[flow]");
+        std::fs::create_dir_all(&js_pkg).unwrap();
+        std::fs::write(js_pkg.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+        std::fs::write(project_root.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "UX"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        for (file, package_path, glob) in [
+            ("packs/{payroll}/a.rb", "packs/{payroll}/package.yml", "packs/\\{payroll\\}/**/**"),
+            ("frontend/[flow]/a.ts", "frontend/[flow]/package.json", "frontend/\\[flow\\]/**/**"),
+            ("app/a.ts", "package.json", "**/**"),
+        ] {
+            let (_, source) = nearest_package_owner(project_root, Path::new(file), &config, &tbn).unwrap();
+            assert_eq!(source, Source::Package(package_path.to_string(), glob.to_string()));
         }
     }
 
