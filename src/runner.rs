@@ -10,7 +10,7 @@ use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
-    path_utils::{matches_globs, plain_relative, relative_to_buf},
+    path_utils::{matches_globs, project_relative_path, unplaced_path},
     project_builder::ProjectBuilder,
 };
 
@@ -150,32 +150,23 @@ impl Runner {
 
         // Filter files based on owned_globs and unowned_globs configuration
         // Only validate files that match owned_globs and don't match unowned_globs
-        let filtered_paths: Vec<(String, PathBuf)> = file_paths
+        let filtered_paths: Vec<(String, Option<PathBuf>)> = file_paths
             .into_iter()
             .map(|file_path| {
-                let path = Path::new(&file_path);
-                // As in the CODEOWNERS lookup, a relative path is already relative to the project root, even when that root is relative.
-                let relative_path = if path.is_absolute() {
-                    relative_to_buf(&self.run_config.project_root, path)
-                } else {
-                    path.to_path_buf()
-                };
+                let relative_path = project_relative_path(&self.run_config.project_root, Path::new(&file_path));
                 (file_path, relative_path)
             })
             // Mirror the filtering applied by ProjectBuilder when walking the project
-            .filter(|(_, relative_path)| {
-                matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
+            .filter(|(file_path, relative_path)| {
+                let path = relative_path
+                    .as_deref()
+                    .unwrap_or_else(|| unplaced_path(&self.run_config.project_root, Path::new(file_path)));
+                matches_globs(path, &self.config.owned_globs) && !matches_globs(path, &self.config.unowned_globs)
             })
             .collect();
 
         // Built only if an optionally owned file needs it, and then once.
         let owner_lookup = LazyCell::new(|| self.ownership.owner_lookup());
-        let listed_in_codeowners = |path: &Path| {
-            matches!(
-                team_for_file_from_codeowners(&self.run_config, &path.to_string_lossy()),
-                Ok(Some(_))
-            )
-        };
 
         debug_span!("per_file_query").in_scope(|| {
             for (file_path, relative_path) in filtered_paths {
@@ -185,18 +176,13 @@ impl Runner {
                     // package names a team that doesn't exist, or whose owner CODEOWNERS doesn't list yet, is still reported,
                     // but not as unowned, which the key allows. Only files the project reads count, though, so an annotated
                     // file, `.codeowner` or package file names no owner here if it is untracked or under a top-level directory
-                    // named in ignore_dirs, as in `validate`. The lookup matches plain project-relative paths only, so a path
-                    // with a `..`, or an absolute one not under the project root, is never excused and is reported as unowned,
-                    // as without the key.
-                    Ok(None) => {
-                        match plain_relative(&relative_path).filter(|path| matches_globs(path, &self.config.optionally_owned_globs)) {
-                            Some(path) if !owner_lookup.has_owner(&path) => {}
-                            // The CODEOWNERS lookup above read the path as given, so a `./`, `//` or inner `.` missed the file's line.
-                            Some(path) if path.as_os_str() != relative_path.as_os_str() && listed_in_codeowners(&path) => {}
-                            Some(_) => optionally_owned_files_with_unlisted_owners.push(file_path),
-                            None => unowned_files.push(file_path),
-                        }
-                    }
+                    // named in ignore_dirs, as in `validate`. A path that names nothing under the project root is never
+                    // excused and is reported as unowned, as without the key.
+                    Ok(None) => match relative_path.filter(|path| matches_globs(path, &self.config.optionally_owned_globs)) {
+                        Some(path) if !owner_lookup.has_owner(&path) => {}
+                        Some(_) => optionally_owned_files_with_unlisted_owners.push(file_path),
+                        None => unowned_files.push(file_path),
+                    },
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }
             }

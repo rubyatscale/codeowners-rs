@@ -15,11 +15,8 @@ pub(crate) fn teams_for_files_from_codeowners(
         .iter()
         .map(Path::new)
         .map(|path| {
-            if path.is_absolute() {
-                crate::path_utils::relative_to_buf(project_root, path)
-            } else {
-                path.to_path_buf()
-            }
+            crate::path_utils::project_relative_path(project_root, path)
+                .unwrap_or_else(|| crate::path_utils::unplaced_path(project_root, path).to_path_buf())
         })
         .collect();
 
@@ -30,5 +27,7 @@ pub(crate) fn teams_for_files_from_codeowners(
         node_limit,
     };
 
-    parser.teams_from_files_paths(&relative_file_paths).map_err(|e| e.to_string())
+    // Keyed by each path as given, so two paths that name the same file are separate entries.
+    let teams = parser.teams_from_files_paths(&relative_file_paths).map_err(|e| e.to_string())?;
+    Ok(file_paths.iter().cloned().zip(teams).collect())
 }

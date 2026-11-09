@@ -1,11 +1,11 @@
-use assert_cmd::{assert::Assert, prelude::*};
+use assert_cmd::assert::Assert;
 use indoc::indoc;
 use predicates::prelude::*;
-use std::{error::Error, ffi::OsStr, fs, path::Path, process::Command};
+use std::{error::Error, ffi::OsStr, fs, path::Path};
 use tempfile::TempDir;
 
 mod common;
-use common::{OutputStream, git_add_all_files, run_codeowners, setup_fixture_repo};
+use common::{OutputStream, codeowners, git_add_all_files, run_codeowners, setup_fixture_repo};
 
 const FIXTURE: &str = "optionally_owned_globs";
 
@@ -109,15 +109,6 @@ fn modified_fixture(modify: impl FnOnce(&Path) -> std::io::Result<()>) -> Result
     modify(temp_dir.path())?;
     git_add_all_files(temp_dir.path());
     Ok(temp_dir)
-}
-
-fn codeowners(project_root: &Path, args: &[impl AsRef<OsStr>]) -> Result<Assert, Box<dyn Error>> {
-    Ok(Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .args(args)
-        .assert())
 }
 
 fn run_on_modified_fixture(modify: impl FnOnce(&Path) -> std::io::Result<()>, args: &[&str]) -> Result<Assert, Box<dyn Error>> {
@@ -270,17 +261,34 @@ fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_a
 #[test]
 fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_an_unknown_team_by_path_with_dot_dot()
 -> Result<(), Box<dyn Error>> {
-    // The owner lookup can't see the annotation without resolving the `..`, so the file mustn't be excused. It's reported
-    // as unowned, as without the key.
     for command in ["validate", "gv"] {
         run_on_modified_fixture(
             add_an_annotation_naming_an_unknown_team_in_an_optionally_owned_glob,
             &[command, "app/deprecated/../deprecated/typo.rb"],
         )?
         .failure()
-        .stdout(predicate::str::contains("Unowned files detected:"))
-        .stdout(predicate::str::contains("app/deprecated/../deprecated/typo.rb"));
+        .stdout(predicate::eq(format!(
+            "{}\n  app/deprecated/../deprecated/typo.rb\n",
+            unlisted_owner_heading(command)
+        )));
     }
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_an_unknown_team_by_path_through_a_symlink()
+-> Result<(), Box<dyn Error>> {
+    let temp_dir = modified_fixture(add_an_annotation_naming_an_unknown_team_in_an_optionally_owned_glob)?;
+    let (link, _link_dir) = common::symlink_in_temp_dir(temp_dir.path());
+    let file = link.join("app/deprecated/typo.rb");
+    codeowners(temp_dir.path(), &[OsStr::new("validate"), file.as_os_str()])?
+        .failure()
+        .stdout(predicate::eq(format!(
+            "{}\n  {}\n",
+            unlisted_owner_heading("validate"),
+            file.display()
+        )));
     Ok(())
 }
 
@@ -339,6 +347,16 @@ fn test_validate_files_looks_up_an_optionally_owned_file_in_codeowners_by_its_pl
                 .success()
                 .stdout(predicate::eq(""));
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_validate_files_does_not_excuse_a_path_outside_the_project() -> Result<(), Box<dyn Error>> {
+    for command in ["validate", "gv"] {
+        run_on_modified_fixture(make_every_file_optionally_owned, &[command, "../outside.rb"])?
+            .failure()
+            .stdout(predicate::eq("Unowned files detected:\n  ../outside.rb\n"));
     }
     Ok(())
 }

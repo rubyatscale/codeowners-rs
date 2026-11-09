@@ -1,6 +1,7 @@
-use assert_cmd::prelude::*;
+use assert_cmd::{assert::Assert, prelude::*};
 use codeowners::runner::{self, RunConfig};
 use predicates::prelude::*;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 use std::{error::Error, process::Command};
@@ -42,6 +43,26 @@ where
         }
     }
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn codeowners(project_root: &Path, args: &[impl AsRef<OsStr>]) -> Result<Assert, Box<dyn Error>> {
+    Ok(Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .args(args)
+        .assert())
+}
+
+// A symlink to `target`, in a temp dir that is removed when the returned TempDir is dropped.
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn symlink_in_temp_dir(target: &Path) -> (std::path::PathBuf, TempDir) {
+    let temp_dir = tempfile::tempdir().expect("failed to create tempdir");
+    let link = temp_dir.path().join("link");
+    std::os::unix::fs::symlink(target, &link).expect("failed to create symlink");
+    (link, temp_dir)
 }
 
 #[allow(dead_code)]
