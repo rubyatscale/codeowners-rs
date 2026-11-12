@@ -1,11 +1,13 @@
+use crate::path_utils::matches_globs;
 use crate::project::{Project, ProjectFile};
 use core::fmt;
 use std::collections::HashSet;
 use std::fmt::Display;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use itertools::Itertools;
+use rayon::prelude::IntoParallelIterator;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
 use similar::{ChangeTag, TextDiff};
@@ -26,10 +28,31 @@ pub struct Validator {
 
 #[derive(Debug)]
 enum Error {
-    InvalidTeam { name: String, path: PathBuf },
-    FileWithoutOwner { path: PathBuf },
-    FileWithMultipleOwners { path: PathBuf, owners: Vec<Owner> },
-    CodeownershipFileIsStale { executable_name: String, diff: String },
+    InvalidTeam {
+        name: String,
+        path: PathBuf,
+    },
+    /// A `.codeowner` naming a team that isn't registered. Distinct from `InvalidTeam` only
+    /// so the message can name the ancestor the directory now silently inherits from, which
+    /// is the part a reader needs in order to understand what happened. `category()`
+    /// deliberately matches `InvalidTeam` so one typo'd team name across an annotation, a
+    /// `package.yml`, and a `.codeowner` still groups under a single headline.
+    InvalidDirectoryTeam {
+        name: String,
+        path: PathBuf,
+        inherits_from: Option<PathBuf>,
+    },
+    FileWithoutOwner {
+        path: PathBuf,
+    },
+    FileWithMultipleOwners {
+        path: PathBuf,
+        owners: Vec<Owner>,
+    },
+    CodeownershipFileIsStale {
+        executable_name: String,
+        diff: String,
+    },
 }
 
 #[derive(Debug)]
@@ -65,6 +88,7 @@ impl Validator {
 
         errors.append(&mut self.invalid_team_annotation(&team_names));
         errors.append(&mut self.invalid_package_ownership(&team_names));
+        errors.append(&mut self.invalid_directory_ownership());
 
         errors
     }
@@ -107,24 +131,66 @@ impl Validator {
             .collect()
     }
 
+    /// `DirectoryMapper::entries` skips unresolvable owners, so the directory silently
+    /// inherits its ancestor's owner and nothing else reports the bad name.
+    ///
+    /// Resolves through `teams_by_name` rather than `teams[].name` so the predicate is
+    /// identical to the mapper's lookup: that map is keyed by both `name` and
+    /// `github_team`, and a `.codeowner` holding either one generates a correct line.
+    fn invalid_directory_ownership(&self) -> Vec<Error> {
+        let resolvable_roots: HashSet<&Path> = self
+            .project
+            .directory_codeowner_files
+            .iter()
+            .filter(|directory_codeowner_file| self.project.teams_by_name.contains_key(&directory_codeowner_file.owner))
+            .filter_map(|directory_codeowner_file| directory_codeowner_file.directory_root())
+            .collect();
+
+        self.project
+            .directory_codeowner_files
+            .iter()
+            .flat_map(|directory_codeowner_file| {
+                if !self.project.teams_by_name.contains_key(&directory_codeowner_file.owner) {
+                    Some(Error::InvalidDirectoryTeam {
+                        name: directory_codeowner_file.owner.clone(),
+                        path: self.project.relative_path(&directory_codeowner_file.path).to_owned(),
+                        inherits_from: directory_codeowner_file
+                            .directory_root()
+                            .and_then(|root| root.ancestors().skip(1).find(|ancestor| resolvable_roots.contains(ancestor)))
+                            .map(|ancestor| self.project.relative_path(ancestor).to_owned()),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     #[instrument(name = "validate_file_ownership", level = "debug", skip_all)]
     fn validate_file_ownership(&self) -> Vec<Error> {
-        let mut validation_errors = Vec::new();
+        let project = &self.project;
 
-        for (file, owners) in self.file_to_owners() {
-            let relative_path = self.project.relative_path(&file.path).to_owned();
+        self.file_to_owners()
+            .into_par_iter()
+            .filter_map(|(file, owners)| {
+                let relative_path = project.relative_path(&file.path).to_owned();
 
-            if owners.is_empty() {
-                validation_errors.push(Error::FileWithoutOwner { path: relative_path })
-            } else if owners.len() > 1 {
-                validation_errors.push(Error::FileWithMultipleOwners {
-                    path: relative_path,
-                    owners,
-                })
-            }
-        }
-
-        validation_errors
+                if owners.is_empty() {
+                    if matches_globs(&relative_path, &project.optionally_owned_globs) {
+                        None
+                    } else {
+                        Some(Error::FileWithoutOwner { path: relative_path })
+                    }
+                } else if owners.len() > 1 {
+                    Some(Error::FileWithMultipleOwners {
+                        path: relative_path,
+                        owners,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     #[instrument(name = "validate_codeowners_file", level = "debug", skip_all)]
@@ -190,7 +256,8 @@ impl Error {
                 Error::CodeownershipFileIsStale { executable_name, diff: _ } => {
                     format!("CODEOWNERS out of date. Run `{}` to update the CODEOWNERS file", executable_name)
                 }
-                Error::InvalidTeam { name: _, path: _ } => "Found invalid team annotations".to_owned(),
+                Error::InvalidTeam { name: _, path: _ } => "Found invalid team references".to_owned(),
+                Error::InvalidDirectoryTeam { .. } => "Found invalid team references".to_owned(),
             }
     }
 
@@ -216,6 +283,24 @@ impl Error {
             // so that a long diff doesn't bury the actionable headline.
             Error::CodeownershipFileIsStale { .. } => vec![],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
+            Error::InvalidDirectoryTeam { name, path, inherits_from } => {
+                // `owner` is `content.trim()`, so an empty or whitespace-only file yields "".
+                // Reporting that as `an invalid team - ''` gives no hint the file is empty.
+                let mut message = if name.is_empty() {
+                    format!("- {} is empty and names no team", path.to_string_lossy())
+                } else {
+                    format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)
+                };
+                if let Some(inherits_from) = inherits_from {
+                    let inherits_from = if inherits_from.as_os_str().is_empty() {
+                        "the project root".into()
+                    } else {
+                        inherits_from.to_string_lossy()
+                    };
+                    message.push_str(&format!("; this directory is currently inheriting its owner from {inherits_from}"));
+                }
+                vec![message]
+            }
         }
     }
 }

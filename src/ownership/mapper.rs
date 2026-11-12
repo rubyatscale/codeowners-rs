@@ -15,6 +15,7 @@ mod team_yml_mapper;
 
 pub use annotated_file_mapper::TeamFileMapper;
 pub use directory_mapper::DirectoryMapper;
+pub use escaper::directory_glob;
 pub use package_mapper::JavascriptPackageMapper;
 pub use package_mapper::RubyPackageMapper;
 pub use team_gem_mapper::TeamGemMapper;
@@ -26,6 +27,8 @@ use super::Entry;
 pub trait Mapper {
     fn name(&self) -> String;
     fn entries(&self) -> Vec<Entry>;
+    /// A matcher names a team that exists by its `name`, even where a file names it by GitHub team, since `validate` counts
+    /// each name matching a file as a separate owner.
     fn owner_matchers(&self) -> Vec<OwnerMatcher>;
 }
 pub type TeamName = String;
@@ -43,7 +46,7 @@ pub enum Source {
 impl Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Source::Directory(path) => write!(f, "Owner specified in `{}/.codeowner`", path),
+            Source::Directory(path) => write!(f, "Owner specified in `{}`", Path::new(path).join(".codeowner").display()),
             Source::AnnotatedFile => write!(f, "Owner annotation at the top of the file"),
             Source::TeamGem => write!(f, "Owner specified in Team YML's `owned_gems`"),
             Source::TeamGlob(glob) => write!(f, "Owner specified in Team YML as an owned_glob `{}`", glob),
@@ -58,7 +61,8 @@ impl Display for Source {
 impl Source {
     pub fn len(&self) -> usize {
         match self {
-            Source::Directory(path) => path.matches('/').count(),
+            // Counting components rather than separators ranks the project root, "", below a top-level directory.
+            Source::Directory(path) => Path::new(path).components().count(),
             _ => 0,
         }
     }
@@ -200,6 +204,7 @@ mod tests {
             Source::Directory("packs/bam".to_string()).to_string(),
             "Owner specified in `packs/bam/.codeowner`"
         );
+        assert_eq!(Source::Directory("".to_string()).to_string(), "Owner specified in `.codeowner`");
         assert_eq!(Source::AnnotatedFile.to_string(), "Owner annotation at the top of the file");
         assert_eq!(Source::TeamGem.to_string(), "Owner specified in Team YML's `owned_gems`");
         assert_eq!(

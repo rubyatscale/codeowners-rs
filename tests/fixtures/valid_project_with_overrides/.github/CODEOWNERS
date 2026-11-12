@@ -7,18 +7,6 @@
 # https://help.github.com/en/articles/about-code-owners
 
 
-# Annotations at the top of file
-/frontend/packages/components/datepicker/src/picks/dp.tsx @RockiesTeam
-/frontend/packages/components/list/src/item.tsx @BrewersTeam
-/frontend/packages/components/textfield/src/field.tsx @GiantsTeam
-/frontend/packages/components/textfield/src/fields/small.tsx @GiantsTeam
-/gems/apollo/lib/apollo.rb @GiantsTeam
-/gems/ivy/lib/ivy.rb @CubsTeam
-/gems/lager/lib/lager.rb @BrewersTeam
-/gems/summit/lib/summit.rb @RockiesTeam
-/ruby/app/cubs/services/models/db/price.rb @BrewersTeam
-/ruby/app/cubs/services/play.rb @CubsTeam
-
 # Team-specific owned globs
 /frontend/packages/components/** @BrewersTeam
 /ruby/app/brewers/**/* @BrewersTeam
@@ -51,3 +39,15 @@
 /gems/ivy/**/** @CubsTeam
 /gems/lager/**/** @BrewersTeam
 /gems/summit/**/** @RockiesTeam
+
+# Annotations at the top of file
+/frontend/packages/components/datepicker/src/picks/dp.tsx @RockiesTeam
+/frontend/packages/components/list/src/item.tsx @BrewersTeam
+/frontend/packages/components/textfield/src/field.tsx @GiantsTeam
+/frontend/packages/components/textfield/src/fields/small.tsx @GiantsTeam
+/gems/apollo/lib/apollo.rb @GiantsTeam
+/gems/ivy/lib/ivy.rb @CubsTeam
+/gems/lager/lib/lager.rb @BrewersTeam
+/gems/summit/lib/summit.rb @RockiesTeam
+/ruby/app/cubs/services/models/db/price.rb @BrewersTeam
+/ruby/app/cubs/services/play.rb @CubsTeam

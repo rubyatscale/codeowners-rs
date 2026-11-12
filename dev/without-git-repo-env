@@ -1,0 +1,6 @@
+#!/bin/sh
+# Cargo runner (.cargo/config.toml): exec the binary without git's repo-local env.
+# Fails closed: if git can't list the variables, nothing runs.
+vars=$(git rev-parse --local-env-vars) || exit
+unset $vars
+exec "$@"

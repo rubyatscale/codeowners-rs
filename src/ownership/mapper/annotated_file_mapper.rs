@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::Entry;
-use super::escaper::escape_brackets;
+use super::escaper::escape_glob;
 use super::{Mapper, OwnerMatcher};
 use crate::ownership::mapper::Source;
 use crate::project::Project;
@@ -31,7 +31,7 @@ impl Mapper for TeamFileMapper {
                     let relative_path = self.project.relative_path(&owned_file.path);
 
                     entries.push(Entry {
-                        path: escape_brackets(&relative_path.to_string_lossy()),
+                        path: escape_glob(&relative_path.to_string_lossy()),
                         github_team: team.github_team.to_owned(),
                         team_name: team.name.to_owned(),
                         disabled: team.avoid_ownership,
@@ -85,6 +85,12 @@ mod tests {
                     path: "packs/\\[admin\\]/comp.ts".to_owned(),
                     github_team: "@Bar".to_owned(),
                     team_name: "Bar".to_owned(),
+                    disabled: false,
+                },
+                Entry {
+                    path: "packs/\\{admin\\}/comp.ts".to_owned(),
+                    github_team: "@Foo".to_owned(),
+                    team_name: "Foo".to_owned(),
                     disabled: false,
                 },
                 Entry {
@@ -142,6 +148,7 @@ mod tests {
         let expected_owner_matchers = vec![OwnerMatcher::ExactMatches(
             HashMap::from([
                 (PathBuf::from("packs/[admin]/comp.ts"), "Bar".to_owned()),
+                (PathBuf::from("packs/{admin}/comp.ts"), "Foo".to_owned()),
                 (PathBuf::from("packs/bar/comp.rb"), "Bar".to_owned()),
                 (PathBuf::from("packs/jscomponents/comp.ts"), "Foo".to_owned()),
                 (PathBuf::from("packs/jscomponents/comp-colon.ts"), "Foo".to_owned()),

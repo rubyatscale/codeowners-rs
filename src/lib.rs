@@ -9,3 +9,4 @@ pub mod project_builder;
 pub mod project_file_builder;
 pub mod runner;
 pub(crate) mod tracked_files;
+pub(crate) mod yaml;

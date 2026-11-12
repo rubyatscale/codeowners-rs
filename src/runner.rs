@@ -1,8 +1,8 @@
+use std::cell::LazyCell;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use serde::Serialize;
 use tracing::debug_span;
 
@@ -10,6 +10,7 @@ use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
     ownership::{FileOwner, Ownership},
+    path_utils::{matches_globs, project_relative_path, unplaced_path},
     project_builder::ProjectBuilder,
 };
 
@@ -125,7 +126,7 @@ impl Runner {
         if file_paths.is_empty() {
             self.validate_all()
         } else {
-            self.validate_files(file_paths)
+            self.validate_files(file_paths, false)
         }
     }
 
@@ -142,43 +143,76 @@ impl Runner {
         }
     }
 
-    fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
+    fn validate_files(&self, file_paths: Vec<String>, codeowners_generated: bool) -> RunResult {
         let mut unowned_files = Vec::new();
+        let mut optionally_owned_files_with_unlisted_owners = Vec::new();
         let mut io_errors = Vec::new();
 
         // Filter files based on owned_globs and unowned_globs configuration
         // Only validate files that match owned_globs and don't match unowned_globs
-        let filtered_paths: Vec<String> = file_paths
+        let filtered_paths: Vec<(String, Option<PathBuf>)> = file_paths
             .into_iter()
-            .filter(|file_path| {
-                // Convert to relative path for glob matching
-                let path = Path::new(file_path);
-                let relative_path = if path.is_absolute() {
-                    path.strip_prefix(&self.run_config.project_root).unwrap_or(path)
-                } else {
-                    path
-                };
-
-                // Mirror the filtering applied by ProjectBuilder when walking the project
-                matches_globs(relative_path, &self.config.owned_globs) && !matches_globs(relative_path, &self.config.unowned_globs)
+            .map(|file_path| {
+                let relative_path = project_relative_path(&self.run_config.project_root, Path::new(&file_path));
+                (file_path, relative_path)
+            })
+            // Mirror the filtering applied by ProjectBuilder when walking the project
+            .filter(|(file_path, relative_path)| {
+                let path = relative_path
+                    .as_deref()
+                    .unwrap_or_else(|| unplaced_path(&self.run_config.project_root, Path::new(file_path)));
+                matches_globs(path, &self.config.owned_globs) && !matches_globs(path, &self.config.unowned_globs)
             })
             .collect();
 
+        // Built only if an optionally owned file needs it, and then once.
+        let owner_lookup = LazyCell::new(|| self.ownership.owner_lookup());
+
         debug_span!("per_file_query").in_scope(|| {
-            for file_path in filtered_paths {
+            for (file_path, relative_path) in filtered_paths {
                 match team_for_file_from_codeowners(&self.run_config, &file_path) {
                     Ok(Some(_)) => {}
-                    Ok(None) => unowned_files.push(file_path),
+                    // optionally_owned_globs excuses only a file nothing names an owner for. One whose annotation, `.codeowner` or
+                    // package names a team that doesn't exist, or whose owner CODEOWNERS doesn't list yet, is still reported,
+                    // but not as unowned, which the key allows. Only files the project reads count, though, so an annotated
+                    // file, `.codeowner` or package file names no owner here if it is untracked or under a top-level directory
+                    // named in ignore_dirs, as in `validate`. A path that names nothing under the project root is never
+                    // excused and is reported as unowned, as without the key.
+                    Ok(None) => match relative_path.filter(|path| matches_globs(path, &self.config.optionally_owned_globs)) {
+                        Some(path) if !owner_lookup.has_owner(&path) => {}
+                        Some(_) => optionally_owned_files_with_unlisted_owners.push(file_path),
+                        None => unowned_files.push(file_path),
+                    },
                     Err(err) => io_errors.push(format!("{}: {}", file_path, err)),
                 }
             }
         });
 
+        let mut validation_errors = Vec::new();
         if !unowned_files.is_empty() {
-            let validation_errors = std::iter::once("Unowned files detected:".to_string())
-                .chain(unowned_files.into_iter().map(|file| format!("  {}", file)))
-                .collect();
+            validation_errors.push("Unowned files detected:".to_string());
+            validation_errors.extend(unowned_files.into_iter().map(|file| format!("  {}", file)));
+        }
+        if !optionally_owned_files_with_unlisted_owners.is_empty() {
+            // `gv` has just written CODEOWNERS, so updating it again can't help, and only a team that doesn't exist is left out.
+            let or_update_codeowners = if codeowners_generated {
+                String::new()
+            } else {
+                format!(", or run `{}` to update the CODEOWNERS file", self.config.executable_name)
+            };
+            validation_errors.push(format!(
+                "Files matching optionally_owned_globs name an owner that CODEOWNERS doesn't list. \
+                 Check the team name in each one's annotation, `.codeowner` or package{}:",
+                or_update_codeowners
+            ));
+            validation_errors.extend(
+                optionally_owned_files_with_unlisted_owners
+                    .into_iter()
+                    .map(|file| format!("  {}", file)),
+            );
+        }
 
+        if !validation_errors.is_empty() {
             return RunResult {
                 validation_errors,
                 io_errors,
@@ -220,7 +254,11 @@ impl Runner {
         if run_result.has_errors() {
             return run_result;
         }
-        self.validate(file_paths)
+        if file_paths.is_empty() {
+            self.validate_all()
+        } else {
+            self.validate_files(file_paths, true)
+        }
     }
 
     fn git_stage(&self) {
@@ -439,14 +477,6 @@ impl RunResult {
             io_errors: vec![format!("{{\"error\": \"{}\"}}", message.replace('"', "\\\""))],
             ..Default::default()
         }
-    }
-}
-
-/// Returns true if `path` matches any of the provided glob patterns.
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
     }
 }
 

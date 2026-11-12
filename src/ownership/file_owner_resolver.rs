@@ -1,26 +1,41 @@
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
+    sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError},
 };
 
 use fast_glob::glob_match;
 use glob::glob;
 
-use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache};
+use crate::{config::Config, project::Team, project_file_builder::build_project_file_without_cache, yaml::NodeLimit};
 
-use super::{FileOwner, mapper::Source};
+use super::{
+    FileOwner,
+    mapper::{Source, directory_glob},
+};
 
 pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) -> Result<Vec<FileOwner>, String> {
-    let absolute_file_path = if file_path.is_absolute() {
-        file_path.to_path_buf()
-    } else {
-        project_root.join(file_path)
+    let (absolute_file_path, relative_file_path) = match crate::path_utils::project_relative_path(project_root, file_path) {
+        Some(relative_file_path) => (project_root.join(&relative_file_path), relative_file_path),
+        None => {
+            let absolute_file_path = if file_path.is_absolute() {
+                file_path.to_path_buf()
+            } else {
+                project_root.join(file_path)
+            };
+            let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
+            (absolute_file_path, relative_file_path)
+        }
     };
-    let relative_file_path = crate::path_utils::relative_to_buf(project_root, &absolute_file_path);
 
-    let teams = load_teams(project_root, &config.team_file_glob)?;
-    let teams_by_name = build_teams_by_name_map(&teams);
+    let loaded = loaded_teams(
+        teams_cache_root(project_root),
+        config.team_file_glob.clone(),
+        config.node_limit(project_root),
+    )?;
+    let teams = &loaded.teams;
+    let teams_by_name = &loaded.teams_by_name;
 
     let mut sources_by_team: HashMap<String, Vec<Source>> = HashMap::new();
 
@@ -38,20 +53,20 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         }
     }
 
-    if let Some((owner_team_name, dir_source)) = most_specific_directory_owner(project_root, &relative_file_path, &teams_by_name) {
+    if let Some((owner_team_name, dir_source)) = most_specific_directory_owner(project_root, &relative_file_path, teams_by_name) {
         sources_by_team.entry(owner_team_name).or_default().push(dir_source);
     }
 
-    if let Some((owner_team_name, package_source)) = nearest_package_owner(project_root, &relative_file_path, config, &teams_by_name) {
+    if let Some((owner_team_name, package_source)) = nearest_package_owner(project_root, &relative_file_path, config, teams_by_name) {
         sources_by_team.entry(owner_team_name).or_default().push(package_source);
     }
 
-    if let Some((owner_team_name, gem_source)) = vendored_gem_owner(&relative_file_path, config, &teams) {
+    if let Some((owner_team_name, gem_source)) = vendored_gem_owner(&relative_file_path, config, teams) {
         sources_by_team.entry(owner_team_name).or_default().push(gem_source);
     }
 
     if let Some(rel_str) = relative_file_path.to_str() {
-        for team in &teams {
+        for team in teams {
             let subtracts: HashSet<&str> = team.subtracted_globs.iter().map(|s| s.as_str()).collect();
             for owned_glob in &team.owned_globs {
                 if glob_match(owned_glob, rel_str) && !subtracts.iter().any(|sub| glob_match(sub, rel_str)) {
@@ -64,7 +79,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         }
     }
 
-    for team in &teams {
+    for team in teams {
         let team_rel = crate::path_utils::relative_to_buf(project_root, &team.path);
         if team_rel == relative_file_path {
             sources_by_team.entry(team.name.clone()).or_default().push(Source::TeamYml);
@@ -98,6 +113,74 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
     Ok(file_owners)
 }
 
+struct LoadedTeams {
+    teams: Vec<Team>,
+    teams_by_name: HashMap<String, Team>,
+}
+
+type TeamCacheKey = (PathBuf, Vec<String>, NodeLimit);
+
+// Parsing every team file dominates a lookup, so load them once per project root, glob list and node limit and share
+// the result across threads for the life of the process.
+static TEAM_CACHE: LazyLock<Mutex<TeamCache>> = LazyLock::new(Default::default);
+
+#[derive(Default)]
+struct TeamCache {
+    // Bumped by `clear_team_cache` so a load already running during a clear can't reinstate its stale result.
+    generation: u64,
+    loaded: HashMap<TeamCacheKey, Arc<LoadedTeams>>,
+}
+
+fn team_cache() -> MutexGuard<'static, TeamCache> {
+    TEAM_CACHE.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn loaded_teams(
+    project_root: PathBuf,
+    team_file_globs: Vec<String>,
+    node_limit: NodeLimit,
+) -> std::result::Result<Arc<LoadedTeams>, String> {
+    let key = (project_root, team_file_globs, node_limit);
+    let generation = {
+        let cache = team_cache();
+        if let Some(loaded) = cache.loaded.get(&key) {
+            return Ok(Arc::clone(loaded));
+        }
+        cache.generation
+    };
+
+    let load = load_teams(&key.0, &key.1, &key.2)?;
+    let teams_by_name = build_teams_by_name_map(&load.teams);
+    let loaded = Arc::new(LoadedTeams {
+        teams: load.teams,
+        teams_by_name,
+    });
+    // A load that skipped a team file isn't cached, so fixing the file takes effect on the next lookup.
+    if !load.skipped_team_file {
+        cache_teams(key, Arc::clone(&loaded), generation);
+    }
+    Ok(loaded)
+}
+
+fn cache_teams(key: TeamCacheKey, loaded: Arc<LoadedTeams>, generation: u64) {
+    let mut cache = team_cache();
+    if cache.generation == generation {
+        cache.loaded.insert(key, loaded);
+    }
+}
+
+// Keyed on the absolute root so a relative root isn't reused after the working directory changes.
+fn teams_cache_root(project_root: &Path) -> PathBuf {
+    std::path::absolute(project_root).unwrap_or_else(|_| project_root.to_path_buf())
+}
+
+/// Drops the teams memoized by `find_file_owners`, for callers whose team files change within one process.
+pub fn clear_team_cache() {
+    let mut cache = team_cache();
+    cache.generation += 1;
+    cache.loaded.clear();
+}
+
 fn build_teams_by_name_map(teams: &[Team]) -> HashMap<String, Team> {
     let mut map = HashMap::with_capacity(teams.len() * 2);
     for team in teams {
@@ -107,22 +190,36 @@ fn build_teams_by_name_map(teams: &[Team]) -> HashMap<String, Team> {
     map
 }
 
-fn load_teams(project_root: &Path, team_file_globs: &[String]) -> std::result::Result<Vec<Team>, String> {
+struct TeamLoad {
+    teams: Vec<Team>,
+    skipped_team_file: bool,
+}
+
+fn load_teams(project_root: &Path, team_file_globs: &[String], node_limit: &NodeLimit) -> std::result::Result<TeamLoad, String> {
     let mut teams: Vec<Team> = Vec::new();
+    let mut skipped_team_file = false;
     for glob_str in team_file_globs {
         let absolute_glob = project_root.join(glob_str).to_string_lossy().into_owned();
         let paths = glob(&absolute_glob).map_err(|e| e.to_string())?;
-        for path in paths.flatten() {
-            match Team::from_team_file_path(path.clone()) {
+        for entry in paths {
+            let path = match entry {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Error reading team file path: {e}");
+                    skipped_team_file = true;
+                    continue;
+                }
+            };
+            match Team::from_team_file_path(path.clone(), node_limit) {
                 Ok(team) => teams.push(team),
                 Err(e) => {
                     eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
-                    continue;
+                    skipped_team_file = true;
                 }
             }
         }
     }
-    Ok(teams)
+    Ok(TeamLoad { teams, skipped_team_file })
 }
 
 fn read_top_of_file_team(path: &Path) -> Option<String> {
@@ -185,16 +282,24 @@ fn nearest_package_owner(
         if let Some(rel_str) = parent_rel.to_str() {
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");
-                if pkg_yml.exists()
-                    && let Ok(owner) = read_ruby_package_owner(&pkg_yml)
-                    && let Some(team) = teams_by_name.get(&owner)
-                {
-                    let package_path = parent_rel.join("package.yml");
-                    let package_glob = format!("{rel_str}/**/**");
-                    return Some((
-                        team.name.clone(),
-                        Source::Package(package_path.to_string_lossy().to_string(), package_glob),
-                    ));
+                if pkg_yml.exists() {
+                    match crate::project_builder::ruby_package_owner(&pkg_yml, &config.node_limit(project_root)) {
+                        Ok(owner) => {
+                            if let Some(team) = owner.and_then(|owner| teams_by_name.get(&owner)) {
+                                let package_path = parent_rel.join("package.yml");
+                                let package_glob = directory_glob(rel_str);
+                                return Some((
+                                    team.name.clone(),
+                                    Source::Package(package_path.to_string_lossy().to_string(), package_glob),
+                                ));
+                            }
+                        }
+                        // validate rejects this package, so don't fall through to an enclosing package's owner.
+                        Err(e) => {
+                            eprintln!("Error reading ruby package: {e:?}, path: {}", pkg_yml.display());
+                            return None;
+                        }
+                    }
                 }
             }
             if glob_list_matches(rel_str, &config.javascript_package_paths) {
@@ -204,7 +309,7 @@ fn nearest_package_owner(
                     && let Some(team) = teams_by_name.get(&owner)
                 {
                     let package_path = parent_rel.join("package.json");
-                    let package_glob = format!("{rel_str}/**/**");
+                    let package_glob = directory_glob(rel_str);
                     return Some((
                         team.name.clone(),
                         Source::Package(package_path.to_string_lossy().to_string(), package_glob),
@@ -223,12 +328,6 @@ fn nearest_package_owner(
 
 fn glob_list_matches(path: &str, globs: &[String]) -> bool {
     globs.iter().any(|g| glob_match(g, path))
-}
-
-fn read_ruby_package_owner(path: &Path) -> std::result::Result<String, String> {
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let deserializer: crate::project::deserializers::RubyPackage = serde_yaml::from_reader(file).map_err(|e| e.to_string())?;
-    deserializer.owner.ok_or_else(|| "Missing owner".to_string())
 }
 
 fn read_js_package_owner(path: &Path) -> std::result::Result<String, String> {
@@ -295,6 +394,9 @@ mod tests {
             ignore_dirs: vec![],
             executable_name: "codeowners".to_string(),
             codeowners_path: ".github".to_string(),
+            optionally_owned_globs: vec![],
+            yaml_max_nodes: crate::yaml::DEFAULT_MAX_NODES,
+            path: PathBuf::from(crate::config::DEFAULT_PATH),
         }
     }
 
@@ -355,6 +457,95 @@ mod tests {
     }
 
     #[test]
+    fn test_nearest_package_owner_ruby_metadata_owner() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nmetadata:\n  owner: Payroll\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        let t = team_named("Payroll");
+        tbn.insert(t.name.clone(), t);
+
+        let rel_ruby = Path::new("packs/payroll/app/models/thing.rb");
+        let ruby_owner = nearest_package_owner(project_root, rel_ruby, &config, &tbn).unwrap();
+        assert_eq!(ruby_owner.0, "Payroll");
+        match ruby_owner.1 {
+            Source::Package(pkg_path, glob) => {
+                assert!(pkg_path.ends_with("packs/payroll/package.yml"));
+                assert_eq!(glob, "packs/payroll/**/**");
+            }
+            _ => panic!("expected Package source for ruby"),
+        }
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_conflicting_owners_yields_none() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nowner: Payroll\nmetadata:\n  owner: Benefits\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "Benefits"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        let rel_ruby = Path::new("packs/payroll/app/models/thing.rb");
+        assert!(nearest_package_owner(project_root, rel_ruby, &config, &tbn).is_none());
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_conflict_does_not_fall_through_to_outer_package() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let outer_pkg = project_root.join("packs/outer");
+        let inner_pkg = outer_pkg.join("inner");
+        std::fs::create_dir_all(&inner_pkg).unwrap();
+        std::fs::write(outer_pkg.join("package.yml"), "---\nowner: Outer\n").unwrap();
+        std::fs::write(inner_pkg.join("package.yml"), "---\nowner: InnerA\nmetadata:\n  owner: InnerB\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Outer", "InnerA", "InnerB"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        let rel_ruby = Path::new("packs/outer/inner/x.rb");
+        assert!(nearest_package_owner(project_root, rel_ruby, &config, &tbn).is_none());
+    }
+
+    #[test]
+    fn test_nearest_package_owner_ruby_ownerless_inner_package_falls_through_to_outer() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+
+        let outer_pkg = project_root.join("packs/outer");
+        let inner_pkg = outer_pkg.join("inner");
+        std::fs::create_dir_all(&inner_pkg).unwrap();
+        std::fs::write(outer_pkg.join("package.yml"), "---\nowner: Outer\n").unwrap();
+        std::fs::write(inner_pkg.join("package.yml"), "---\nenforce_dependencies: true\n").unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        let t = team_named("Outer");
+        tbn.insert(t.name.clone(), t);
+
+        let rel_ruby = Path::new("packs/outer/inner/x.rb");
+        let owner = nearest_package_owner(project_root, rel_ruby, &config, &tbn).unwrap();
+        assert_eq!(owner.0, "Outer");
+    }
+
+    #[test]
     fn test_nearest_package_owner_ruby_and_js() {
         let td = tempdir().unwrap();
         let project_root = td.path();
@@ -403,6 +594,36 @@ mod tests {
     }
 
     #[test]
+    fn test_nearest_package_owner_describes_a_package_by_the_glob_validate_matches() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("**/*", "packs/**/*", "vendored");
+
+        let ruby_pkg = project_root.join("packs/{payroll}");
+        std::fs::create_dir_all(&ruby_pkg).unwrap();
+        std::fs::write(ruby_pkg.join("package.yml"), "---\nowner: Payroll\n").unwrap();
+        let js_pkg = project_root.join("frontend/[flow]");
+        std::fs::create_dir_all(&js_pkg).unwrap();
+        std::fs::write(js_pkg.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+        std::fs::write(project_root.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "UX"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        for (file, package_path, glob) in [
+            ("packs/{payroll}/a.rb", "packs/{payroll}/package.yml", "packs/\\{payroll\\}/**/**"),
+            ("frontend/[flow]/a.ts", "frontend/[flow]/package.json", "frontend/\\[flow\\]/**/**"),
+            ("app/a.ts", "package.json", "**/**"),
+        ] {
+            let (_, source) = nearest_package_owner(project_root, Path::new(file), &config, &tbn).unwrap();
+            assert_eq!(source, Source::Package(package_path.to_string(), glob.to_string()));
+        }
+    }
+
+    #[test]
     fn test_vendored_gem_owner() {
         let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
         let mut teams: Vec<Team> = vec![team_named("Payroll")];
@@ -412,5 +633,281 @@ mod tests {
         let result = vendored_gem_owner(path, &config, &teams).unwrap();
         assert_eq!(result.0, "Payroll");
         matches!(result.1, Source::TeamGem);
+    }
+
+    #[test]
+    fn test_teams_cache_root_is_absolute_for_relative_roots() {
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(teams_cache_root(Path::new("some/project")), cwd.join("some/project"));
+        assert_eq!(teams_cache_root(Path::new(".")), cwd.join("."));
+        assert_eq!(teams_cache_root(&cwd), cwd);
+    }
+
+    // The team cache is process-wide, so tests that clear it must not interleave.
+    static TEAM_CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn test_find_file_owners_reuses_loaded_teams_until_cleared() {
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let write_team = |glob: &str| {
+            fs::create_dir_all(root.join("config/teams")).unwrap();
+            fs::write(
+                root.join("config/teams/payroll.yml"),
+                format!("name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - {glob}\n"),
+            )
+            .unwrap();
+        };
+        let owner_of = |file: &str| {
+            find_file_owners(root, &config, Path::new(file))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        write_team("app/payroll/**/*");
+        assert_eq!(owner_of("app/payroll/a.rb"), Some("Payroll".to_string()));
+
+        write_team("app/other/**/*");
+        assert_eq!(
+            owner_of("app/payroll/a.rb"),
+            Some("Payroll".to_string()),
+            "team files are loaded once per process"
+        );
+
+        clear_team_cache();
+        assert_eq!(owner_of("app/payroll/a.rb"), None);
+        assert_eq!(owner_of("app/other/a.rb"), Some("Payroll".to_string()));
+    }
+
+    #[test]
+    fn test_find_file_owners_shares_loaded_teams_across_threads() {
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path().to_path_buf();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let write_team = |glob: &str| {
+            fs::create_dir_all(root.join("config/teams")).unwrap();
+            fs::write(
+                root.join("config/teams/payroll.yml"),
+                format!("name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - {glob}\n"),
+            )
+            .unwrap();
+        };
+        let owner_of = |root: &Path, config: &crate::config::Config, file: &str| {
+            find_file_owners(root, config, Path::new(file))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        write_team("app/payroll/**/*");
+        assert_eq!(owner_of(&root, &config, "app/payroll/a.rb"), Some("Payroll".to_string()));
+        write_team("app/other/**/*");
+
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                assert_eq!(
+                    owner_of(&root, &config, "app/payroll/a.rb"),
+                    Some("Payroll".to_string()),
+                    "another thread reuses the teams loaded by the first"
+                );
+                clear_team_cache();
+            });
+        });
+
+        assert_eq!(
+            owner_of(&root, &config, "app/payroll/a.rb"),
+            None,
+            "a clear on another thread applies here too"
+        );
+    }
+
+    #[test]
+    fn test_clear_team_cache_during_a_load_is_not_undone_by_its_result() {
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let key: TeamCacheKey = (
+            PathBuf::from("/clear-during-load"),
+            vec!["config/teams/**/*.yml".to_string()],
+            NodeLimit::default(),
+        );
+        let loaded = || {
+            Arc::new(LoadedTeams {
+                teams: Vec::new(),
+                teams_by_name: HashMap::new(),
+            })
+        };
+
+        let generation = team_cache().generation;
+        clear_team_cache();
+        cache_teams(key.clone(), loaded(), generation);
+        assert!(
+            !team_cache().loaded.contains_key(&key),
+            "a load that started before the clear must not be cached"
+        );
+
+        let generation = team_cache().generation;
+        cache_teams(key.clone(), loaded(), generation);
+        assert!(team_cache().loaded.contains_key(&key));
+        clear_team_cache();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_find_file_owners_does_not_cache_a_load_with_an_unreadable_team_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let owner_of = |file: &str| {
+            find_file_owners(root, &config, Path::new(file))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        let teams_dir = root.join("config/teams");
+        let locked_dir = teams_dir.join("billing");
+        fs::create_dir_all(&locked_dir).unwrap();
+        fs::write(
+            teams_dir.join("payroll.yml"),
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - app/payroll/**/*\n",
+        )
+        .unwrap();
+        fs::write(
+            locked_dir.join("billing.yml"),
+            "name: Billing\ngithub:\n  team: '@BillingTeam'\nowned_globs:\n  - app/billing/**/*\n",
+        )
+        .unwrap();
+
+        fs::set_permissions(&locked_dir, fs::Permissions::from_mode(0o000)).unwrap();
+        // Permissions aren't enforced for root, so the directory can't be made unreadable there.
+        if fs::read_dir(&locked_dir).is_ok() {
+            fs::set_permissions(&locked_dir, fs::Permissions::from_mode(0o755)).unwrap();
+            return;
+        }
+        let payroll = owner_of("app/payroll/a.rb");
+        let billing_while_unreadable = owner_of("app/billing/a.rb");
+        fs::set_permissions(&locked_dir, fs::Permissions::from_mode(0o755)).unwrap();
+        let billing_once_readable = owner_of("app/billing/a.rb");
+
+        assert_eq!(payroll, Some("Payroll".to_string()));
+        assert_eq!(billing_while_unreadable, None);
+        assert_eq!(
+            billing_once_readable,
+            Some("Billing".to_string()),
+            "a team directory that becomes readable takes effect without clearing the cache"
+        );
+        clear_team_cache();
+    }
+
+    #[test]
+    fn test_find_file_owners_does_not_cache_a_load_that_skipped_a_team_file() {
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path();
+        let config = build_config_for_temp("frontend/**/*", "packs/**/*", "vendored");
+        let write_team_file = |file: &str, contents: &str| {
+            fs::create_dir_all(root.join("config/teams")).unwrap();
+            fs::write(root.join("config/teams").join(file), contents).unwrap();
+        };
+        let owner_of = |file: &str| {
+            find_file_owners(root, &config, Path::new(file))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        write_team_file(
+            "payroll.yml",
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - app/payroll/**/*\n",
+        );
+        write_team_file("billing.yml", "name: [unclosed\n");
+        assert_eq!(owner_of("app/payroll/a.rb"), Some("Payroll".to_string()));
+        assert_eq!(owner_of("app/billing/a.rb"), None);
+
+        write_team_file(
+            "billing.yml",
+            "name: Billing\ngithub:\n  team: '@BillingTeam'\nowned_globs:\n  - app/billing/**/*\n",
+        );
+        assert_eq!(
+            owner_of("app/billing/a.rb"),
+            Some("Billing".to_string()),
+            "fixing the team file takes effect without clearing the cache"
+        );
+
+        write_team_file(
+            "billing.yml",
+            "name: Billing\ngithub:\n  team: '@BillingTeam'\nowned_globs:\n  - app/other/**/*\n",
+        );
+        assert_eq!(
+            owner_of("app/billing/a.rb"),
+            Some("Billing".to_string()),
+            "once every team file loads, the teams are cached"
+        );
+    }
+
+    #[test]
+    fn test_team_cache_is_keyed_on_team_file_glob() {
+        let td = tempdir().unwrap();
+        let root = td.path();
+        for (dir, name) in [("a", "Payroll"), ("b", "Billing")] {
+            fs::create_dir_all(root.join("config/teams").join(dir)).unwrap();
+            fs::write(
+                root.join("config/teams").join(dir).join("team.yml"),
+                format!("name: {name}\ngithub:\n  team: '@{name}Team'\nowned_globs:\n  - app/**/*\n"),
+            )
+            .unwrap();
+        }
+        let config_with_team_glob = |team_glob: &str| crate::config::Config {
+            team_file_glob: vec![team_glob.to_string()],
+            ..build_config_for_temp("frontend/**/*", "packs/**/*", "vendored")
+        };
+        let config_a = config_with_team_glob("config/teams/a/*.yml");
+        let config_b = config_with_team_glob("config/teams/b/*.yml");
+        let owner_of = |config: &crate::config::Config| {
+            find_file_owners(root, config, Path::new("app/a.rb"))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        assert_eq!(owner_of(&config_a), Some("Payroll".to_string()));
+        assert_eq!(owner_of(&config_b), Some("Billing".to_string()));
+        assert_eq!(owner_of(&config_a), Some("Payroll".to_string()));
+    }
+
+    #[test]
+    fn test_team_cache_is_keyed_on_yaml_max_nodes() {
+        // A clear between the two lookups would hide a key that ignores the limit.
+        let _guard = TEAM_CACHE_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let td = tempdir().unwrap();
+        let root = td.path();
+        fs::create_dir_all(root.join("config/teams")).unwrap();
+        fs::write(
+            root.join("config/teams/payroll.yml"),
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\nowned_globs:\n  - app/**/*\n",
+        )
+        .unwrap();
+        let config_with_max_nodes = |yaml_max_nodes: usize| crate::config::Config {
+            yaml_max_nodes,
+            ..build_config_for_temp("frontend/**/*", "packs/**/*", "vendored")
+        };
+        let owner_of = |config: &crate::config::Config| {
+            find_file_owners(root, config, Path::new("app/a.rb"))
+                .unwrap()
+                .first()
+                .map(|owner| owner.team.name.clone())
+        };
+
+        assert_eq!(
+            owner_of(&config_with_max_nodes(crate::yaml::DEFAULT_MAX_NODES)),
+            Some("Payroll".to_string())
+        );
+        assert_eq!(owner_of(&config_with_max_nodes(3)), None, "a team file over the limit is skipped");
     }
 }

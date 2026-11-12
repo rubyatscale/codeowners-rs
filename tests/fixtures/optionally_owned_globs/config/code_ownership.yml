@@ -1,0 +1,5 @@
+---
+owned_globs:
+  - "{app,config}/**/*.rb"
+optionally_owned_globs:
+  - "app/deprecated/**/*"

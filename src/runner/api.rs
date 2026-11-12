@@ -6,6 +6,8 @@ use error_stack::Report;
 
 use super::{Error, ForFileResult, RunConfig, RunResult, run};
 
+pub use crate::ownership::file_owner_resolver::clear_team_cache;
+
 pub fn for_file(run_config: &RunConfig, file_path: &str, from_codeowners: bool, json: bool) -> RunResult {
     if from_codeowners {
         return for_file_codeowners_only_fast(run_config, file_path, json);
@@ -56,7 +58,7 @@ pub fn team_for_file(run_config: &RunConfig, file_path: &str) -> Result<Option<T
     Ok(owner.map(|fo| fo.team.clone()))
 }
 
-// For an array of file paths, return a map of file path to its owning team
+// For an array of file paths, return a map of each file path, as given, to its owning team
 pub fn teams_for_files_from_codeowners(
     run_config: &RunConfig,
     file_paths: &[String],
@@ -67,6 +69,7 @@ pub fn teams_for_files_from_codeowners(
         &run_config.project_root,
         &codeowners_file_path,
         &config.team_file_glob,
+        config.node_limit(&run_config.project_root),
         file_paths,
     )
     .map_err(Error::Io)?;

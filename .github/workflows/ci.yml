@@ -35,16 +35,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo check
         run: cargo check
+
+      - name: Collect the release archives' license notices
+        # The release jobs run only on main, so this catches a dependency change that breaks the
+        # script on its pull request rather than at release time.
+        run: dev/license-notices "$RUNNER_TEMP/licenses"
   test:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo test with backtrace
         run: cargo test -- --nocapture
@@ -57,7 +66,9 @@ jobs:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
@@ -84,8 +95,9 @@ jobs:
       changed: ${{ steps.check_for_version_changes.outputs.changed }}
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # https://stackoverflow.com/questions/65944700/how-to-run-git-diff-in-github-actions
           # TLDR – By default this action fetches no history.
           # We need a bit of history to be able to check if we've recently updated the version in Cargo.toml
@@ -117,13 +129,11 @@ jobs:
           if [[ "$(gh release view "$NEW_VERSION" --json isDraft --jq .isDraft 2>/dev/null)" == "true" ]]; then
             echo "Draft $NEW_VERSION already exists; reusing it."
           else
-            gh release create "$NEW_VERSION" --target "$COMMIT_SHA" --generate-notes --draft
+            gh release create "$NEW_VERSION" --target "$GITHUB_SHA" --generate-notes --draft
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_VERSION: ${{ steps.check_for_version_changes.outputs.new_version }}
-          COMMIT_SHA: ${{ github.sha }}
-
   upload-mac-universal-bin:
     needs: release
     runs-on: macos-latest
@@ -134,9 +144,11 @@ jobs:
       # resulting attestation.
       id-token: write
       attestations: write
-    if: needs.release.outputs.new_version != ''
+    if: ${{needs.release.outputs.new_version}}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build
         run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
 
@@ -159,11 +171,15 @@ jobs:
           codesign --force --sign - target/codeowners
           codesign --verify --verbose target/codeowners
 
-          # Creates artifact for homebrew. -C means run from `target` directory
+          # Notices that some dependencies' licenses require redistributions of the binary to carry
+          dev/license-notices target/licenses
+
+          # Creates artifact for homebrew. -C means run from `target` directory, which keeps the
+          # binary at the archive root, where dotslash-config.json looks for it.
           # NOTE: any mutation of the binary must happen BEFORE signing, and
           # any repackaging must happen BEFORE attestation, or the digest the
           # attestation covers will not match what users download.
-          tar -czf target/codeowners-mac.tar.gz -C target codeowners
+          tar -czf target/codeowners-mac.tar.gz -C target codeowners licenses
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -172,7 +188,7 @@ jobs:
 
       - name: Upload mac universal binary
         run: |
-          # This tarball is a binary that is executable.
+          # This tarball holds the executable binary and the license notices.
           # --clobber so re-running after a partial failure replaces the asset
           # instead of failing on "asset already exists".
           gh release upload "$NEW_VERSION" target/codeowners-mac.tar.gz --clobber
@@ -182,14 +198,16 @@ jobs:
 
   upload-linux-bin:
     needs: release
-    if: needs.release.outputs.new_version != ''
+    if: ${{needs.release.outputs.new_version}}
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Update local toolchain
         run: |
           # Pinned so a future cross release cannot change how release binaries
@@ -204,8 +222,12 @@ jobs:
           cross build --release --target aarch64-unknown-linux-gnu
       - name: Package linux binaries
         run: |
-          tar -czf target/x86_64-unknown-linux-gnu.tar.gz -C target/x86_64-unknown-linux-gnu/release codeowners
-          tar -czf target/aarch64-unknown-linux-gnu.tar.gz -C target/aarch64-unknown-linux-gnu/release codeowners
+          # Notices that some dependencies' licenses require redistributions of the binary to carry.
+          # Each -C keeps the binary at its archive's root, where dotslash-config.json looks for it.
+          dev/license-notices target/x86_64-unknown-linux-gnu/release/licenses
+          dev/license-notices target/aarch64-unknown-linux-gnu/release/licenses
+          tar -czf target/x86_64-unknown-linux-gnu.tar.gz -C target/x86_64-unknown-linux-gnu/release codeowners licenses
+          tar -czf target/aarch64-unknown-linux-gnu.tar.gz -C target/aarch64-unknown-linux-gnu/release codeowners licenses
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -230,13 +252,13 @@ jobs:
       - release
       - upload-linux-bin
       - upload-mac-universal-bin
-    if: needs.release.outputs.new_version != ''
+    if: success() && needs.release.outputs.new_version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - uses: facebook/dotslash-publish-release@2539c4d8ae00a42773306c8731d2dd3724d979d2 # v1
+      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         # This is necessary because the action uses
         # `gh release upload` to publish the generated DotSlash file(s)
         # as part of the release.
