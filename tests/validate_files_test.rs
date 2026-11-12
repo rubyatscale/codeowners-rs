@@ -6,6 +6,15 @@ mod common;
 
 use common::*;
 
+// valid_project has to validate cleanly, so it has no unowned file. A path that doesn't exist is also reported as unowned, so
+// naming one would test that instead.
+fn valid_project_with_unowned_file() -> tempfile::TempDir {
+    let temp_dir = setup_fixture_repo(std::path::Path::new("tests/fixtures/valid_project"));
+    std::fs::write(temp_dir.path().join("ruby/app/unowned.rb"), "class Unowned; end\n").expect("failed to write unowned file");
+    git_add_all_files(temp_dir.path());
+    temp_dir
+}
+
 #[test]
 fn test_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
     run_codeowners(
@@ -21,26 +30,22 @@ fn test_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
-    run_codeowners(
-        "valid_project",
-        &["validate", "ruby/app/unowned.rb"],
-        false,
-        OutputStream::Stdout,
-        predicate::str::contains("ruby/app/unowned.rb").and(predicate::str::contains("Unowned")),
-    )?;
+    let project = valid_project_with_unowned_file();
+
+    codeowners(project.path(), &["validate", "ruby/app/unowned.rb"])?
+        .failure()
+        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
 
     Ok(())
 }
 
 #[test]
 fn test_validate_with_mixed_files() -> Result<(), Box<dyn Error>> {
-    run_codeowners(
-        "valid_project",
-        &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"],
-        false,
-        OutputStream::Stdout,
-        predicate::str::contains("ruby/app/unowned.rb").and(predicate::str::contains("Unowned")),
-    )?;
+    let project = valid_project_with_unowned_file();
+
+    codeowners(project.path(), &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"])?
+        .failure()
+        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
 
     Ok(())
 }
@@ -79,10 +84,8 @@ fn test_generate_and_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
-    let fixture_root = std::path::Path::new("tests/fixtures/valid_project");
-    let temp_dir = setup_fixture_repo(fixture_root);
+    let temp_dir = valid_project_with_unowned_file();
     let project_root = temp_dir.path();
-    git_add_all_files(project_root);
 
     let codeowners_path = project_root.join("tmp/CODEOWNERS");
 
@@ -96,8 +99,7 @@ fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> 
         .arg("ruby/app/unowned.rb")
         .assert()
         .failure()
-        .stdout(predicate::str::contains("ruby/app/unowned.rb"))
-        .stdout(predicate::str::contains("Unowned"));
+        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
 
     Ok(())
 }
