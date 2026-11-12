@@ -20,13 +20,10 @@ env:
 permissions:
   contents: read
 
-# Two pushes to main in quick succession would otherwise be able to run two
-# `release` jobs concurrently, and a draft release is not protected by tag
-# uniqueness the way a published one is (see the release job below).
-# On main, queue rather than cancel -- cancelling mid-release would leave a
-# partial draft. Everywhere else, superseding an in-flight run is what you want.
+# On main, each commit gets its own group: a group holds only one pending run, so a shared one would let a later push
+# cancel a queued version bump, which would then never be released. Elsewhere a newer push cancels the older run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
