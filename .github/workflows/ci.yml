@@ -258,6 +258,18 @@ jobs:
       contents: write
 
     steps:
+      - name: Remove a DotSlash file left by an earlier attempt
+        run: |
+          # The action uploads without --clobber, so on a re-run its upload would fail, and the uploads above may have
+          # replaced the archives that the old file's digests describe.
+          assets=$(gh release view "$NEW_VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          if grep -qx codeowners <<<"$assets"; then
+            gh release delete-asset "$NEW_VERSION" codeowners --yes --repo "$GITHUB_REPOSITORY"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ needs.release.outputs.new_version }}
+
       - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         # This is necessary because the action uses
         # `gh release upload` to publish the generated DotSlash file(s)
