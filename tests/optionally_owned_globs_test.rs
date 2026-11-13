@@ -17,6 +17,10 @@ fn invalid_team(file: impl std::fmt::Display) -> String {
     format!("- {file} is referencing an invalid team - 'Typo'")
 }
 
+fn invalid_team_report(file: impl std::fmt::Display) -> String {
+    format!("\nFound invalid team references\n{}\n\n", invalid_team(file))
+}
+
 #[test]
 fn test_validate_passes_with_unowned_files_in_optionally_owned_globs() -> Result<(), Box<dyn Error>> {
     // The fixture's CODEOWNERS lists `app/deprecated/annotated_old.rb`, so if annotations in optionally owned globs stop
@@ -208,10 +212,7 @@ fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_a
             &[command, "app/deprecated/typo.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("app/deprecated/typo.rb")
-        )));
+        .stdout(predicate::eq(invalid_team_report("app/deprecated/typo.rb")));
     }
     Ok(())
 }
@@ -260,10 +261,7 @@ fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_a
             &[command, "app/deprecated/../deprecated/typo.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("app/deprecated/../deprecated/typo.rb")
-        )));
+        .stdout(predicate::eq(invalid_team_report("app/deprecated/../deprecated/typo.rb")));
     }
     Ok(())
 }
@@ -277,10 +275,7 @@ fn test_validate_files_reports_an_optionally_owned_file_whose_annotation_names_a
     let file = link.join("app/deprecated/typo.rb");
     codeowners(temp_dir.path(), &[OsStr::new("validate"), file.as_os_str()])?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team(file.display())
-        )));
+        .stdout(predicate::eq(invalid_team_report(file.display())));
     Ok(())
 }
 
@@ -397,10 +392,7 @@ fn test_validate_files_reports_an_optionally_owned_file_in_a_package_naming_an_u
         for command in ["validate", "gv"] {
             run_on_modified_fixture(add_package, &[command, file])?
                 .failure()
-                .stdout(predicate::eq(format!(
-                    "\nFound invalid team references\n{}\n\n",
-                    invalid_team(package)
-                )));
+                .stdout(predicate::eq(invalid_team_report(package)));
         }
     }
     Ok(())
@@ -455,10 +447,7 @@ fn test_validate_files_reports_an_optionally_owned_file_in_a_bracketed_package_n
             &[command, "packs/[typo]/app/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("packs/[typo]/package.yml")
-        )));
+        .stdout(predicate::eq(invalid_team_report("packs/[typo]/package.yml")));
     }
     Ok(())
 }
@@ -497,10 +486,7 @@ fn test_validate_files_reports_an_optionally_owned_file_in_a_braced_package_nami
             &[command, "packs/{typo}/app/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("packs/{typo}/package.yml")
-        )));
+        .stdout(predicate::eq(invalid_team_report("packs/{typo}/package.yml")));
     }
     Ok(())
 }
@@ -517,10 +503,7 @@ fn test_validate_files_reports_an_optionally_owned_file_under_a_codeowner_naming
             &[command, "app/deprecated/old.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("app/deprecated/.codeowner")
-        )));
+        .stdout(predicate::eq(invalid_team_report("app/deprecated/.codeowner")));
     }
     Ok(())
 }
@@ -562,10 +545,7 @@ fn test_validate_files_reports_an_optionally_owned_file_under_a_codeowner_at_the
             &[command, "app/deprecated/old.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team(".codeowner")
-        )));
+        .stdout(predicate::eq(invalid_team_report(".codeowner")));
     }
     Ok(())
 }
@@ -587,10 +567,7 @@ fn test_validate_files_reports_an_optionally_owned_file_under_a_braced_codeowner
             &[command, "app/deprecated/{legacy}/thing.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("app/deprecated/{legacy}/.codeowner")
-        )));
+        .stdout(predicate::eq(invalid_team_report("app/deprecated/{legacy}/.codeowner")));
         run_on_modified_fixture(
             add_a_braced_codeowner_file_naming_an_unknown_team_in_an_optionally_owned_glob,
             &[command, "app/deprecated/legacy/thing.rb", "app/deprecated/old.rb"],
@@ -780,10 +757,7 @@ fn test_validate_files_leaves_out_files_in_both_globs() -> Result<(), Box<dyn Er
             &[command, "app/deprecated/old.rb"],
         )?
         .failure()
-        .stdout(predicate::eq(format!(
-            "\nFound invalid team references\n{}\n\n",
-            invalid_team("app/deprecated/.codeowner")
-        )));
+        .stdout(predicate::eq(invalid_team_report("app/deprecated/.codeowner")));
     }
     Ok(())
 }
