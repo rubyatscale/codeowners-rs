@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -23,6 +23,20 @@ pub(crate) fn find_tracked_files(base_path: &Path) -> Option<HashMap<PathBuf, bo
         .collect::<Option<HashMap<PathBuf, bool>>>()?;
 
     Some(results)
+}
+
+/// Every directory that holds a tracked file, relative to `base_path`. The root is the empty path, and is always included.
+pub(crate) fn tracked_directories(base_path: &Path, tracked_files: &HashMap<PathBuf, bool>) -> HashSet<PathBuf> {
+    let mut directories = HashSet::from([PathBuf::new()]);
+    for relative_file in tracked_files.keys().filter_map(|file| file.strip_prefix(base_path).ok()) {
+        for directory in relative_file.ancestors().skip(1) {
+            // Its ancestors were added along with it.
+            if !directories.insert(directory.to_path_buf()) {
+                break;
+            }
+        }
+    }
+    directories
 }
 
 #[cfg(test)]
@@ -86,5 +100,23 @@ mod tests {
         assert_eq!(tracked.len(), 1);
         assert!(tracked.get(&tracked_file).unwrap());
         assert!(!tracked.contains_key(&backend_dir.join("backend/app/models/foo.rb")));
+    }
+
+    #[test]
+    fn test_tracked_directories() {
+        let base_path = Path::new("/project");
+        let tracked: HashMap<PathBuf, bool> = ["app/models/user.rb", "app/models/concerns/named.rb", "app/README.md", "Gemfile"]
+            .iter()
+            .map(|file| (base_path.join(file), true))
+            .collect();
+
+        let expected: HashSet<PathBuf> = ["", "app", "app/models", "app/models/concerns"].iter().map(PathBuf::from).collect();
+        assert_eq!(tracked_directories(base_path, &tracked), expected);
+    }
+
+    #[test]
+    fn test_tracked_directories_always_include_the_root() {
+        let expected: HashSet<PathBuf> = HashSet::from([PathBuf::new()]);
+        assert_eq!(tracked_directories(Path::new("/project"), &HashMap::new()), expected);
     }
 }

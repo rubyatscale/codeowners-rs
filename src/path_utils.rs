@@ -64,9 +64,30 @@ pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
     }
 }
 
+/// The leading components of `glob` with no glob syntax in them. Every path the glob can match is under this one.
+pub(crate) fn literal_glob_prefix(glob: &str) -> PathBuf {
+    Path::new(glob)
+        .components()
+        .take_while(|component| !component.as_os_str().to_string_lossy().contains(['*', '?', '[', '{', '\\', '!']))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_literal_glob_prefix() {
+        for (glob, prefix) in [
+            ("config/teams/**/*.yml", "config/teams"),
+            ("config/teams/*.yml", "config/teams"),
+            ("config/{teams,groups}/*.yml", "config"),
+            ("**/teams/*.yml", ""),
+            ("config/teams/payroll.yml", "config/teams/payroll.yml"),
+        ] {
+            assert_eq!(literal_glob_prefix(glob), PathBuf::from(prefix), "{glob}");
+        }
+    }
 
     const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
 
