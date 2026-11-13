@@ -41,9 +41,8 @@ enum Command {
     Validate {
         #[arg(
             help = "Optional list of files to validate ownership for (fast mode for git hooks). Checks just these \
-                   files, and the packages that contain them. Doesn't check whether the CODEOWNERS file is up to \
-                   date, which is a property of the whole file: run without files, or use generate-and-validate, \
-                   for that."
+                   files, the packages and `.codeowner` files whose directories contain them, and that the \
+                   CODEOWNERS file gives each file its owner."
         )]
         files: Vec<String>,
     },
@@ -53,8 +52,9 @@ enum Command {
         #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
         #[arg(
-            help = "Optional list of files to validate ownership for (fast mode for git hooks). Checks just these \
-                   files, and the packages that contain them, after regenerating the CODEOWNERS file."
+            help = "Optional list of files to validate ownership for (fast mode for git hooks). Regenerates the \
+                   CODEOWNERS file, then checks just these files and the packages and `.codeowner` files whose \
+                   directories contain them."
         )]
         files: Vec<String>,
     },

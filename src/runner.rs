@@ -125,7 +125,7 @@ impl Runner {
         if file_paths.is_empty() {
             self.validate_all()
         } else {
-            self.validate_files(file_paths)
+            self.validate_files(file_paths, false)
         }
     }
 
@@ -143,8 +143,9 @@ impl Runner {
     }
 
     // Resolves ownership through the mappers, as `validate_all` does, rather than by reading CODEOWNERS back, which picks one
-    // owner for a file owned two ways and can't tell a typo'd team name from no owner.
-    fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
+    // owner for a file owned two ways and can't tell a typo'd team name from no owner. CODEOWNERS is read only to check that
+    // it gives each file that owner, which `gv` has just made so.
+    fn validate_files(&self, file_paths: Vec<String>, codeowners_generated: bool) -> RunResult {
         let project_root = &self.run_config.project_root;
         let supplied: Vec<SuppliedPath> = file_paths
             .into_iter()
@@ -175,7 +176,28 @@ impl Runner {
             return RunResult::default();
         }
 
-        debug_span!("per_file_query").in_scope(|| match self.ownership.validate_files(&owned, &selectors) {
+        let listed = if codeowners_generated {
+            None
+        } else {
+            let given: Vec<String> = owned.iter().map(|supplied| supplied.given.clone()).collect();
+            match crate::ownership::codeowners_query::teams_for_files_from_codeowners(
+                project_root,
+                &self.codeowners_file_path,
+                &self.config.team_file_glob,
+                self.config.node_limit(project_root),
+                &given,
+            ) {
+                Ok(listed) => Some(listed),
+                Err(err) => {
+                    return RunResult {
+                        io_errors: vec![err],
+                        ..Default::default()
+                    };
+                }
+            }
+        };
+
+        debug_span!("per_file_query").in_scope(|| match self.ownership.validate_files(&owned, &selectors, listed.as_ref()) {
             Ok(_) => RunResult::default(),
             Err(err) => RunResult {
                 validation_errors: vec![format!("{}", err)],
@@ -211,7 +233,7 @@ impl Runner {
         if file_paths.is_empty() {
             self.validate_all()
         } else {
-            self.validate_files(file_paths)
+            self.validate_files(file_paths, true)
         }
     }
 

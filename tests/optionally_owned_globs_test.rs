@@ -9,18 +9,6 @@ use common::{OutputStream, codeowners, git_add_all_files, run_codeowners, setup_
 
 const FIXTURE: &str = "optionally_owned_globs";
 
-// `validate` suggests running the default executable_name, but `gv` has just written CODEOWNERS, so it doesn't.
-fn unlisted_owner_heading(command: &str) -> &'static str {
-    if command == "gv" {
-        "Files matching optionally_owned_globs name an owner that CODEOWNERS doesn't list. \
-         Check the team name in each one's annotation, `.codeowner` or package:"
-    } else {
-        "Files matching optionally_owned_globs name an owner that CODEOWNERS doesn't list. \
-         Check the team name in each one's annotation, `.codeowner` or package, \
-         or run `codeowners generate` to update the CODEOWNERS file:"
-    }
-}
-
 type FixtureChange = fn(&Path) -> std::io::Result<()>;
 
 // A list of files is checked for invalid teams in the annotations, packages and `.codeowner` files that apply to it, as in
@@ -683,7 +671,6 @@ fn add_a_javascript_package_without_regenerating_codeowners(project_root: &Path)
 }
 
 #[test]
-#[ignore = "needs a per-path staleness check"]
 fn test_validate_files_reports_an_optionally_owned_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
     // `validate`, not `gv`, which would add each file to CODEOWNERS.
     let owners: [(FixtureChange, &str); 5] = [
@@ -702,8 +689,10 @@ fn test_validate_files_reports_an_optionally_owned_file_missing_from_codeowners(
     for (add_owner, file) in owners {
         run_on_modified_fixture(add_owner, &["validate", file])?
             .failure()
-            .stdout(predicate::str::contains(unlisted_owner_heading("validate")))
-            .stdout(predicate::str::contains(file));
+            .stdout(predicate::eq(format!(
+                "\nCODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file\n\
+                 - {file} is owned by Foo, but CODEOWNERS doesn't list it\n\n"
+            )));
     }
     Ok(())
 }
@@ -724,7 +713,6 @@ fn annotate_the_unowned_file_and_name_an_executable(project_root: &Path) -> std:
 }
 
 #[test]
-#[ignore = "needs a per-path staleness check"]
 fn test_validate_files_suggests_the_configured_executable_for_an_optionally_owned_file_missing_from_codeowners()
 -> Result<(), Box<dyn Error>> {
     run_on_modified_fixture(
@@ -733,7 +721,7 @@ fn test_validate_files_suggests_the_configured_executable_for_an_optionally_owne
     )?
     .failure()
     .stdout(predicate::str::contains(
-        "run `bin/codeownership validate` to update the CODEOWNERS file:\n  app/deprecated/old.rb\n",
+        "Run `bin/codeownership validate` to update the CODEOWNERS file\n- app/deprecated/old.rb is owned by Foo",
     ));
     Ok(())
 }

@@ -2,6 +2,7 @@ use file_owner_finder::FileOwnerFinder;
 use itertools::Itertools;
 use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
+    collections::HashMap,
     error::Error,
     fmt::{self, Display},
     path::{Path, PathBuf},
@@ -132,7 +133,12 @@ impl Ownership {
     }
 
     #[instrument(name = "ownership_validate_files", level = "debug", skip_all)]
-    pub(crate) fn validate_files(&self, supplied: &[SuppliedPath], selectors: &[PathBuf]) -> Result<(), ValidatorErrors> {
+    pub(crate) fn validate_files(
+        &self,
+        supplied: &[SuppliedPath],
+        selectors: &[PathBuf],
+        listed: Option<&HashMap<String, Option<Team>>>,
+    ) -> Result<(), ValidatorErrors> {
         info!("validating file ownership for {} supplied paths", supplied.len());
         let validator = Validator {
             project: self.project.clone(),
@@ -140,7 +146,7 @@ impl Ownership {
             executable_name: self.project.executable_name.clone(),
         };
 
-        validator.validate_files(supplied, selectors)
+        validator.validate_files(supplied, selectors, listed)
     }
 
     #[instrument(level = "debug", skip_all)]

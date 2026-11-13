@@ -1,5 +1,5 @@
 use crate::path_utils::matches_globs;
-use crate::project::{Package, Project, ProjectFile};
+use crate::project::{Package, Project, ProjectFile, Team};
 use core::fmt;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -69,6 +69,13 @@ enum Error {
         executable_name: String,
         diff: String,
     },
+    /// A supplied file whose one owner CODEOWNERS doesn't give it, the part of a stale CODEOWNERS a scoped run can see.
+    FileOwnerNotInCodeownersFile {
+        executable_name: String,
+        path: PathBuf,
+        owner: TeamName,
+        listed: Option<TeamName>,
+    },
 }
 
 #[derive(Debug)]
@@ -99,7 +106,7 @@ impl Validator {
         validation_errors.append(&mut self.invalid_directory_ownership(None));
 
         debug!("validate_file_ownership");
-        validation_errors.append(&mut self.validate_file_ownership(&queries));
+        validation_errors.append(&mut self.validate_file_ownership(self.path_to_owners(&queries)));
 
         debug!("validate_codeowners_file");
         validation_errors.append(&mut self.validate_codeowners_file(file_generator));
@@ -118,9 +125,15 @@ impl Validator {
     /// A package or `.codeowner` is checked if its directory contains one of `selectors`, which can include paths outside
     /// `owned_globs` such as the `package.yml` or `.codeowner` itself, so that one bad one elsewhere doesn't fail every scoped
     /// run. The staleness check compares the
-    /// whole file and can't be scoped.
+    /// whole file and can't be scoped, so instead each supplied file with one owner is checked against `listed`, the team
+    /// CODEOWNERS gives each path as given. Pass `None` when CODEOWNERS has just been generated.
     #[instrument(name = "validator_validate_scoped", level = "debug", skip_all)]
-    pub fn validate_files(&self, supplied: &[SuppliedPath], selectors: &[PathBuf]) -> Result<(), Errors> {
+    pub fn validate_files(
+        &self,
+        supplied: &[SuppliedPath],
+        selectors: &[PathBuf],
+        listed: Option<&HashMap<String, Option<Team>>>,
+    ) -> Result<(), Errors> {
         let supplied: Vec<&SuppliedPath> = supplied.iter().unique_by(|supplied| &supplied.given).collect();
         let in_project: HashSet<&Path> = supplied
             .iter()
@@ -161,13 +174,44 @@ impl Validator {
         validation_errors.append(&mut self.invalid_directory_ownership(Some(selectors)));
 
         debug!("validate_file_ownership");
-        validation_errors.append(&mut self.validate_file_ownership(&queries));
+        let owners = self.path_to_owners(&queries);
+        if let Some(listed) = listed {
+            validation_errors.append(&mut self.owners_not_in_codeowners_file(&owners, listed));
+        }
+        validation_errors.append(&mut self.validate_file_ownership(owners));
 
         if validation_errors.is_empty() {
             Ok(())
         } else {
             Err(Errors(validation_errors))
         }
+    }
+
+    // A file with no owner or more than one is already reported, and so is a team that doesn't exist.
+    fn owners_not_in_codeowners_file(
+        &self,
+        owners: &[(&OwnershipQuery, Vec<Owner>)],
+        listed: &HashMap<String, Option<Team>>,
+    ) -> Vec<Error> {
+        owners
+            .iter()
+            .filter_map(|(query, owners)| {
+                let [owner] = owners.as_slice() else {
+                    return None;
+                };
+                let team = self.project.teams_by_name.get(&owner.team_name)?;
+                let listed = listed
+                    .get(query.shown_as.to_string_lossy().as_ref())
+                    .and_then(|listed| listed.as_ref())
+                    .map(|listed| listed.name.clone());
+                (listed.as_ref() != Some(&team.name)).then(|| Error::FileOwnerNotInCodeownersFile {
+                    executable_name: self.executable_name.clone(),
+                    path: query.shown_as.to_path_buf(),
+                    owner: team.name.clone(),
+                    listed,
+                })
+            })
+            .collect()
     }
 
     // `starts_with` compares whole components, so `packs/foo` doesn't contain `packs/foobar`. A package at the root has an
@@ -270,10 +314,10 @@ impl Validator {
     }
 
     #[instrument(name = "validate_file_ownership", level = "debug", skip_all)]
-    fn validate_file_ownership(&self, queries: &[OwnershipQuery]) -> Vec<Error> {
+    fn validate_file_ownership(&self, owners: Vec<(&OwnershipQuery, Vec<Owner>)>) -> Vec<Error> {
         let optionally_owned_globs = &self.project.optionally_owned_globs;
 
-        self.path_to_owners(queries)
+        owners
             .into_par_iter()
             .filter_map(|(query, owners)| {
                 if owners.is_empty() {
@@ -352,7 +396,8 @@ impl Error {
         match self {
                 Error::FileWithoutOwner { path: _ } => "Some files are missing ownership".to_owned(),
                 Error::FileWithMultipleOwners { path: _, owners: _ } => "Code ownership should only be defined for each file in one way. The following files have declared ownership in multiple ways".to_owned(),
-                Error::CodeownershipFileIsStale { executable_name, diff: _ } => {
+                Error::CodeownershipFileIsStale { executable_name, diff: _ }
+                | Error::FileOwnerNotInCodeownersFile { executable_name, .. } => {
                     format!("CODEOWNERS out of date. Run `{}` to update the CODEOWNERS file", executable_name)
                 }
                 Error::InvalidTeam { name: _, path: _ } => "Found invalid team references".to_owned(),
@@ -381,6 +426,15 @@ impl Error {
             // surfaced separately as an informational message (see `Errors::info_messages`)
             // so that a long diff doesn't bury the actionable headline.
             Error::CodeownershipFileIsStale { .. } => vec![],
+            Error::FileOwnerNotInCodeownersFile { path, owner, listed, .. } => vec![match listed {
+                Some(listed) => format!(
+                    "- {} is owned by {}, but CODEOWNERS gives it to {}",
+                    path.to_string_lossy(),
+                    owner,
+                    listed
+                ),
+                None => format!("- {} is owned by {}, but CODEOWNERS doesn't list it", path.to_string_lossy(), owner),
+            }],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
             Error::InvalidDirectoryTeam { name, path, inherits_from } => {
                 // `owner` is `content.trim()`, so an empty or whitespace-only file yields "".
@@ -526,7 +580,7 @@ mod tests {
     fn validate_files_reports_only_the_supplied_files() {
         let validator = validator(&["ruby/a.rb", "ruby/b.rb"], &[], &[], &[]);
 
-        let report = report(validator.validate_files(&supplied(&["ruby/a.rb"]), &selectors(&["ruby/a.rb"])));
+        let report = report(validator.validate_files(&supplied(&["ruby/a.rb"]), &selectors(&["ruby/a.rb"]), None));
 
         assert!(report.contains("ruby/a.rb"), "{report}");
         assert!(!report.contains("ruby/b.rb"), "{report}");
@@ -537,7 +591,7 @@ mod tests {
         let validator = validator(&[], &[], &[], &[]);
 
         let errors = validator
-            .validate_files(&supplied(&["ruby/ghost.rb", "ruby/ghost.rb"]), &selectors(&["ruby/ghost.rb"]))
+            .validate_files(&supplied(&["ruby/ghost.rb", "ruby/ghost.rb"]), &selectors(&["ruby/ghost.rb"]), None)
             .expect_err("an unowned path is an error");
 
         assert_eq!(errors.0.len(), 1, "{errors:?}");
@@ -552,7 +606,7 @@ mod tests {
             &["Payroll"],
         );
 
-        assert_eq!(report(validator.validate_files(&[], &selectors(&["ruby/app/a.rb"]))), "");
+        assert_eq!(report(validator.validate_files(&[], &selectors(&["ruby/app/a.rb"]), None)), "");
     }
 
     #[test]
@@ -564,7 +618,7 @@ mod tests {
             &["Payroll"],
         );
 
-        let report = report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/app/a.rb"])));
+        let report = report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/app/a.rb"]), None));
 
         assert!(report.contains("ruby/packages/foo/package.yml"), "{report}");
         assert!(report.contains("ruby/packages/foo/app/.codeowner"), "{report}");
@@ -580,7 +634,7 @@ mod tests {
             &["Payroll"],
         );
 
-        let report = report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/package.yml", "ruby/legacy/.codeowner"])));
+        let report = report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/package.yml", "ruby/legacy/.codeowner"]), None));
 
         assert!(report.contains("ruby/packages/foo/package.yml"), "{report}");
         assert!(report.contains("ruby/legacy/.codeowner"), "{report}");
@@ -597,7 +651,7 @@ mod tests {
         );
 
         assert_eq!(
-            report(validator.validate_files(&[], &selectors(&["ruby/packages/foobar/a.rb", "ruby/legacy2/a.rb"]))),
+            report(validator.validate_files(&[], &selectors(&["ruby/packages/foobar/a.rb", "ruby/legacy2/a.rb"]), None)),
             ""
         );
     }
@@ -606,7 +660,7 @@ mod tests {
     fn validate_files_selects_a_package_or_codeowner_at_the_project_root() {
         let validator = validator(&[], &[("package.yml", "NoSuchTeam")], &[(".codeowner", "NoSuchTeam")], &["Payroll"]);
 
-        let report = report(validator.validate_files(&[], &selectors(&["ruby/app/anything.rb"])));
+        let report = report(validator.validate_files(&[], &selectors(&["ruby/app/anything.rb"]), None));
 
         assert!(report.contains("- package.yml"), "{report}");
         assert!(report.contains("- .codeowner"), "{report}");
@@ -621,7 +675,10 @@ mod tests {
             &["Payroll"],
         );
 
-        assert_eq!(report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/a.rb"]))), "");
+        assert_eq!(
+            report(validator.validate_files(&[], &selectors(&["ruby/packages/foo/a.rb"]), None)),
+            ""
+        );
     }
 
     #[test]

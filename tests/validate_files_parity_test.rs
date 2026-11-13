@@ -169,6 +169,18 @@ fn test_gv_with_every_path_matches_gv_with_no_paths() -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+// The fixture's CODEOWNERS is empty, so a scoped `validate` also reports each file it checks as missing from it.
+fn generate_codeowners(project_root: &std::path::Path) {
+    Command::cargo_bin("codeowners")
+        .expect("codeowners binary")
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .arg("generate")
+        .assert()
+        .success();
+}
+
 /// Rewrite the fixture's one package manifest to name a team that does not exist, and
 /// return the repo. Used by the package-scoping tests below.
 fn fixture_with_an_invalid_package_owner() -> (tempfile::TempDir, std::path::PathBuf) {
@@ -185,6 +197,7 @@ fn fixture_with_an_invalid_package_owner() -> (tempfile::TempDir, std::path::Pat
     std::fs::write(&inside, "# inside the badly-owned package\n").expect("failed to write file");
 
     git_add_all_files(&project_root);
+    generate_codeowners(&project_root);
     (temp_dir, project_root)
 }
 
@@ -287,6 +300,7 @@ fn test_validate_attributes_an_untracked_file_through_the_mappers() -> Result<()
     let temp_dir = setup_fixture_repo(std::path::Path::new(FIXTURE));
     let project_root = temp_dir.path();
     git_add_all_files(project_root);
+    generate_codeowners(project_root);
 
     // `ruby/app/services/.codeowner` names Payroll. Written after `git add`, so untracked.
     let untracked = project_root.join("ruby/app/services/brand_new.rb");
@@ -326,6 +340,38 @@ fn test_validate_still_reports_an_untracked_file_with_no_owner() -> Result<(), B
         .assert()
         .failure()
         .stdout(predicate::str::contains("orphan_new.rb").and(predicate::str::contains("missing ownership")));
+
+    Ok(())
+}
+
+#[test]
+fn test_validate_with_every_path_finds_no_stale_codeowners_line_after_generating() -> Result<(), Box<dyn Error>> {
+    // Whatever else is wrong in a fixture, a CODEOWNERS file just generated is up to date, so checking each file against it
+    // must not call it stale.
+    for fixture in std::fs::read_dir("tests/fixtures")? {
+        let fixture = fixture?.path();
+        // missing_github_team's project can't be built, which missing_github_team_test.rs covers.
+        if !fixture.join("config/code_ownership.yml").exists() || fixture.ends_with("missing_github_team") {
+            continue;
+        }
+        let temp_dir = setup_fixture_repo(&fixture);
+        let project_root = temp_dir.path();
+        git_add_all_files(project_root);
+        generate_codeowners(project_root);
+
+        let tracked = Command::new("git").arg("ls-files").current_dir(project_root).output()?;
+        let files: Vec<String> = String::from_utf8(tracked.stdout)?.lines().map(str::to_string).collect();
+        let output = Command::cargo_bin("codeowners")?
+            .arg("--project-root")
+            .arg(project_root)
+            .arg("--no-cache")
+            .arg("validate")
+            .args(&files)
+            .output()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("CODEOWNERS out of date"), "{}:\n{stdout}", fixture.display());
+    }
 
     Ok(())
 }
