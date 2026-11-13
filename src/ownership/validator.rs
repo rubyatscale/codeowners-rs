@@ -124,9 +124,8 @@ impl Validator {
     ///
     /// A package or `.codeowner` is checked if its directory contains one of `selectors`, which can include paths outside
     /// `owned_globs` such as the `package.yml` or `.codeowner` itself, so that one bad one elsewhere doesn't fail every scoped
-    /// run. The staleness check compares the
-    /// whole file and can't be scoped, so instead each supplied file with one owner is checked against `listed`, the team
-    /// CODEOWNERS gives each path as given. Pass `None` when CODEOWNERS has just been generated.
+    /// run. The staleness check compares the whole file and can't be scoped, so instead each supplied file with one owner is
+    /// checked against `listed`, the team CODEOWNERS gives each path as given. Pass `None` when CODEOWNERS was just generated.
     #[instrument(name = "validator_validate_scoped", level = "debug", skip_all)]
     pub fn validate_files(
         &self,

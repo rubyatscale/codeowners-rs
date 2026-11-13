@@ -157,7 +157,8 @@ impl Runner {
             })
             .collect();
 
-        // Any path in the project selects the packages containing it, including a `package.yml` that owned_globs leaves out.
+        // Any path in the project selects the packages and `.codeowner` files whose directories contain it, even one that
+        // owned_globs leaves out, such as a `package.yml`.
         let selectors: Vec<PathBuf> = supplied
             .iter()
             .filter(|supplied| supplied.in_project)
