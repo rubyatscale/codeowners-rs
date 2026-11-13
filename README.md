@@ -43,7 +43,10 @@ You can run `codeowners` without installing a platform-specific binary by using 
 
 ### Option A: DotSlash (recommended)
 
-1. Install DotSlash: see [https://dotslash-cli.com/docs/installation/](https://dotslash-cli.com/docs/installation/)
+1. Install DotSlash: see [https://dotslash-cli.com/docs/installation/](https://dotslash-cli.com/docs/installation/).
+   DotSlash files from releases after v0.6.0 fetch the binary by running
+   `gh release download`, so the [GitHub CLI](https://cli.github.com/) must be on your
+   `PATH` as well.
 2. Download the `codeowners` DotSlash text file from the release you want to pin
    to: [https://github.com/rubyatscale/codeowners-rs/releases](https://github.com/rubyatscale/codeowners-rs/releases)
 3. **Commit that file into your repository** (for example at `bin/codeowners`) and
@@ -90,13 +93,12 @@ gh attestation verify codeowners-mac.tar.gz \
   --signer-workflow rubyatscale/codeowners-rs/.github/workflows/ci.yml
 ```
 
-Attestation was added to the release pipeline after v0.3.4, so releases up to and
-including v0.3.4 have none — `gh attestation verify` reports "no matching
-attestations found" for them. That is expected for those versions and is not
-evidence of tampering.
+Releases up to and including v0.6.0 were published before attestation was added, so
+`gh attestation verify` reports "no matching attestations found" for them. That is
+expected for those versions and is not evidence of tampering.
 
-Note that macOS binaries are ad-hoc (linker) signed only — they are not signed with
-an Apple Developer ID and are not notarized. Ad-hoc signing satisfies Apple
+Note that macOS binaries are ad-hoc signed only. They are not signed with an Apple
+Developer ID and are not notarized. Ad-hoc signing satisfies Apple
 silicon's requirement that all code be signed, but it does not satisfy Gatekeeper.
 
 Whether that matters depends on how you fetch the binary. DotSlash and `curl` do not
