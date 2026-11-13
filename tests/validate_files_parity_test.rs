@@ -150,14 +150,7 @@ fn test_gv_with_every_path_matches_gv_with_no_paths() -> Result<(), Box<dyn Erro
 
 // The fixture's CODEOWNERS is empty, so a scoped `validate` also reports each file it checks as missing from it.
 fn generate_codeowners(project_root: &std::path::Path) {
-    Command::cargo_bin("codeowners")
-        .expect("codeowners binary")
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .arg("generate")
-        .assert()
-        .success();
+    codeowners(project_root, &["generate"]).expect("codeowners binary").success();
 }
 
 /// Rewrite the fixture's one package manifest to name a team that does not exist, and
