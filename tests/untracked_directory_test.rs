@@ -41,6 +41,30 @@ fn test_generate_leaves_out_a_vendored_gem_with_no_tracked_files() -> Result<(),
     Ok(())
 }
 
+/// `git ls-files` lists a submodule as one path, without its contents, so a vendored gem that's a submodule is tracked too.
+#[test]
+fn test_generate_keeps_a_vendored_gem_that_is_a_submodule() -> Result<(), Box<dyn Error>> {
+    let temp_dir = setup_fixture_repo(Path::new(FIXTURE));
+    let project_root = temp_dir.path();
+    git_add_all_files(project_root);
+    for args in [
+        vec!["rm", "-r", "-q", "--cached", "gems/pets"],
+        vec![
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "160000,0123456789abcdef0123456789abcdef01234567,gems/pets",
+        ],
+    ] {
+        let output = Command::new("git").args(&args).current_dir(project_root).output()?;
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    let codeowners = generate(project_root)?;
+    assert!(codeowners.contains("/gems/pets/**/** @UX"), "{codeowners}");
+    Ok(())
+}
+
 /// Team files count before they're tracked (rubyatscale/code_ownership#149), so the walk still enters an untracked directory
 /// that the team file glob can match in.
 #[test]

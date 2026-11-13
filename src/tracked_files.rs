@@ -25,11 +25,12 @@ pub(crate) fn find_tracked_files(base_path: &Path) -> Option<HashMap<PathBuf, bo
     Some(results)
 }
 
-/// Every directory that holds a tracked file, relative to `base_path`. The root is the empty path, and is always included.
+/// Every tracked path and every directory above one, relative to `base_path`. A tracked path is itself a directory when it's a
+/// submodule, which `git ls-files` lists without its contents. The root is the empty path, and is always included.
 pub(crate) fn tracked_directories(base_path: &Path, tracked_files: &HashMap<PathBuf, bool>) -> HashSet<PathBuf> {
     let mut directories = HashSet::from([PathBuf::new()]);
     for relative_file in tracked_files.keys().filter_map(|file| file.strip_prefix(base_path).ok()) {
-        for directory in relative_file.ancestors().skip(1) {
+        for directory in relative_file.ancestors() {
             // Its ancestors were added along with it.
             if !directories.insert(directory.to_path_buf()) {
                 break;
@@ -105,13 +106,16 @@ mod tests {
     #[test]
     fn test_tracked_directories() {
         let base_path = Path::new("/project");
-        let tracked: HashMap<PathBuf, bool> = ["app/models/user.rb", "app/models/concerns/named.rb", "app/README.md", "Gemfile"]
+        let tracked: HashMap<PathBuf, bool> = ["app/models/user.rb", "app/models/concerns/named.rb", "vendored/submodule_gem"]
             .iter()
             .map(|file| (base_path.join(file), true))
             .collect();
 
-        let expected: HashSet<PathBuf> = ["", "app", "app/models", "app/models/concerns"].iter().map(PathBuf::from).collect();
-        assert_eq!(tracked_directories(base_path, &tracked), expected);
+        let directories = tracked_directories(base_path, &tracked);
+        for directory in ["", "app", "app/models", "app/models/concerns", "vendored", "vendored/submodule_gem"] {
+            assert!(directories.contains(Path::new(directory)), "{directory}");
+        }
+        assert!(!directories.contains(Path::new("app/assets")));
     }
 
     #[test]
