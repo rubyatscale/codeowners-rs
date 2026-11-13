@@ -158,7 +158,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Build
-        run: cargo build --release --target aarch64-apple-darwin --target x86_64-apple-darwin
+        run: cargo build --release --locked --target aarch64-apple-darwin --target x86_64-apple-darwin
 
       - name: Create universal binary
         run: |
@@ -226,8 +226,8 @@ jobs:
           cargo install cross --version 0.2.5
       - name: Build linux binaries
         run: |
-          cross build --release --target x86_64-unknown-linux-gnu
-          cross build --release --target aarch64-unknown-linux-gnu
+          cross build --release --locked --target x86_64-unknown-linux-gnu
+          cross build --release --locked --target aarch64-unknown-linux-gnu
       - name: Package linux binaries
         run: |
           # Notices that some dependencies' licenses require redistributions of the binary to carry.
