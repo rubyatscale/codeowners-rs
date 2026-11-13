@@ -123,10 +123,21 @@ jobs:
           # generator resolves whichever one the API returns first. That is
           # reachable via "Re-run all jobs" after a failed upload, so reuse an
           # existing draft instead of creating a duplicate.
-          if [[ "$(gh release view "$NEW_VERSION" --json isDraft --jq .isDraft 2>/dev/null)" == "true" ]]; then
+          #
+          # gh prints exactly "release not found" when no release or draft has this tag. Any other failure is an error,
+          # since treating it as "no draft" would create the duplicate this step exists to avoid.
+          view_err=$(mktemp)
+          if is_draft=$(gh release view "$NEW_VERSION" --json isDraft --jq .isDraft 2>"$view_err"); then
+            if [[ "$is_draft" != "true" ]]; then
+              echo "::error::Release $NEW_VERSION is already published."
+              exit 1
+            fi
             echo "Draft $NEW_VERSION already exists; reusing it."
-          else
+          elif [[ "$(cat "$view_err")" == "release not found" ]]; then
             gh release create "$NEW_VERSION" --target "$GITHUB_SHA" --generate-notes --draft
+          else
+            cat "$view_err" >&2
+            exit 1
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
