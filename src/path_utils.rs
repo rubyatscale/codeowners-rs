@@ -1,4 +1,6 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
+
+use path_clean::PathClean;
 
 /// Return `path` relative to `root` if possible; otherwise return `path` unchanged.
 pub fn relative_to<'a>(root: &'a Path, path: &'a Path) -> &'a Path {
@@ -10,106 +12,80 @@ pub fn relative_to_buf(root: &Path, path: &Path) -> PathBuf {
     relative_to(root, path).to_path_buf()
 }
 
-/// Reduce a caller-supplied `path` to the project-relative form that
-/// [`crate::project::Project::relative_path`] produces for walked files.
-///
-/// Unlike [`relative_to`], which passes an unstrippable path through unchanged, this
-/// reports failure. A path that cannot be placed inside the project is not a path the
-/// per-file checks can say anything about, and silently treating it as relative is how
-/// `/var/...` came to be compared against project-relative paths and matched nothing.
-///
-/// Purely lexical — no filesystem access, so it is safe on a path that no longer exists
-/// (a deleted file in a changeset). `.` components are dropped and `..` pops the
-/// preceding component, so `./a/b.rb` and `a/c/../b.rb` both reduce to `a/b.rb`.
-///
-/// Returns `None` when `path` is absolute and does not lie under `root`, when it escapes
-/// `root` via `..`, or when it *is* `root`. The absolute case is not necessarily final:
-/// `cli.rs` canonicalizes `--project-root`, so on macOS a root of `/private/var/...` will
-/// not strip a caller-supplied `/var/...`. A caller that gets `None` for an absolute path
-/// should retry with a canonicalized copy.
-pub fn project_relative(root: &Path, path: &Path) -> Option<PathBuf> {
-    let relative = if path.is_absolute() { path.strip_prefix(root).ok()? } else { path };
-
-    let normalized = lexically_normalize(relative);
-    if normalized.as_os_str().is_empty() || normalized.starts_with("..") {
-        return None;
-    }
-
-    Some(normalized)
-}
-
-/// Like [`project_relative`], but consults the filesystem when the lexical attempt fails.
-///
-/// An absolute path only strips if it and `root` agree about symlinks, and there is no
-/// guarantee they do. `cli.rs` canonicalizes `--project-root`, but a library caller building
-/// its own `RunConfig` (which is how the `code_ownership` gem calls in) does not. So on
-/// macOS, where `TMPDIR` lives under `/var`, a symlink to `/private/var`, *either* side can
-/// be the unresolved one, and in a symlinked checkout the same is true generally. Resolving
-/// only one side leaves the other failing exactly as silently, so the retry resolves both.
-///
-/// It resolves the **parent** and re-attaches the file name, rather than canonicalizing the
-/// whole path. Canonicalizing the leaf would follow a symlinked *file*, and the project walk
-/// records the symlink path rather than its target — so an absolute path naming a symlink
-/// would be checked as a different file than the caller asked about, and pass or fail on
-/// that file's ownership instead. A symlinked *ancestor* is still resolved, unavoidably:
-/// that is the whole point in the `/var` case, and the walk does not follow symlinked
-/// directories anyway, so such a path names no walked file under either spelling.
-///
-/// `canonical_root` is the resolved `root`, passed in rather than computed so a caller
-/// normalizing a whole changeset pays for it once instead of once per path.
-pub fn resolve_project_relative(root: &Path, canonical_root: Option<&Path>, path: &Path) -> Option<PathBuf> {
-    if let Some(relative) = project_relative(root, path) {
+/// The path under `project_root` that `path` names, relative to the root, or `None` if it names nothing under it. A relative
+/// `path` is relative to the root. Owners are matched against these paths, so another form of one, with a `./`, a repeated `/`,
+/// a `.` or `..` segment, or through a symlink, would miss them. `..` is resolved lexically, as for `--config-path`, so after a
+/// symlinked directory it names the link's parent.
+pub(crate) fn project_relative_path(project_root: &Path, path: &Path) -> Option<PathBuf> {
+    // `absolute` fails only for an empty root, or a relative one with no working directory, and neither can be resolved.
+    let root = std::path::absolute(project_root).ok()?.clean();
+    let cleaned = root.join(path).clean();
+    if let Some(relative) = path_under(&root, &cleaned) {
         return Some(relative);
     }
-
-    // Only an absolute path can be rescued. A relative path is interpreted against the
-    // project root by contract -- that is what `--help` promises -- and the lexical pass is
-    // the whole of that interpretation, so failure means it escapes the root. Retrying would
-    // resolve it against the process CWD instead, quietly switching interpretation frames:
-    // the same arguments would then mean different files depending on where the command was
-    // run from. It also spends a syscall per path to reach that wrong answer.
-    if !path.is_absolute() {
-        return None;
-    }
-
-    let resolved = path.parent()?.canonicalize().ok()?.join(path.file_name()?);
-
-    project_relative(canonical_root.unwrap_or(root), &resolved)
-}
-
-/// Resolve `.` and `..` without touching the filesystem.
-///
-/// Deliberately lexical: canonicalizing would also resolve symlinks, and the project walk
-/// records the symlink path rather than its target, so resolving here would produce a path
-/// that matches no walked file.
-fn lexically_normalize(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                // A `..` that cannot pop is retained, so the caller can detect the escape.
-                //
-                // A retained `..` must never itself be popped by a later one: `pop()` does
-                // not distinguish it from a real component, so `../../a` cancelled its own
-                // escape and came out as `a` -- reporting an out-of-project path as though
-                // it named a file inside the project.
-                let escaped = matches!(normalized.components().next_back(), Some(Component::ParentDir));
-                if escaped || !normalized.pop() {
-                    normalized.push(Component::ParentDir);
-                }
-            }
-            other => normalized.push(other),
+    // The path may reach the project through a symlink, or the root may be the unresolved side, as a library caller's
+    // RunConfig can be, so both are resolved. Its ancestors are resolved from the shortest until one is in the project, and the
+    // rest of the path is kept as written, so it names what its plain form does: a symlink inside the project keeps its own
+    // path, and a file or directory that doesn't exist, or can't be read, is still named. The file itself is never resolved,
+    // since CODEOWNERS and the project walk name a symlinked file by its own path, not its target's.
+    let canonical_root = root.canonicalize().ok()?;
+    let ancestors: Vec<&Path> = cleaned.ancestors().skip(1).collect();
+    for ancestor in ancestors.into_iter().rev() {
+        if let Ok(resolved) = ancestor.canonicalize()
+            && resolved.starts_with(&canonical_root)
+        {
+            return path_under(&canonical_root, &resolved.join(cleaned.strip_prefix(ancestor).ok()?));
         }
     }
+    None
+}
 
-    normalized
+/// How owners are matched against a path that `project_relative_path` can't place: as given, but without the root if it's
+/// absolute, so it matches as its relative form does.
+pub(crate) fn unplaced_path<'a>(project_root: &'a Path, path: &'a Path) -> &'a Path {
+    if path.is_absolute() {
+        relative_to(project_root, path)
+    } else {
+        path
+    }
+}
+
+// The root itself names nothing under it.
+fn path_under(root: &Path, path: &Path) -> Option<PathBuf> {
+    let relative = path.strip_prefix(root).ok()?;
+    (!relative.as_os_str().is_empty()).then(|| relative.to_path_buf())
+}
+
+/// Returns true if `path` matches any of the provided glob patterns.
+pub(crate) fn matches_globs(path: &Path, globs: &[String]) -> bool {
+    match path.to_str() {
+        Some(s) => globs.iter().any(|glob| fast_glob::glob_match(glob, s)),
+        None => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
+
+    #[test]
+    fn test_matches_globs() {
+        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
+    }
+
+    #[test]
+    fn test_glob_match() {
+        assert!(fast_glob::glob_match(OWNED_GLOB, "script/.eslintrc.js"));
+    }
+
+    #[test]
+    fn matches_globs_double_star_matches_root_level_and_nested_files() {
+        let globs = vec!["**/*".to_string()];
+        assert!(matches_globs(Path::new("root.rb"), &globs));
+        assert!(matches_globs(Path::new("app/models/user.rb"), &globs));
+    }
 
     #[test]
     fn relative_to_returns_relative_when_under_root() {
@@ -144,77 +120,159 @@ mod tests {
         assert_eq!(rel_ref, rel_buf.as_path());
     }
 
-    #[test]
-    fn project_relative_passes_through_a_plain_relative_path() {
-        let rel = project_relative(Path::new("/proj"), Path::new("ruby/app/a.rb"));
-        assert_eq!(rel, Some(PathBuf::from("ruby/app/a.rb")));
+    // Compared as strings, as globs see them, since Path equality ignores a repeated separator or a `.` past the start.
+    fn relative(project_root: &Path, path: impl AsRef<Path>) -> Option<String> {
+        project_relative_path(project_root, path.as_ref()).map(|relative| relative.to_string_lossy().into_owned())
     }
 
     #[test]
-    fn project_relative_strips_a_leading_dot_slash() {
-        // `./a.rb` and `a.rb` name the same file, but only one of them used to match a
-        // walked project file -- the other was silently dropped by the owned_globs filter.
-        let rel = project_relative(Path::new("/proj"), Path::new("./ruby/app/a.rb"));
-        assert_eq!(rel, Some(PathBuf::from("ruby/app/a.rb")));
+    fn project_relative_path_returns_a_plain_path_unchanged() {
+        assert_eq!(relative(Path::new("/proj"), "app/a.rb").as_deref(), Some("app/a.rb"));
     }
 
     #[test]
-    fn project_relative_resolves_interior_parent_dirs() {
-        let rel = project_relative(Path::new("/proj"), Path::new("ruby/services/../app/a.rb"));
-        assert_eq!(rel, Some(PathBuf::from("ruby/app/a.rb")));
+    fn project_relative_path_drops_dot_components_and_repeated_separators() {
+        for path in ["./app/a.rb", "app//a.rb", "app/./a.rb"] {
+            assert_eq!(relative(Path::new("/proj"), path).as_deref(), Some("app/a.rb"), "{path}");
+        }
     }
 
     #[test]
-    fn project_relative_strips_the_root_from_an_absolute_path() {
-        let rel = project_relative(Path::new("/proj"), Path::new("/proj/ruby/app/a.rb"));
-        assert_eq!(rel, Some(PathBuf::from("ruby/app/a.rb")));
+    fn project_relative_path_resolves_dot_dot_inside_the_project() {
+        for path in ["app/../app/a.rb", "app/models/../a.rb", "../proj/app/a.rb", "/proj/app/../app/a.rb"] {
+            assert_eq!(relative(Path::new("/proj"), path).as_deref(), Some("app/a.rb"), "{path}");
+        }
     }
 
     #[test]
-    fn project_relative_rejects_an_absolute_path_outside_the_root() {
-        // The caller retries with the parent resolved; see `resolve_project_relative`.
-        assert_eq!(project_relative(Path::new("/private/proj"), Path::new("/proj/a.rb")), None);
+    fn project_relative_path_returns_none_for_dot_dot_out_of_the_project() {
+        // A real root, so the paths are also resolved.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path().join("proj");
+        std::fs::create_dir_all(root.join("app")).unwrap();
+        let absolute = |path: &str| root.join(path).to_string_lossy().into_owned();
+        for path in [
+            "../a.rb",
+            "../../app/a.rb",
+            "app/../../a.rb",
+            &absolute("../a.rb"),
+            &absolute("../../app/a.rb"),
+        ] {
+            assert_eq!(relative(&root, path), None, "{path}");
+        }
     }
 
     #[test]
-    fn project_relative_rejects_a_path_escaping_the_root() {
-        assert_eq!(project_relative(Path::new("/proj"), Path::new("../outside/a.rb")), None);
+    fn project_relative_path_strips_the_root_from_an_absolute_path() {
+        assert_eq!(relative(Path::new("/proj"), "/proj/app/a.rb").as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(Path::new("/proj/"), "/proj//app/a.rb").as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(Path::new("/proj"), "/elsewhere/app/a.rb"), None);
     }
 
     #[test]
-    fn project_relative_rejects_a_path_escaping_via_repeated_parent_dirs() {
-        // `pop()` does not distinguish a retained `..` from a real component, so this used to
-        // cancel its own escape and come out as `ruby/app/a.rb` -- an out-of-project path
-        // silently reported as though it named a file inside the project.
-        assert_eq!(project_relative(Path::new("/proj"), Path::new("../../ruby/app/a.rb")), None);
-        assert_eq!(project_relative(Path::new("/proj"), Path::new("../../../a.rb")), None);
+    fn project_relative_path_resolves_dot_dot_in_the_root() {
+        assert_eq!(relative(Path::new("/x/../proj"), "app/a.rb").as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(Path::new("/x/../proj"), "/proj/app/a.rb").as_deref(), Some("app/a.rb"));
     }
 
     #[test]
-    fn project_relative_rejects_a_path_that_climbs_back_out() {
-        // Interior `..` still pops normally; the escape only has to survive once it starts.
-        assert_eq!(project_relative(Path::new("/proj"), Path::new("ruby/../../a.rb")), None);
+    fn project_relative_path_takes_a_relative_root_from_the_working_directory() {
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(relative(Path::new("."), "./src/lib.rs").as_deref(), Some("src/lib.rs"));
+        assert_eq!(relative(Path::new("."), cwd.join("src/lib.rs")).as_deref(), Some("src/lib.rs"));
+        assert_eq!(relative(Path::new("src"), "./lib.rs").as_deref(), Some("lib.rs"));
+        assert_eq!(relative(Path::new("src"), cwd.join("src/lib.rs")).as_deref(), Some("lib.rs"));
+        assert_eq!(relative(Path::new("src"), "src/lib.rs").as_deref(), Some("src/lib.rs"));
+        // One that doesn't exist can't be resolved, so only the working directory places it.
+        assert_eq!(relative(Path::new("."), "./no/such/dir/a.rb").as_deref(), Some("no/such/dir/a.rb"));
     }
 
-    #[test]
-    fn project_relative_pops_interior_parent_dirs_without_escaping() {
-        let rel = project_relative(Path::new("/proj"), Path::new("ruby/app/models/../../app/a.rb"));
-        assert_eq!(rel, Some(PathBuf::from("ruby/app/a.rb")));
+    // A project root with no symlink on its path, the same root through a symlink, and the temp dir holding both. In the
+    // project, app/lib_link is a symlink to its lib directory.
+    #[cfg(unix)]
+    fn symlinked_project() -> (PathBuf, PathBuf, tempfile::TempDir) {
+        let temp_dir = tempfile::tempdir().unwrap();
+        // On macOS the temp dir is itself reached through a symlink, from /var to /private/var.
+        let base = temp_dir.path().canonicalize().unwrap();
+        let root = base.join("real/proj");
+        std::fs::create_dir_all(root.join("app")).unwrap();
+        std::fs::create_dir_all(root.join("lib")).unwrap();
+        std::fs::write(root.join("app/a.rb"), "").unwrap();
+        std::os::unix::fs::symlink("../lib", root.join("app/lib_link")).unwrap();
+        std::os::unix::fs::symlink(base.join("real"), base.join("link")).unwrap();
+        (root, base.join("link/proj"), temp_dir)
     }
 
+    #[cfg(unix)]
     #[test]
-    fn resolve_project_relative_does_not_touch_the_filesystem_for_a_relative_path() {
-        // A relative path is project-root-relative by contract, so the lexical pass is the
-        // whole interpretation. Retrying would resolve it against the process CWD, making
-        // the same arguments mean different files depending on where the command was run.
+    fn project_relative_path_resolves_a_path_through_a_symlink_to_the_project() {
+        let (root, linked_root, _temp_dir) = symlinked_project();
+        assert_eq!(relative(&root, linked_root.join("app/a.rb")).as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(&root, linked_root.join("a.rb")).as_deref(), Some("a.rb"));
+        assert_eq!(relative(&root, linked_root.join("app/../app/./a.rb")).as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(&root, linked_root.join("../a.rb")), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn project_relative_path_resolves_a_root_given_through_a_symlink() {
+        let (root, linked_root, _temp_dir) = symlinked_project();
+        assert_eq!(relative(&linked_root, root.join("app/a.rb")).as_deref(), Some("app/a.rb"));
+        assert_eq!(relative(&linked_root, "./app/a.rb").as_deref(), Some("app/a.rb"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn project_relative_path_keeps_the_path_of_a_symlinked_file() {
+        let (root, linked_root, _temp_dir) = symlinked_project();
+        std::os::unix::fs::symlink("a.rb", root.join("app/link.rb")).unwrap();
+        assert_eq!(relative(&root, linked_root.join("app/link.rb")).as_deref(), Some("app/link.rb"));
+        assert_eq!(relative(&linked_root, root.join("app/link.rb")).as_deref(), Some("app/link.rb"));
+        // So one outside the project names nothing in it.
+        let outside_link = root.ancestors().nth(2).unwrap().join("link.rb");
+        std::os::unix::fs::symlink(root.join("app/a.rb"), &outside_link).unwrap();
+        assert_eq!(relative(&root, &outside_link), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn project_relative_path_resolves_a_path_through_a_symlink_only_as_far_as_the_project() {
+        let (root, linked_root, _temp_dir) = symlinked_project();
+        // Symlinks to a directory out of the project and to itself, which can't be resolved, and a directory that doesn't exist.
+        std::os::unix::fs::symlink(root.ancestors().nth(2).unwrap(), root.join("app/out_link")).unwrap();
+        std::os::unix::fs::symlink("loop", root.join("app/loop")).unwrap();
+        for path in [
+            "app/lib_link/b.rb",
+            "app/out_link/b.rb",
+            "app/loop/b.rb",
+            "app/new/b.rb",
+            "app/deleted.rb",
+        ] {
+            assert_eq!(relative(&root, path).as_deref(), Some(path), "{path}");
+            assert_eq!(relative(&root, linked_root.join(path)).as_deref(), Some(path), "{path}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn project_relative_path_resolves_dot_dot_before_any_symlink() {
+        let (root, linked_root, _temp_dir) = symlinked_project();
+        let base = root.ancestors().nth(2).unwrap();
+        std::os::unix::fs::symlink(root.join("app"), base.join("app_link")).unwrap();
+        // Each `..` names the link's parent, not its target's.
         assert_eq!(
-            resolve_project_relative(Path::new("/proj"), Some(Path::new("/proj")), Path::new("../outside/a.rb")),
-            None
+            relative(&root, linked_root.join("app/lib_link/../a.rb")).as_deref(),
+            Some("app/a.rb")
         );
+        assert_eq!(relative(&root, base.join("app_link/../a.rb")), None);
     }
 
     #[test]
-    fn project_relative_rejects_the_root_itself() {
-        assert_eq!(project_relative(Path::new("/proj"), Path::new("/proj")), None);
+    fn project_relative_path_returns_none_for_the_root_itself() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        for path in [Path::new(""), Path::new("."), Path::new("app/.."), root, &root.join(".")] {
+            assert_eq!(relative(root, path), None, "{}", path.display());
+        }
     }
 }

@@ -39,12 +39,12 @@ enum Command {
         visible_alias = "v"
     )]
     Validate {
-        #[arg(help = "Optional list of files to validate ownership for (for git hooks). Checks ownership of \
-                   just these files, and of packages containing them. Paths are resolved relative to the \
-                   project root, and ones that no longer exist are skipped, so a changeset that deletes \
-                   files is not reported as unowned. Does NOT check whether the CODEOWNERS file itself is \
-                   up to date -- that is a property of the whole file. Run without files, or use \
-                   generate-and-validate, to catch a stale CODEOWNERS.")]
+        #[arg(
+            help = "Optional list of files to validate ownership for (fast mode for git hooks). Checks just these \
+                   files, and the packages that contain them. Doesn't check whether the CODEOWNERS file is up to \
+                   date, which is a property of the whole file: run without files, or use generate-and-validate, \
+                   for that."
+        )]
         files: Vec<String>,
     },
 
@@ -52,10 +52,10 @@ enum Command {
     GenerateAndValidate {
         #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
-        #[arg(help = "Optional list of files to validate ownership for (for git hooks). Checks ownership of \
-                   just these files, and of packages containing them. Paths are resolved relative to the \
-                   project root, and ones that no longer exist are skipped. Staleness is covered \
-                   regardless, since the CODEOWNERS file is regenerated first.")]
+        #[arg(
+            help = "Optional list of files to validate ownership for (fast mode for git hooks). Checks just these \
+                   files, and the packages that contain them, after regenerating the CODEOWNERS file."
+        )]
         files: Vec<String>,
     },
 

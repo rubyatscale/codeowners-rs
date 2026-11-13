@@ -29,8 +29,11 @@ pub(crate) fn find_tracked_files(base_path: &Path) -> Option<HashMap<PathBuf, bo
 mod tests {
     use super::*;
 
+    include!("../tests/support/git_env.rs");
+
     #[test]
     fn test_untracked_files() {
+        assert_git_env_isolated();
         let tmp_dir = tempfile::tempdir().unwrap();
         assert!(find_tracked_files(tmp_dir.path()).is_none());
 
@@ -58,6 +61,7 @@ mod tests {
 
     #[test]
     fn test_tracked_files_from_subdirectory() {
+        assert_git_env_isolated();
         let tmp_dir = tempfile::tempdir().unwrap();
         let backend_dir = tmp_dir.path().join("backend");
         let tracked_file = backend_dir.join("app/models/foo.rb");

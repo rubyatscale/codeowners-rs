@@ -1,6 +1,7 @@
-use assert_cmd::prelude::*;
+use assert_cmd::{assert::Assert, prelude::*};
 use codeowners::runner::{self, RunConfig};
 use predicates::prelude::*;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 use std::{error::Error, process::Command};
@@ -11,6 +12,8 @@ pub enum OutputStream {
     Stdout,
     Stderr,
 }
+
+include!("../support/git_env.rs");
 
 #[allow(dead_code)]
 pub fn run_codeowners<I, P>(
@@ -40,6 +43,26 @@ where
         }
     }
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn codeowners(project_root: &Path, args: &[impl AsRef<OsStr>]) -> Result<Assert, Box<dyn Error>> {
+    Ok(Command::cargo_bin("codeowners")?
+        .arg("--project-root")
+        .arg(project_root)
+        .arg("--no-cache")
+        .args(args)
+        .assert())
+}
+
+// A symlink to `target`, in a temp dir that is removed when the returned TempDir is dropped.
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn symlink_in_temp_dir(target: &Path) -> (std::path::PathBuf, TempDir) {
+    let temp_dir = tempfile::tempdir().expect("failed to create tempdir");
+    let link = temp_dir.path().join("link");
+    std::os::unix::fs::symlink(target, &link).expect("failed to create symlink");
+    (link, temp_dir)
 }
 
 #[allow(dead_code)]
@@ -75,6 +98,7 @@ pub fn copy_dir_recursive(from: &Path, to: &Path) {
 
 #[allow(dead_code)]
 pub fn git_reset_all(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("reset")
         .current_dir(path)
@@ -89,6 +113,7 @@ pub fn git_reset_all(path: &Path) {
 
 #[allow(dead_code)]
 pub fn git_add_all_files(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("add")
         .arg("--all")
@@ -104,6 +129,7 @@ pub fn git_add_all_files(path: &Path) {
 
 #[allow(dead_code)]
 pub fn init_git_repo(path: &Path) {
+    assert_git_env_isolated();
     let status = Command::new("git")
         .arg("init")
         .current_dir(path)
@@ -131,6 +157,7 @@ pub fn init_git_repo(path: &Path) {
 
 #[allow(dead_code)]
 pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
+    assert_git_env_isolated();
     let output = Command::new("git")
         .arg("diff")
         .arg("--name-only")
@@ -149,6 +176,8 @@ pub fn is_file_staged(repo_root: &Path, rel_path: &str) -> bool {
 
 #[allow(dead_code)]
 pub fn build_run_config(project_root: &Path, codeowners_rel_path: &str) -> RunConfig {
+    // Callers pass the config to in-process runs that may stage.
+    assert_git_env_isolated();
     let project_root = project_root.canonicalize().expect("failed to canonicalize project root");
     let codeowners_file_path = project_root.join(codeowners_rel_path);
     let config_path = project_root.join("config/code_ownership.yml");

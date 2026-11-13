@@ -2,14 +2,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use serde::Serialize;
 use tracing::debug_span;
 
 use crate::{
     cache::{Cache, Caching, file::GlobalCache, noop::NoopCache},
     config::Config,
-    ownership::{FileOwner, Ownership},
+    ownership::{FileOwner, Ownership, SuppliedPath},
+    path_utils::{matches_globs, project_relative_path, unplaced_path},
     project_builder::ProjectBuilder,
 };
 
@@ -142,76 +142,46 @@ impl Runner {
         }
     }
 
-    /// Validate just the supplied paths.
-    ///
-    /// This resolves ownership through the mappers, the same way [`Runner::validate_all`]
-    /// does, rather than by reading the generated CODEOWNERS back. Reading it back could
-    /// only ever answer "does this path have an owner" — it could not see a file owned two
-    /// ways (generation picks one winner, so the file looks owned) nor name an annotation
-    /// referencing a nonexistent team (which yields no owner, so the file merely looked
-    /// unowned).
-    ///
-    /// Staleness is not checked here; it is a property of the whole CODEOWNERS file.
-    /// `generate_and_validate` makes it moot by regenerating first.
+    // Resolves ownership through the mappers, as `validate_all` does, rather than by reading CODEOWNERS back, which picks one
+    // owner for a file owned two ways and can't tell a typo'd team name from no owner.
     fn validate_files(&self, file_paths: Vec<String>) -> RunResult {
-        // Normalize before anything else. `./app/x.rb`, `app/x.rb` and an absolute path to
-        // the same file all have to reduce to the form `Project::relative_path` produces,
-        // or the per-file checks below match nothing and the run exits 0 having checked
-        // nothing -- a false pass in the unsafe direction. See
-        // `path_utils::resolve_project_relative` for why an absolute path needs both sides
-        // resolved, and why only its parent is.
-        //
-        // A path that no longer exists is dropped rather than reported: changesets delete
-        // files routinely, and a deleted file cannot have an owner, so reporting it as
-        // unowned would fail a commit for removing code.
-        //
-        // The canonical root is resolved once rather than per path, since only the retry
-        // inside `resolve_project_relative` needs it and that retry can fire for every path
-        // when a caller passes an absolute list.
-        let canonical_root = self.run_config.project_root.canonicalize().ok();
-
-        let supplied_paths: Vec<PathBuf> = file_paths
-            .iter()
-            .filter_map(|file_path| {
-                crate::path_utils::resolve_project_relative(&self.run_config.project_root, canonical_root.as_deref(), Path::new(file_path))
-            })
-            .filter(|relative_path| {
-                // `unwrap_or(true)` on purpose: only a definite "this is not there" earns a
-                // silent skip. If the answer is unknown -- a permissions error, a bad
-                // symlink -- keep the path and let the checks report it, because a visible
-                // error is investigable and a silent pass is not.
-                self.run_config.project_root.join(relative_path).try_exists().unwrap_or(true)
+        let project_root = &self.run_config.project_root;
+        let supplied: Vec<SuppliedPath> = file_paths
+            .into_iter()
+            .map(|given| {
+                let relative_path = project_relative_path(project_root, Path::new(&given));
+                let in_project = relative_path.is_some();
+                let path = relative_path.unwrap_or_else(|| unplaced_path(project_root, Path::new(&given)).to_path_buf());
+                SuppliedPath { given, path, in_project }
             })
             .collect();
 
-        // Mirror the filtering ProjectBuilder applies when walking, so a path the project
-        // would never have considered is not reported as unowned. This is narrower than
-        // `supplied_paths`: a supplied package.yml or README.md is not itself an ownership
-        // defect, but it does put its package in scope for the check below.
-        let owned_paths: Vec<PathBuf> = supplied_paths
+        // Any path in the project selects the packages containing it, including a `package.yml` that owned_globs leaves out.
+        let selectors: Vec<PathBuf> = supplied
             .iter()
-            .filter(|path| matches_globs(path, &self.config.owned_globs) && !matches_globs(path, &self.config.unowned_globs))
-            .cloned()
+            .filter(|supplied| supplied.in_project)
+            .map(|supplied| supplied.path.clone())
             .collect();
 
-        // Purely an optimization -- it skips building the mappers. With no paths in scope
-        // the validator finds no files and no packages and returns Ok regardless, so this
-        // is not a semantic special case. It used to be one: when the early return keyed
-        // off the glob-filtered list, whether an unrelated package error surfaced depended
-        // on whether some supplied path happened to match owned_globs.
-        if supplied_paths.is_empty() {
+        // Mirror the filtering applied by ProjectBuilder when walking the project
+        let owned: Vec<SuppliedPath> = supplied
+            .into_iter()
+            .filter(|supplied| {
+                matches_globs(&supplied.path, &self.config.owned_globs) && !matches_globs(&supplied.path, &self.config.unowned_globs)
+            })
+            .collect();
+
+        if owned.is_empty() && selectors.is_empty() {
             return RunResult::default();
         }
 
-        match self.ownership.validate_files(&owned_paths, &supplied_paths) {
+        debug_span!("per_file_query").in_scope(|| match self.ownership.validate_files(&owned, &selectors) {
             Ok(_) => RunResult::default(),
-            // No `info_messages`: the only error carrying one is the stale-CODEOWNERS diff,
-            // which a scoped run cannot produce.
             Err(err) => RunResult {
                 validation_errors: vec![format!("{}", err)],
                 ..Default::default()
             },
-        }
+        })
     }
 
     pub fn generate(&self, git_stage: bool) -> RunResult {
@@ -238,7 +208,11 @@ impl Runner {
         if run_result.has_errors() {
             return run_result;
         }
-        self.validate(file_paths)
+        if file_paths.is_empty() {
+            self.validate_all()
+        } else {
+            self.validate_files(file_paths)
+        }
     }
 
     fn git_stage(&self) {
@@ -457,14 +431,6 @@ impl RunResult {
             io_errors: vec![format!("{{\"error\": \"{}\"}}", message.replace('"', "\\\""))],
             ..Default::default()
         }
-    }
-}
-
-/// Returns true if `path` matches any of the provided glob patterns.
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
     }
 }
 

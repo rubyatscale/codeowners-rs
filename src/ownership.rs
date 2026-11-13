@@ -23,6 +23,7 @@ use crate::{
 };
 
 pub use validator::Errors as ValidatorErrors;
+pub(crate) use validator::SuppliedPath;
 
 use self::{
     codeowners_file_parser::parse_for_team,
@@ -125,28 +126,21 @@ impl Ownership {
             executable_name: self.project.executable_name.clone(),
         };
 
-        // A second set of mappers, because FileGenerator owns rather than borrows them
-        // and `Box<dyn Mapper>` is not Clone. Construction is trivial (each `build` just
-        // stores an Arc); the O(repo) work happens in `owner_matchers`/`entries`.
-        let file_generator = FileGenerator { mappers: self.mappers() };
-
-        validator.validate(&file_generator)
+        validator.validate(&FileGenerator {
+            mappers: self.codeowners_file_mappers(),
+        })
     }
 
-    /// Like [`Ownership::validate`], but restricted to the supplied project-relative
-    /// paths. Skips the staleness check, which cannot be scoped — see
-    /// [`Validator::validate_files`], which also documents the two path lists. Builds no
-    /// `FileGenerator`, since nothing here generates.
     #[instrument(name = "ownership_validate_files", level = "debug", skip_all)]
-    pub fn validate_files(&self, owned_paths: &[PathBuf], supplied_paths: &[PathBuf]) -> Result<(), ValidatorErrors> {
-        info!("validating file ownership for {} supplied paths", supplied_paths.len());
+    pub(crate) fn validate_files(&self, supplied: &[SuppliedPath], selectors: &[PathBuf]) -> Result<(), ValidatorErrors> {
+        info!("validating file ownership for {} supplied paths", supplied.len());
         let validator = Validator {
             project: self.project.clone(),
             mappers: self.mappers(),
             executable_name: self.project.executable_name.clone(),
         };
 
-        validator.validate_files(owned_paths, supplied_paths)
+        validator.validate_files(supplied, selectors)
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -186,7 +180,9 @@ impl Ownership {
     #[instrument(level = "debug", skip_all)]
     pub fn generate_file(&self) -> String {
         info!("generating codeowners file");
-        let file_generator = FileGenerator { mappers: self.mappers() };
+        let file_generator = FileGenerator {
+            mappers: self.codeowners_file_mappers(),
+        };
         file_generator.generate_file()
     }
 
@@ -200,6 +196,20 @@ impl Ownership {
             Box::new(JavascriptPackageMapper::build(self.project.clone())),
             Box::new(TeamYmlMapper::build(self.project.clone())),
             Box::new(TeamGemMapper::build(self.project.clone())),
+        ]
+    }
+
+    // GitHub applies the last matching CODEOWNERS line, so annotations are written last: an annotated
+    // file can still match a broader team glob that excludes it through unowned_globs.
+    fn codeowners_file_mappers(&self) -> Vec<Box<dyn Mapper>> {
+        vec![
+            Box::new(TeamGlobMapper::build(self.project.clone())),
+            Box::new(DirectoryMapper::build(self.project.clone())),
+            Box::new(RubyPackageMapper::build(self.project.clone())),
+            Box::new(JavascriptPackageMapper::build(self.project.clone())),
+            Box::new(TeamYmlMapper::build(self.project.clone())),
+            Box::new(TeamGemMapper::build(self.project.clone())),
+            Box::new(TeamFileMapper::build(self.project.clone())),
         ]
     }
 }

@@ -1,6 +1,7 @@
 use crate::{
     ownership::{FileGenerator, TeamOwnership},
     project::Team,
+    yaml::NodeLimit,
 };
 use fast_glob::glob_match;
 use memoize::memoize;
@@ -14,46 +15,43 @@ pub struct Parser {
     pub project_root: PathBuf,
     pub codeowners_file_path: PathBuf,
     pub team_file_globs: Vec<String>,
+    pub node_limit: NodeLimit,
 }
 
 impl Parser {
-    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<HashMap<String, Option<Team>>, Box<dyn Error>> {
-        let file_inputs: Vec<(String, String)> = file_paths
+    /// The team CODEOWNERS gives each path, in the order given.
+    pub fn teams_from_files_paths(&self, file_paths: &[PathBuf]) -> Result<Vec<Option<Team>>, Box<dyn Error>> {
+        let prefixed_file_paths: Vec<String> = file_paths
             .iter()
             .map(|path| {
                 let file_path_str = path
                     .to_str()
                     .ok_or(IoError::new(std::io::ErrorKind::InvalidInput, "Invalid file path"))?;
-                let original = file_path_str.to_string();
-                let prefixed = if file_path_str.starts_with('/') {
-                    original.clone()
+                Ok(if file_path_str.starts_with('/') {
+                    file_path_str.to_string()
                 } else {
                     format!("/{}", file_path_str)
-                };
-                Ok((original, prefixed))
+                })
             })
             .collect::<Result<Vec<_>, IoError>>()?;
 
-        if file_inputs.is_empty() {
-            return Ok(HashMap::new());
+        if prefixed_file_paths.is_empty() {
+            return Ok(Vec::new());
         }
 
         let codeowners_entries = parse_codeowners_entries(self.codeowners_file_path.to_string_lossy().into_owned());
 
-        let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs());
+        let teams_by_name = teams_by_github_team_name(self.absolute_team_files_globs(), self.node_limit.clone());
 
-        let result: HashMap<String, Option<Team>> = file_inputs
+        Ok(prefixed_file_paths
             .par_iter()
-            .map(|(key, prefixed)| {
-                let team = codeowners_entries
+            .map(|prefixed| {
+                codeowners_entries
                     .iter()
                     .find(|(glob, _)| glob_match(glob, prefixed))
-                    .and_then(|(_, team_name)| teams_by_name.get(team_name).cloned());
-                (key.clone(), team)
+                    .and_then(|(_, team_name)| teams_by_name.get(team_name).cloned())
             })
-            .collect();
-
-        Ok(result)
+            .collect())
     }
 
     fn absolute_team_files_globs(&self) -> Vec<String> {
@@ -65,13 +63,13 @@ impl Parser {
 }
 
 #[memoize]
-fn teams_by_github_team_name(team_file_glob: Vec<String>) -> HashMap<String, Team> {
+fn teams_by_github_team_name(team_file_glob: Vec<String>, node_limit: NodeLimit) -> HashMap<String, Team> {
     let mut teams = HashMap::new();
     for glob in team_file_glob {
         match glob::glob(&glob) {
             Ok(paths) => {
                 for path in paths.filter_map(Result::ok) {
-                    let team = match Team::from_team_file_path(path.clone()) {
+                    let team = match Team::from_team_file_path(path.clone(), &node_limit) {
                         Ok(team) => team,
                         Err(e) => {
                             eprintln!("Error parsing team file: {e:?}, path: {}", path.display());
@@ -492,6 +490,35 @@ mod tests {
                 "/app/assets/config/manifest.js @Prefix/team-foo"
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_teams_from_files_paths_is_keyed_on_yaml_max_nodes() -> Result<(), Box<dyn Error>> {
+        let temp_dir = tempfile::tempdir()?;
+        let root = temp_dir.path();
+        fs::create_dir_all(root.join("config/teams"))?;
+        fs::write(
+            root.join("config/teams/payroll.yml"),
+            "name: Payroll\ngithub:\n  team: '@PayrollTeam'\n",
+        )?;
+        fs::write(root.join("CODEOWNERS"), "# Team-specific owned globs\n/app/**/* @PayrollTeam\n")?;
+        let owner_of = |yaml_max_nodes: usize| -> Result<Option<String>, Box<dyn Error>> {
+            let parser = Parser {
+                project_root: root.to_path_buf(),
+                codeowners_file_path: root.join("CODEOWNERS"),
+                team_file_globs: vec!["config/teams/**/*.yml".to_string()],
+                node_limit: NodeLimit {
+                    max_nodes: yaml_max_nodes,
+                    ..Default::default()
+                },
+            };
+            let teams = parser.teams_from_files_paths(&[PathBuf::from("app/a.rb")])?;
+            Ok(teams[0].as_ref().map(|team| team.name.clone()))
+        };
+
+        assert_eq!(owner_of(crate::yaml::DEFAULT_MAX_NODES)?, Some("Payroll".to_string()));
+        assert_eq!(owner_of(3)?, None, "a team file over the limit is skipped");
         Ok(())
     }
 

@@ -97,4 +97,18 @@ mod tests {
             Some((&team_name_longest, &source_longest))
         );
     }
+
+    #[test]
+    fn test_directory_overrider_ranks_the_project_root_below_a_top_level_directory() {
+        // The `.codeowner` files come from a parallel walk, so either can be processed first.
+        let (root_team, root) = ("root_team".to_string(), Source::Directory("".to_string()));
+        let (app_team, app) = ("app_team".to_string(), Source::Directory("app".to_string()));
+        for order in [[(&root_team, &root), (&app_team, &app)], [(&app_team, &app), (&root_team, &root)]] {
+            let mut directory_overrider = DirectoryOverrider::default();
+            for (team_name, source) in order {
+                directory_overrider.process(team_name, source);
+            }
+            assert_eq!(directory_overrider.specific_directory_owner(), Some((&app_team, &app)));
+        }
+    }
 }

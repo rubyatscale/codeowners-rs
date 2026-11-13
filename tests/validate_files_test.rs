@@ -6,6 +6,15 @@ mod common;
 
 use common::*;
 
+// valid_project has to validate cleanly, so it has no unowned file. A path that doesn't exist is also reported as unowned, so
+// naming one would test that instead.
+fn valid_project_with_unowned_file() -> tempfile::TempDir {
+    let temp_dir = setup_fixture_repo(std::path::Path::new("tests/fixtures/valid_project"));
+    std::fs::write(temp_dir.path().join("ruby/app/unowned.rb"), "class Unowned; end\n").expect("failed to write unowned file");
+    git_add_all_files(temp_dir.path());
+    temp_dir
+}
+
 #[test]
 fn test_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
     run_codeowners(
@@ -21,42 +30,22 @@ fn test_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
-    // `invalid_project`, not `valid_project`: this test needs a file that genuinely has no
-    // owner, and `valid_project/ruby/app/unowned.rb` does not exist -- by design, since
-    // `test_validate_with_no_files` requires that fixture to validate cleanly. Asserted
-    // against the nonexistent path, this test used to pass only because a nonexistent path
-    // was reported as unowned, so it was really covering typo handling while claiming to
-    // cover unowned files. `invalid_project/ruby/app/unowned.rb` is a real file with no
-    // owner.
-    run_codeowners(
-        "invalid_project",
-        &["validate", "ruby/app/unowned.rb"],
-        false,
-        OutputStream::Stdout,
-        // Same wording a whole-project `validate` uses for an unattributable file --
-        // supplying paths no longer produces a separate "Unowned files detected:" format.
-        predicate::str::contains("ruby/app/unowned.rb").and(predicate::str::contains("missing ownership")),
-    )?;
+    let project = valid_project_with_unowned_file();
+
+    codeowners(project.path(), &["validate", "ruby/app/unowned.rb"])?
+        .failure()
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
 
 #[test]
 fn test_validate_with_mixed_files() -> Result<(), Box<dyn Error>> {
-    // One owned file and one genuinely unowned one; see the note in
-    // `test_validate_with_unowned_file` for why this uses `invalid_project`. The scoping
-    // matters here too: `invalid_project` also holds a dual-owned file and an invalid team
-    // annotation, and neither is named below, so neither should be reported.
-    run_codeowners(
-        "invalid_project",
-        &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"],
-        false,
-        OutputStream::Stdout,
-        predicate::str::contains("ruby/app/unowned.rb")
-            .and(predicate::str::contains("missing ownership"))
-            .and(predicate::str::contains("multi_owned.rb").not())
-            .and(predicate::str::contains("Web3").not()),
-    )?;
+    let project = valid_project_with_unowned_file();
+
+    codeowners(project.path(), &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"])?
+        .failure()
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
@@ -95,12 +84,8 @@ fn test_generate_and_validate_with_owned_files() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
-    // `invalid_project` for the same reason as `test_validate_with_unowned_file`: it holds
-    // a file that genuinely has no owner.
-    let fixture_root = std::path::Path::new("tests/fixtures/invalid_project");
-    let temp_dir = setup_fixture_repo(fixture_root);
+    let temp_dir = valid_project_with_unowned_file();
     let project_root = temp_dir.path();
-    git_add_all_files(project_root);
 
     let codeowners_path = project_root.join("tmp/CODEOWNERS");
 
@@ -114,8 +99,7 @@ fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> 
         .arg("ruby/app/unowned.rb")
         .assert()
         .failure()
-        .stdout(predicate::str::contains("ruby/app/unowned.rb"))
-        .stdout(predicate::str::contains("missing ownership"));
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
@@ -142,14 +126,8 @@ fn test_validate_with_absolute_path() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_validate_with_paths_resolves_ownership_through_mappers() -> Result<(), Box<dyn Error>> {
-    // Ownership for a supplied path is resolved through the mappers, not by reading the
-    // generated CODEOWNERS back. This test used to assert the opposite -- that `validate`
-    // with files consulted only the CODEOWNERS file and ignored annotations -- which is
-    // exactly the weakness that let a dual-owned file pass.
-    //
-    // ruby/app/models/bank_account.rb has a @team Payments annotation and is in CODEOWNERS,
-    // so it is owned exactly once and validates cleanly either way.
+fn test_validate_with_an_annotated_file() -> Result<(), Box<dyn Error>> {
+    // ruby/app/models/bank_account.rb has a @team Payments annotation and is in CODEOWNERS.
     run_codeowners(
         "valid_project",
         &["validate", "ruby/app/models/bank_account.rb"],

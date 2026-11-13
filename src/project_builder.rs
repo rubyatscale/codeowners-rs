@@ -5,7 +5,6 @@ use std::{
 };
 
 use error_stack::{Report, ResultExt};
-use fast_glob::glob_match;
 use ignore::{DirEntry, WalkBuilder, WalkParallel, WalkState};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tracing::instrument;
@@ -13,9 +12,11 @@ use tracing::instrument;
 use crate::{
     cache::Cache,
     config::Config,
+    path_utils::matches_globs,
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
     tracked_files,
+    yaml::NodeLimit,
 };
 
 type AbsolutePath = PathBuf;
@@ -212,6 +213,7 @@ impl<'a> ProjectBuilder<'a> {
             Vec<Team>,
         );
 
+        let node_limit = self.config.node_limit(&self.base_path);
         let (project_files, packages, vendored_gems, directory_codeowners, teams): Accumulator = entry_types
             .into_par_iter()
             .try_fold(
@@ -242,7 +244,7 @@ impl<'a> ProjectBuilder<'a> {
                             }
                         }
                         EntryType::RubyPackage(absolute_path, relative_path) => {
-                            match ruby_package_owner(&absolute_path)
+                            match ruby_package_owner(&absolute_path, &node_limit)
                                 .attach_with(|| format!("Failed to read ruby package: {}", absolute_path.display()))
                             {
                                 Ok(Some(owner)) => {
@@ -282,7 +284,7 @@ impl<'a> ProjectBuilder<'a> {
                             });
                         }
                         EntryType::TeamFile(absolute_path, _relative_path) => {
-                            let team = Team::from_team_file_path(absolute_path.clone())
+                            let team = Team::from_team_file_path(absolute_path.clone(), &node_limit)
                                 .change_context(Error::Io)
                                 .attach_with(|| format!("Failed to read team file: {}", absolute_path.display()))?;
                             team_files.push(team);
@@ -325,20 +327,19 @@ impl<'a> ProjectBuilder<'a> {
             directory_codeowner_files: directory_codeowners,
             teams_by_name,
             executable_name: self.config.executable_name.clone(),
+            optionally_owned_globs: self.config.optionally_owned_globs.clone(),
         })
     }
 }
 
-fn matches_globs(path: &Path, globs: &[String]) -> bool {
-    match path.to_str() {
-        Some(s) => globs.iter().any(|glob| glob_match(glob, s)),
-        None => false,
-    }
-}
-
-fn ruby_package_owner(path: &Path) -> Result<Option<String>, Report<Error>> {
-    let file = File::open(path).change_context(Error::Io)?;
-    let deserializer: deserializers::RubyPackage = serde_yaml::from_reader(file).change_context(Error::SerdeYaml)?;
+pub(crate) fn ruby_package_owner(path: &Path, node_limit: &NodeLimit) -> Result<Option<String>, Report<Error>> {
+    let bytes = std::fs::read(path).change_context(Error::Io)?;
+    // An empty, comment-only or `---`-only file is a null document, which serde-saphyr 2.1 no longer reads as a struct.
+    let package: Option<deserializers::RubyPackage> =
+        crate::yaml::from_project_slice(&bytes, node_limit).change_context(Error::SerdeYaml)?;
+    let Some(deserializer) = package else {
+        return Ok(None);
+    };
 
     let top_level_owner = deserializer.owner;
     let metadata_owner = deserializer.metadata.and_then(|metadata| metadata.owner);
@@ -364,19 +365,9 @@ fn javascript_package_owner(path: &Path) -> Result<Option<String>, Report<Error>
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
-
-    const OWNED_GLOB: &str = "{app,components,config,frontend,lib,packs,spec,danger,script}/**/*.{rb,arb,erb,rake,js,jsx,ts,tsx}";
-
-    #[test]
-    fn test_matches_globs() {
-        assert!(matches_globs(Path::new("script/.eslintrc.js"), &[OWNED_GLOB.to_string()]));
-    }
-
-    #[test]
-    fn test_glob_match() {
-        assert!(glob_match(OWNED_GLOB, "script/.eslintrc.js"));
-    }
 
     #[test]
     fn test_ruby_package_owner_top_level() {
@@ -384,7 +375,7 @@ mod tests {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), yaml).unwrap();
 
-        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
         assert_eq!(owner, Some("TeamA".to_string()));
     }
 
@@ -394,7 +385,7 @@ mod tests {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), yaml).unwrap();
 
-        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
         assert_eq!(owner, Some("TeamB".to_string()));
     }
 
@@ -404,7 +395,7 @@ mod tests {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), yaml).unwrap();
 
-        let result = ruby_package_owner(temp_file.path());
+        let result = ruby_package_owner(temp_file.path(), &NodeLimit::default());
         assert!(result.is_err());
     }
 
@@ -414,7 +405,7 @@ mod tests {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), yaml).unwrap();
 
-        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
         assert_eq!(owner, Some("TeamA".to_string()));
     }
 
@@ -424,7 +415,71 @@ mod tests {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), yaml).unwrap();
 
-        let owner = ruby_package_owner(temp_file.path()).unwrap();
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
         assert_eq!(owner, None);
+    }
+
+    #[test]
+    fn test_ruby_package_owner_empty_file_has_no_owner() {
+        for yaml in [
+            "",
+            "\u{feff}",
+            "# no keys yet\n",
+            "---\n",
+            "--- # no keys yet\n",
+            "~\n",
+            "null\n",
+            "...\n",
+        ] {
+            let temp_file = tempfile::NamedTempFile::new().unwrap();
+            std::fs::write(temp_file.path(), yaml).unwrap();
+
+            let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).expect(yaml);
+            assert_eq!(owner, None, "{yaml:?}");
+        }
+    }
+
+    #[test]
+    fn test_ruby_package_owner_ignores_duplicate_unknown_keys() {
+        let yaml = indoc! {"
+            enforce_dependencies: true
+            enforce_privacy: true
+            enforce_privacy: false
+            metadata:
+              slack: '#a'
+              slack: '#b'
+              owner: TeamA
+        "};
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
+        assert_eq!(owner, Some("TeamA".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_duplicate_owner_last_wins() {
+        let yaml = "owner: TeamA\nowner: TeamB\n";
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), yaml).unwrap();
+
+        let owner = ruby_package_owner(temp_file.path(), &NodeLimit::default()).unwrap();
+        assert_eq!(owner, Some("TeamB".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_package_owner_over_the_node_limit_names_yaml_max_nodes() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), "owner: TeamA\nignored: [a, b, c, d, e]\n").unwrap();
+
+        let node_limit = NodeLimit {
+            max_nodes: 5,
+            config_path: PathBuf::from("config/alt.yml"),
+        };
+        let error = ruby_package_owner(temp_file.path(), &node_limit).unwrap_err();
+        assert!(
+            format!("{error:?}").contains("raise `yaml_max_nodes` (now 5) in config/alt.yml to allow larger files"),
+            "{error:?}"
+        );
     }
 }
