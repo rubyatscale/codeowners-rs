@@ -1,26 +1,10 @@
-//! Parity between `validate` / `gv` with an explicit file list and the same command with
-//! no file list.
+//! Parity between `validate` / `gv` with a list of files and the same command with none.
 //!
-//! Passing paths routes through `validate_files()` instead of `validate_all()`
-//! (`runner.rs:124`). Both resolve ownership through the mappers, so both catch an
-//! invalid team annotation and a file owned two ways; `validate_files` simply scopes the
-//! per-file checks to the supplied paths.
+//! Both resolve ownership through the mappers, so both catch a file owned two ways and an invalid team. A list of files scopes
+//! the checks: a package or `.codeowner` is checked only if its directory contains a listed path, so one bad one elsewhere
+//! doesn't fail every scoped run, and staleness is checked file by file, since the whole-file comparison can't be scoped.
 //!
-//! Two things differ, both deliberately. The staleness check is unavoidable: it compares
-//! the whole generated CODEOWNERS against the whole on-disk one, so it cannot be scoped to
-//! a subset, and `gv <paths>` makes it moot by regenerating first. The package check is
-//! scoped to packages containing a supplied path, so that one bad package owner elsewhere
-//! in the repo does not fail every scoped run; the `*_invalid_package*` tests pin both
-//! halves of that, and the `*_untracked_*` pair pins that a path the walk never recorded is
-//! asked about rather than assumed unowned.
-//!
-//! The `gv_*` tests previously all failed. `validate_files` used to answer only "does this
-//! path have an owner in the CODEOWNERS file", which could not see a file owned two ways —
-//! generation picks one winner, so the file looked owned and the command exited 0. They are
-//! kept as regression guards against reintroducing that shortcut.
-//!
-//! Normalization of the supplied paths themselves is covered separately, in
-//! `supplied_path_normalization_test.rs`.
+//! Normalization of the given paths is covered in `path_normalization_test.rs`.
 
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
@@ -109,60 +93,55 @@ fn test_gv_with_paths_names_the_invalid_team() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// Every fixture whose project can be built. missing_github_team's can't, which missing_github_team_test.rs covers.
+fn buildable_fixtures() -> Vec<std::path::PathBuf> {
+    std::fs::read_dir("tests/fixtures")
+        .expect("tests/fixtures")
+        .map(|fixture| fixture.expect("fixture").path())
+        .filter(|fixture| fixture.join("config/code_ownership.yml").exists() && !fixture.ends_with("missing_github_team"))
+        .collect()
+}
+
+fn tracked_files(project_root: &std::path::Path) -> Result<Vec<String>, Box<dyn Error>> {
+    let tracked = Command::new("git").arg("ls-files").current_dir(project_root).output()?;
+    Ok(String::from_utf8(tracked.stdout)?.lines().map(str::to_string).collect())
+}
+
 #[test]
 fn test_gv_with_every_path_matches_gv_with_no_paths() -> Result<(), Box<dyn Error>> {
-    // The differential check: handing over every owned file should be equivalent to handing
-    // over none. This is the general form of the three tests above -- it needs no knowledge
-    // of which defects the fixture contains, so it keeps working as fixtures change.
-    //
-    // Regression guard, and the most valuable of the set: it needs no knowledge of the
-    // fixture's contents, so it keeps working as fixtures change. The all-paths run used to
-    // report neither the dual ownership nor the invalid team.
-    let temp_dir = setup_fixture_repo(std::path::Path::new(FIXTURE));
-    let project_root = temp_dir.path();
-    git_add_all_files(project_root);
+    // `gv` regenerates CODEOWNERS first, so nothing is stale. Given every tracked file, each package.yml and `.codeowner`
+    // included, a list of files is checked for everything a full run checks.
+    for fixture in buildable_fixtures() {
+        let temp_dir = setup_fixture_repo(&fixture);
+        let project_root = temp_dir.path();
+        git_add_all_files(project_root);
 
-    // owned_globs for this fixture is `**/*.{rb,tsx}`.
-    let tracked = Command::new("git").arg("ls-files").current_dir(project_root).output()?;
-    let owned_files: Vec<String> = String::from_utf8(tracked.stdout)?
-        .lines()
-        .filter(|line| line.ends_with(".rb") || line.ends_with(".tsx"))
-        .map(str::to_string)
-        .collect();
-    assert!(!owned_files.is_empty(), "fixture should contain owned files");
+        // A list of files isn't checked against `.ignore`, which leaves files out of the project walk.
+        let ignored = std::fs::read_to_string(project_root.join(".ignore")).unwrap_or_default();
+        let files: Vec<String> = tracked_files(project_root)?
+            .into_iter()
+            .filter(|file| !ignored.lines().any(|dir| std::path::Path::new(file).starts_with(dir)))
+            .collect();
 
-    let no_paths = Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .arg("gv")
-        .output()?;
+        let gv = |files: &[String]| {
+            Command::cargo_bin("codeowners")
+                .expect("codeowners binary")
+                .arg("--project-root")
+                .arg(project_root)
+                .arg("--no-cache")
+                .arg("gv")
+                .arg("--skip-stage")
+                .args(files)
+                .output()
+        };
+        let no_paths = gv(&[])?;
+        let every_path = gv(&files)?;
 
-    let all_paths = Command::cargo_bin("codeowners")?
-        .arg("--project-root")
-        .arg(project_root)
-        .arg("--no-cache")
-        .arg("gv")
-        .args(&owned_files)
-        .output()?;
-
-    // Compare the defects each run found rather than byte-for-byte output. The two now
-    // share a report format, but the no-paths run legitimately reports more (staleness,
-    // and files outside the supplied list), so only the shared substance is claimed here.
-    let no_paths_out = String::from_utf8_lossy(&no_paths.stdout);
-    let all_paths_out = String::from_utf8_lossy(&all_paths.stdout);
-
-    for defect in ["one way", "Web3"] {
         assert_eq!(
-            no_paths_out.contains(defect),
-            all_paths_out.contains(defect),
-            "`gv` with no paths and `gv` with every path disagree about {:?}.\n\
-             \n--- no paths (exit {:?}) ---\n{}\n--- every path (exit {:?}) ---\n{}",
-            defect,
-            no_paths.status.code(),
-            no_paths_out,
-            all_paths.status.code(),
-            all_paths_out,
+            (every_path.status.code(), String::from_utf8_lossy(&every_path.stdout)),
+            (no_paths.status.code(), String::from_utf8_lossy(&no_paths.stdout)),
+            "{}",
+            fixture.display()
         );
     }
 
@@ -348,19 +327,13 @@ fn test_validate_still_reports_an_untracked_file_with_no_owner() -> Result<(), B
 fn test_validate_with_every_path_finds_no_stale_codeowners_line_after_generating() -> Result<(), Box<dyn Error>> {
     // Whatever else is wrong in a fixture, a CODEOWNERS file just generated is up to date, so checking each file against it
     // must not call it stale.
-    for fixture in std::fs::read_dir("tests/fixtures")? {
-        let fixture = fixture?.path();
-        // missing_github_team's project can't be built, which missing_github_team_test.rs covers.
-        if !fixture.join("config/code_ownership.yml").exists() || fixture.ends_with("missing_github_team") {
-            continue;
-        }
+    for fixture in buildable_fixtures() {
         let temp_dir = setup_fixture_repo(&fixture);
         let project_root = temp_dir.path();
         git_add_all_files(project_root);
         generate_codeowners(project_root);
 
-        let tracked = Command::new("git").arg("ls-files").current_dir(project_root).output()?;
-        let files: Vec<String> = String::from_utf8(tracked.stdout)?.lines().map(str::to_string).collect();
+        let files = tracked_files(project_root)?;
         let output = Command::cargo_bin("codeowners")?
             .arg("--project-root")
             .arg(project_root)
