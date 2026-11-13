@@ -62,8 +62,8 @@ Release archives after v0.5.0 also hold a `licenses` directory next to the `code
 
 #### Why commit the file rather than re-download it
 
-A DotSlash file records the expected `size` and BLAKE3 `digest` of each platform's
-binary, and DotSlash refuses to unpack or execute an artifact that does not match.
+A DotSlash file records the expected `size` and `digest` of each platform's release
+archive, and DotSlash refuses to unpack or execute an artifact that does not match.
 That check is only worth something if the digest itself is trusted — and the digest
 is trusted because the file lives in your repository and changes to it go through
 review. If you re-download the DotSlash file alongside the binary every time, you
@@ -92,6 +92,11 @@ gh attestation verify codeowners-mac.tar.gz \
   --repo rubyatscale/codeowners-rs \
   --signer-workflow rubyatscale/codeowners-rs/.github/workflows/ci.yml
 ```
+
+For releases after v0.6.0, the `digest` a DotSlash file records for each platform is
+the SHA-256 of that platform's archive, which is also the digest the attestation
+covers. So `gh attestation verify` on an archive checks the same bytes your committed
+DotSlash file pins. Earlier DotSlash files record BLAKE3 digests instead.
 
 Releases up to and including v0.6.0 were published before attestation was added, so
 `gh attestation verify` reports "no matching attestations found" for them. That is
