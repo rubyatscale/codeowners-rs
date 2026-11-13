@@ -155,7 +155,7 @@ fn test_validate_with_files_reports_a_file_missing_from_codeowners() -> Result<(
         .failure()
         .stdout(predicate::eq(
             "\nCODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file\n\
-             - ruby/app/models/new_thing.rb is owned by Payroll, but CODEOWNERS doesn't list it\n\n",
+             - ruby/app/models/new_thing.rb is owned by Payroll, but CODEOWNERS doesn't give it to a known team\n\n",
         ));
     codeowners(project.path(), &["gv", "ruby/app/models/new_thing.rb"])?
         .success()

@@ -691,7 +691,7 @@ fn test_validate_files_reports_an_optionally_owned_file_missing_from_codeowners(
             .failure()
             .stdout(predicate::eq(format!(
                 "\nCODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file\n\
-                 - {file} is owned by Foo, but CODEOWNERS doesn't list it\n\n"
+                 - {file} is owned by Foo, but CODEOWNERS doesn't give it to a known team\n\n"
             )));
     }
     Ok(())

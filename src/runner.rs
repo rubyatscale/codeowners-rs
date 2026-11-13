@@ -177,33 +177,35 @@ impl Runner {
             return RunResult::default();
         }
 
-        let listed = if codeowners_generated {
-            None
-        } else {
-            let given: Vec<String> = owned.iter().map(|supplied| supplied.given.clone()).collect();
-            match crate::ownership::codeowners_query::teams_for_files_from_codeowners(
-                project_root,
-                &self.codeowners_file_path,
-                &self.config.team_file_glob,
-                self.config.node_limit(project_root),
-                &given,
-            ) {
-                Ok(listed) => Some(listed),
-                Err(err) => {
-                    return RunResult {
-                        io_errors: vec![err],
-                        ..Default::default()
-                    };
+        debug_span!("per_file_query").in_scope(|| {
+            let listed = if codeowners_generated {
+                None
+            } else {
+                let given: Vec<String> = owned.iter().map(|supplied| supplied.given.clone()).collect();
+                match crate::ownership::codeowners_query::teams_for_files_from_codeowners(
+                    project_root,
+                    &self.codeowners_file_path,
+                    &self.config.team_file_glob,
+                    self.config.node_limit(project_root),
+                    &given,
+                ) {
+                    Ok(listed) => Some(listed),
+                    Err(err) => {
+                        return RunResult {
+                            io_errors: vec![err],
+                            ..Default::default()
+                        };
+                    }
                 }
-            }
-        };
+            };
 
-        debug_span!("per_file_query").in_scope(|| match self.ownership.validate_files(&owned, &selectors, listed.as_ref()) {
-            Ok(_) => RunResult::default(),
-            Err(err) => RunResult {
-                validation_errors: vec![format!("{}", err)],
-                ..Default::default()
-            },
+            match self.ownership.validate_files(&owned, &selectors, listed.as_ref()) {
+                Ok(_) => RunResult::default(),
+                Err(err) => RunResult {
+                    validation_errors: vec![format!("{}", err)],
+                    ..Default::default()
+                },
+            }
         })
     }
 

@@ -432,7 +432,12 @@ impl Error {
                     owner,
                     listed
                 ),
-                None => format!("- {} is owned by {}, but CODEOWNERS doesn't list it", path.to_string_lossy(), owner),
+                // CODEOWNERS may have no line for the file, or a line naming a team that's no longer in the team files.
+                None => format!(
+                    "- {} is owned by {}, but CODEOWNERS doesn't give it to a known team",
+                    path.to_string_lossy(),
+                    owner
+                ),
             }],
             Error::InvalidTeam { name, path } => vec![format!("- {} is referencing an invalid team - '{}'", path.to_string_lossy(), name)],
             Error::InvalidDirectoryTeam { name, path, inherits_from } => {

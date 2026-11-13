@@ -113,12 +113,12 @@ a hook that runs `gv` sees the smaller of the two wins, and quoting the
 Spans are inclusive of children, so sibling spans can be summed and nested ones
 cannot. `config_load`, `cache_init`, `project_build`, `cache_persist` and
 `per_file_query` are disjoint — percentages across those are sound. But
-`ownership_validate` ⊃ `validator_validate` ⊃ `validate_file_ownership` ⊃
-`file_to_owners`: quoting those together as shares of one total double-counts.
+`ownership_validate` ⊃ `validator_validate` ⊃ `path_to_owners`: quoting those
+together as shares of one total double-counts.
 - The **phase breakdown** comes from `tracing` spans inside the library. Phases
   are **inclusive of nested children**, so they do not sum to the total —
   `project_build` contains its own sub-work, and `ownership_validate` contains
-  `validator_validate`, which contains `file_to_owners`. Use them to attribute a
+  `validator_validate`, which contains `path_to_owners`. Use them to attribute a
   win, not to reconstruct a total.
 - `mapper_build` is **accumulated across all calls in a run**. That is
   deliberate: it is currently invoked more than once per validate, and the sum is
