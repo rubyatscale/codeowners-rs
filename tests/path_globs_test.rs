@@ -152,7 +152,7 @@ fn test_validate_reads_glob_metacharacters_in_names_literally() -> Result<(), Bo
     let files = OWNERS_OF_FILES_WITH_GLOB_METACHARACTERS_IN_NAMES.map(|(file, _)| file);
     codeowners(project.path(), &[["validate"].as_slice(), &files].concat())?
         .failure()
-        .stdout(predicate::eq("Unowned files detected:\n  packs/a/y.rb\n  lib/v2.rb\n"));
+        .stdout(predicate::eq("\nSome files are missing ownership\n- lib/v2.rb\n- packs/a/y.rb\n\n"));
     Ok(())
 }
 

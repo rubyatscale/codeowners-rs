@@ -2,6 +2,7 @@ use file_owner_finder::FileOwnerFinder;
 use itertools::Itertools;
 use mapper::{OwnerMatcher, Source, TeamName};
 use std::{
+    collections::HashMap,
     error::Error,
     fmt::{self, Display},
     path::{Path, PathBuf},
@@ -23,6 +24,7 @@ use crate::{
 };
 
 pub use validator::Errors as ValidatorErrors;
+pub(crate) use validator::SuppliedPath;
 
 use self::{
     codeowners_file_parser::parse_for_team,
@@ -109,27 +111,6 @@ impl Entry {
     }
 }
 
-/// Tells whether anything names an owner for a project-relative path, even a team that doesn't exist: an annotation naming one
-/// still counts for its file, and a `.codeowner`, `package.yml` or `package.json` naming one for every path under its directory.
-/// It sees only files the project reads, so an annotated file, `.codeowner` or package file names no owner here if it is
-/// untracked or under a top-level directory named in ignore_dirs, as in `validate`. Building one goes through every project
-/// file, so reuse it.
-pub(crate) struct OwnerLookup {
-    owner_matchers: Vec<OwnerMatcher>,
-    unknown_team_roots: Vec<PathBuf>,
-}
-
-impl OwnerLookup {
-    pub(crate) fn has_owner(&self, relative_path: &Path) -> bool {
-        // FileOwnerFinder::find returns an owner exactly when some matcher names a team, but builds every owner to do it.
-        self.unknown_team_roots.iter().any(|root| relative_path.starts_with(root))
-            || self
-                .owner_matchers
-                .iter()
-                .any(|owner_matcher| owner_matcher.owner_for(relative_path).0.is_some())
-    }
-}
-
 impl Ownership {
     pub fn build(project: Project) -> Self {
         Self {
@@ -143,13 +124,29 @@ impl Ownership {
         let validator = Validator {
             project: self.project.clone(),
             mappers: self.mappers(),
-            file_generator: FileGenerator {
-                mappers: self.codeowners_file_mappers(),
-            },
             executable_name: self.project.executable_name.clone(),
         };
 
-        validator.validate()
+        validator.validate(&FileGenerator {
+            mappers: self.codeowners_file_mappers(),
+        })
+    }
+
+    #[instrument(name = "ownership_validate_files", level = "debug", skip_all)]
+    pub(crate) fn validate_files(
+        &self,
+        supplied: &[SuppliedPath],
+        selectors: &[PathBuf],
+        listed: Option<&HashMap<String, Option<Team>>>,
+    ) -> Result<(), ValidatorErrors> {
+        info!("validating file ownership for {} supplied paths", supplied.len());
+        let validator = Validator {
+            project: self.project.clone(),
+            mappers: self.mappers(),
+            executable_name: self.project.executable_name.clone(),
+        };
+
+        validator.validate_files(supplied, selectors, listed)
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -175,23 +172,6 @@ impl Ownership {
                 None => FileOwner::default(),
             })
             .collect())
-    }
-
-    pub(crate) fn owner_lookup(&self) -> OwnerLookup {
-        // `validate` reports a package.yml, package.json or `.codeowner` naming a team that doesn't exist, but a list of files
-        // isn't checked for that, so here each still names an owner for the files under its directory. The directory mapper
-        // matches a `.codeowner` whatever team it names, but the package mappers drop such a package, so its directory is matched
-        // as a path prefix.
-        let package_roots = self
-            .project
-            .packages
-            .iter()
-            .filter(|package| !self.project.teams_by_name.contains_key(&package.owner))
-            .filter_map(|package| package.package_root());
-        OwnerLookup {
-            owner_matchers: self.mappers().iter().flat_map(|mapper| mapper.owner_matchers()).collect(),
-            unknown_team_roots: package_roots.map(Path::to_path_buf).collect(),
-        }
     }
 
     #[instrument(level = "debug", skip_all)]

@@ -80,7 +80,7 @@ fn test_validate_files_reports_an_unowned_file_by_a_dot_slash_path() -> Result<(
     for command in ["validate", "gv"] {
         codeowners(project.path(), &[command, "./app/unowned.rb"])?
             .failure()
-            .stdout(predicate::eq("Unowned files detected:\n  ./app/unowned.rb\n"));
+            .stdout(predicate::eq("\nSome files are missing ownership\n- ./app/unowned.rb\n\n"));
     }
     Ok(())
 }
@@ -95,7 +95,10 @@ fn test_validate_files_reports_an_unowned_file_by_a_path_through_a_symlink() -> 
         let path = link.join(file);
         codeowners(project.path(), &["validate", path.to_str().unwrap()])?
             .failure()
-            .stdout(predicate::eq(format!("Unowned files detected:\n  {}\n", path.display())));
+            .stdout(predicate::eq(format!(
+                "\nSome files are missing ownership\n- {}\n\n",
+                path.display()
+            )));
     }
     Ok(())
 }
@@ -131,7 +134,7 @@ fn test_validate_files_reports_a_path_outside_the_project_as_unowned() -> Result
     for file in ["../outside.rb", outside.to_str().unwrap()] {
         codeowners(project.path(), &["validate", file])?
             .failure()
-            .stdout(predicate::eq(format!("Unowned files detected:\n  {file}\n")));
+            .stdout(predicate::eq(format!("\nSome files are missing ownership\n- {file}\n\n")));
     }
     Ok(())
 }
@@ -144,7 +147,7 @@ fn test_validate_files_reports_a_path_that_leaves_the_project_by_either_form() -
     for file in ["app/../../outside.rb", absolute.to_str().unwrap()] {
         codeowners(project.path(), &["validate", file])?
             .failure()
-            .stdout(predicate::eq(format!("Unowned files detected:\n  {file}\n")));
+            .stdout(predicate::eq(format!("\nSome files are missing ownership\n- {file}\n\n")));
     }
     Ok(())
 }

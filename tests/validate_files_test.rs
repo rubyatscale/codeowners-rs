@@ -34,7 +34,7 @@ fn test_validate_with_unowned_file() -> Result<(), Box<dyn Error>> {
 
     codeowners(project.path(), &["validate", "ruby/app/unowned.rb"])?
         .failure()
-        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
@@ -45,7 +45,7 @@ fn test_validate_with_mixed_files() -> Result<(), Box<dyn Error>> {
 
     codeowners(project.path(), &["validate", "ruby/app/models/payroll.rb", "ruby/app/unowned.rb"])?
         .failure()
-        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
@@ -99,7 +99,7 @@ fn test_generate_and_validate_with_unowned_file() -> Result<(), Box<dyn Error>> 
         .arg("ruby/app/unowned.rb")
         .assert()
         .failure()
-        .stdout(predicate::eq("Unowned files detected:\n  ruby/app/unowned.rb\n"));
+        .stdout(predicate::eq("\nSome files are missing ownership\n- ruby/app/unowned.rb\n\n"));
 
     Ok(())
 }
@@ -126,14 +126,8 @@ fn test_validate_with_absolute_path() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_validate_only_checks_codeowners_file() -> Result<(), Box<dyn Error>> {
-    // This test demonstrates that `validate` with files only checks the CODEOWNERS file
-    // It does NOT check file annotations or other ownership sources
-    //
-    // If a file has an annotation but is missing from CODEOWNERS, `validate` will report it as unowned
-    // This is why `generate-and-validate` should be used for accuracy
-
-    // ruby/app/models/bank_account.rb has @team Payments annotation and is in CODEOWNERS
+fn test_validate_with_an_annotated_file() -> Result<(), Box<dyn Error>> {
+    // ruby/app/models/bank_account.rb has a @team Payments annotation and is in CODEOWNERS.
     run_codeowners(
         "valid_project",
         &["validate", "ruby/app/models/bank_account.rb"],
@@ -141,6 +135,69 @@ fn test_validate_only_checks_codeowners_file() -> Result<(), Box<dyn Error>> {
         OutputStream::Stdout,
         predicate::eq(""),
     )?;
+
+    Ok(())
+}
+
+// A temp copy of valid_project with `change` made and staged, and CODEOWNERS left as it was.
+fn valid_project_with(change: impl FnOnce(&std::path::Path) -> std::io::Result<()>) -> tempfile::TempDir {
+    let temp_dir = setup_fixture_repo(std::path::Path::new("tests/fixtures/valid_project"));
+    change(temp_dir.path()).expect("failed to change the fixture");
+    git_add_all_files(temp_dir.path());
+    temp_dir
+}
+
+#[test]
+fn test_validate_with_files_reports_a_file_missing_from_codeowners() -> Result<(), Box<dyn Error>> {
+    let project = valid_project_with(|root| std::fs::write(root.join("ruby/app/models/new_thing.rb"), "# @team Payroll\n"));
+
+    codeowners(project.path(), &["validate", "ruby/app/models/new_thing.rb"])?
+        .failure()
+        .stdout(predicate::eq(
+            "\nCODEOWNERS out of date. Run `codeowners generate` to update the CODEOWNERS file\n\
+             - ruby/app/models/new_thing.rb is owned by Payroll, but CODEOWNERS doesn't give it to a known team\n\n",
+        ));
+    codeowners(project.path(), &["gv", "ruby/app/models/new_thing.rb"])?
+        .success()
+        .stdout(predicate::eq(""));
+
+    Ok(())
+}
+
+#[test]
+fn test_validate_with_files_reports_a_file_codeowners_gives_another_team() -> Result<(), Box<dyn Error>> {
+    let project = valid_project_with(|root| {
+        let file = root.join("ruby/app/models/bank_account.rb");
+        std::fs::write(&file, std::fs::read_to_string(&file)?.replace("Payments", "Payroll"))
+    });
+
+    codeowners(project.path(), &["validate", "ruby/app/models/bank_account.rb"])?
+        .failure()
+        .stdout(predicate::str::contains(
+            "- ruby/app/models/bank_account.rb is owned by Payroll, but CODEOWNERS gives it to Payments",
+        ));
+
+    Ok(())
+}
+
+#[test]
+fn test_validate_with_files_accepts_a_team_left_out_of_codeowners() -> Result<(), Box<dyn Error>> {
+    // A team with do_not_add_to_codeowners_file gets commented-out lines, which the CODEOWNERS lookup still reads.
+    let project = valid_project_with(|root| {
+        std::fs::write(
+            root.join("config/teams/payments.yml"),
+            "name: Payments\ngithub:\n  team: '@PaymentsTeam'\n  do_not_add_to_codeowners_file: true\n\
+             owned_globs:\n  - ruby/app/payments/**/*\nunowned_globs:\n  - ruby/app/payments/foo/**/*\n",
+        )
+    });
+    codeowners(project.path(), &["generate"])?.success();
+
+    codeowners(
+        project.path(),
+        &["validate", "ruby/app/models/bank_account.rb", "ruby/app/payments/nacha.rb"],
+    )?
+    .success()
+    .stdout(predicate::eq(""));
 
     Ok(())
 }

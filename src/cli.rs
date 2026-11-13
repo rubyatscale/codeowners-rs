@@ -39,7 +39,11 @@ enum Command {
         visible_alias = "v"
     )]
     Validate {
-        #[arg(help = "Optional list of files to validate ownership for (fast mode for git hooks)")]
+        #[arg(
+            help = "Optional list of files to validate ownership for (fast mode for git hooks). Checks just these \
+                   files, the packages and `.codeowner` files whose directories contain them, and that the \
+                   CODEOWNERS file gives each file its owner."
+        )]
         files: Vec<String>,
     },
 
@@ -47,7 +51,11 @@ enum Command {
     GenerateAndValidate {
         #[arg(long, short, default_value = "false", help = "Skip staging the CODEOWNERS file")]
         skip_stage: bool,
-        #[arg(help = "Optional list of files to validate ownership for (fast mode for git hooks)")]
+        #[arg(
+            help = "Optional list of files to validate ownership for (fast mode for git hooks). Regenerates the \
+                   CODEOWNERS file, then checks just these files and the packages and `.codeowner` files whose \
+                   directories contain them."
+        )]
         files: Vec<String>,
     },
 
