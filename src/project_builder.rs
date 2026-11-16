@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::File,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -12,7 +13,7 @@ use tracing::instrument;
 use crate::{
     cache::Cache,
     config::Config,
-    path_utils::matches_globs,
+    path_utils::{literal_glob_prefix, matches_globs},
     project::{DirectoryCodeownersFile, Error, Package, PackageType, Project, ProjectFile, Team, VendoredGem, deserializers},
     project_file_builder::ProjectFileBuilder,
     tracked_files,
@@ -77,6 +78,11 @@ impl<'a> ProjectBuilder<'a> {
         let team_file_glob = self.config.team_file_glob.clone();
         let base_path = self.base_path.clone();
         let tracked_files = tracked_files::find_tracked_files(&self.base_path);
+        // git's ignore rules are off, so without this the walk reads every ignored directory, like build output or worktrees.
+        let tracked_directories = tracked_files
+            .as_ref()
+            .map(|files| tracked_files::tracked_directories(&base_path, files));
+        let team_file_roots: Vec<PathBuf> = team_file_glob.iter().map(|glob| literal_glob_prefix(glob)).collect();
 
         builder.filter_entry(move |entry: &DirEntry| {
             let path = entry.path();
@@ -98,6 +104,14 @@ impl<'a> ProjectBuilder<'a> {
                 && ft.is_file()
                 && !tracked_files.contains_key(path)
                 && !is_team_file
+            {
+                return false;
+            }
+            if let Some(tracked_directories) = &tracked_directories
+                && let Some(ft) = entry.file_type()
+                && ft.is_dir()
+                && let Ok(rel) = path.strip_prefix(&base_path)
+                && !walk_enters(rel, tracked_directories, &team_file_roots)
             {
                 return false;
             }
@@ -332,6 +346,15 @@ impl<'a> ProjectBuilder<'a> {
     }
 }
 
+/// Whether the walk has to enter `relative_directory`. Only a directory that holds a tracked file can hold a file the project
+/// includes, apart from team files, which are included untracked.
+fn walk_enters(relative_directory: &Path, tracked_directories: &HashSet<PathBuf>, team_file_roots: &[PathBuf]) -> bool {
+    tracked_directories.contains(relative_directory)
+        || team_file_roots
+            .iter()
+            .any(|root| relative_directory.starts_with(root) || root.starts_with(relative_directory))
+}
+
 pub(crate) fn ruby_package_owner(path: &Path, node_limit: &NodeLimit) -> Result<Option<String>, Report<Error>> {
     let bytes = std::fs::read(path).change_context(Error::Io)?;
     // An empty, comment-only or `---`-only file is a null document, which serde-saphyr 2.1 no longer reads as a struct.
@@ -368,6 +391,35 @@ mod tests {
     use indoc::indoc;
 
     use super::*;
+
+    #[test]
+    fn test_walk_enters() {
+        let tracked_directories: HashSet<PathBuf> = ["", "app", "app/models"].iter().map(PathBuf::from).collect();
+        let team_file_roots = vec![PathBuf::from("config/teams")];
+        for (directory, entered) in [
+            ("", true),
+            ("app", true),
+            ("app/models", true),
+            ("app/assets", false),
+            ("node_modules", false),
+            ("config", true),
+            ("config/teams", true),
+            ("config/teams/new_area", true),
+            ("config/initializers", false),
+        ] {
+            assert_eq!(
+                walk_enters(Path::new(directory), &tracked_directories, &team_file_roots),
+                entered,
+                "{directory}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_walk_enters_every_directory_when_a_team_file_glob_starts_with_a_wildcard() {
+        let tracked_directories = HashSet::from([PathBuf::new()]);
+        assert!(walk_enters(Path::new("node_modules"), &tracked_directories, &[PathBuf::new()]));
+    }
 
     #[test]
     fn test_ruby_package_owner_top_level() {
