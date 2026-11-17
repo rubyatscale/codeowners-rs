@@ -1,4 +1,5 @@
-//! `validate`, `for-file` and CODEOWNERS agree on which package owns a file: the nearest one, of each type.
+//! `validate`, `for-file` and CODEOWNERS agree on which package owns a file: the nearest one, of each type. `validate`
+//! and `for-file` both count a `package.yml` and a `package.json` in one directory as two owners of its files.
 
 use indoc::indoc;
 use predicates::prelude::*;
@@ -123,6 +124,47 @@ fn test_validate_reports_a_nested_package_file_that_the_outer_package_team_annot
           - Owner defined in `packs/payroll/payments/package.yml` with implicitly owned glob: `packs/payroll/payments/**/**`
          owner: Foo
           - Owner annotation at the top of the file
+    "}));
+    Ok(())
+}
+
+#[test]
+fn test_for_file_reports_a_package_yml_and_a_package_json_in_one_directory() -> Result<(), Box<dyn Error>> {
+    let project = generated_project(
+        "owned_globs:\n  - \"**/*.rb\"\njavascript_package_paths:\n  - packs/**/*\n",
+        &[
+            ("packs/payroll/package.yml", "owner: Foo\n"),
+            ("packs/payroll/package.json", r#"{"metadata": {"owner": "Bar"}}"#),
+            ("packs/payroll/app/payroll.rb", ""),
+        ],
+    )?;
+    let project_root = project.path();
+
+    codeowners(project_root, &["for-file", "packs/payroll/app/payroll.rb"])?
+        .failure()
+        .stdout(indoc! {"
+            Error: file is owned by multiple teams!
+
+            Team: Bar
+            Github Team: @org/bar
+            Team YML: config/teams/bar.yml
+            Description:
+            - Owner defined in `packs/payroll/package.json` with implicitly owned glob: `packs/payroll/**/**`
+
+            Team: Foo
+            Github Team: @org/foo
+            Team YML: config/teams/foo.yml
+            Description:
+            - Owner defined in `packs/payroll/package.yml` with implicitly owned glob: `packs/payroll/**/**`
+        "});
+    codeowners(project_root, &["validate"])?
+        .failure()
+        .stdout(predicate::str::contains(indoc! {"
+        packs/payroll/app/payroll.rb
+         owner: Bar
+          - Owner defined in `packs/payroll/package.json` with implicitly owned glob: `packs/payroll/**/**`
+         owner: Foo
+          - Owner defined in `packs/payroll/package.yml` with implicitly owned glob: `packs/payroll/**/**`
     "}));
     Ok(())
 }

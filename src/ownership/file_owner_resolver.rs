@@ -57,7 +57,7 @@ pub fn find_file_owners(project_root: &Path, config: &Config, file_path: &Path) 
         sources_by_team.entry(owner_team_name).or_default().push(dir_source);
     }
 
-    if let Some((owner_team_name, package_source)) = nearest_package_owner(project_root, &relative_file_path, config, teams_by_name) {
+    for (owner_team_name, package_source) in nearest_package_owners(project_root, &relative_file_path, config, teams_by_name) {
         sources_by_team.entry(owner_team_name).or_default().push(package_source);
     }
 
@@ -267,12 +267,14 @@ fn most_specific_directory_owner(
     best
 }
 
-fn nearest_package_owner(
+// The owners of the packages in the nearest directory with one that names a known team. `validate` matches a
+// `package.yml` and a `package.json` in one directory alike, so both are returned.
+fn nearest_package_owners(
     project_root: &Path,
     relative_file_path: &Path,
     config: &Config,
     teams_by_name: &HashMap<String, Team>,
-) -> Option<(String, Source)> {
+) -> Vec<(String, Source)> {
     let mut current = project_root.join(relative_file_path);
     loop {
         if !current.pop() {
@@ -280,6 +282,7 @@ fn nearest_package_owner(
         }
         let parent_rel = crate::path_utils::relative_to(project_root, current.as_path());
         if let Some(rel_str) = parent_rel.to_str() {
+            let mut owners = Vec::new();
             if glob_list_matches(rel_str, &config.ruby_package_paths) {
                 let pkg_yml = current.join("package.yml");
                 if pkg_yml.exists() {
@@ -288,7 +291,7 @@ fn nearest_package_owner(
                             if let Some(team) = owner.and_then(|owner| teams_by_name.get(&owner)) {
                                 let package_path = parent_rel.join("package.yml");
                                 let package_glob = directory_glob(rel_str);
-                                return Some((
+                                owners.push((
                                     team.name.clone(),
                                     Source::Package(package_path.to_string_lossy().to_string(), package_glob),
                                 ));
@@ -297,7 +300,7 @@ fn nearest_package_owner(
                         // validate rejects this package, so don't fall through to an enclosing package's owner.
                         Err(e) => {
                             eprintln!("Error reading ruby package: {e:?}, path: {}", pkg_yml.display());
-                            return None;
+                            return Vec::new();
                         }
                     }
                 }
@@ -310,18 +313,21 @@ fn nearest_package_owner(
                 {
                     let package_path = parent_rel.join("package.json");
                     let package_glob = directory_glob(rel_str);
-                    return Some((
+                    owners.push((
                         team.name.clone(),
                         Source::Package(package_path.to_string_lossy().to_string(), package_glob),
                     ));
                 }
+            }
+            if !owners.is_empty() {
+                return owners;
             }
         }
         if current == project_root {
             break;
         }
     }
-    None
+    Vec::new()
 }
 
 // removed: use `Source::len()` instead
@@ -410,6 +416,19 @@ mod tests {
             owned_gems: vec![],
             avoid_ownership: false,
         }
+    }
+
+    // The owner `nearest_package_owners` finds, for a project with no directory holding both a `package.yml` and a
+    // `package.json`.
+    fn nearest_package_owner(
+        project_root: &Path,
+        relative_file_path: &Path,
+        config: &Config,
+        teams_by_name: &HashMap<String, Team>,
+    ) -> Option<(String, Source)> {
+        let mut owners = nearest_package_owners(project_root, relative_file_path, config, teams_by_name);
+        assert!(owners.len() <= 1, "expected at most one package owner, got {owners:?}");
+        owners.pop()
     }
 
     #[test]
@@ -591,6 +610,38 @@ mod tests {
             }
             _ => panic!("expected Package source for js"),
         }
+    }
+
+    #[test]
+    fn test_nearest_package_owners_returns_a_package_yml_and_a_package_json_in_one_directory() {
+        let td = tempdir().unwrap();
+        let project_root = td.path();
+        let config = build_config_for_temp("packs/**/*", "packs/**/*", "vendored");
+
+        let pkg = project_root.join("packs/payroll");
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::write(pkg.join("package.yml"), "---\nowner: Payroll\n").unwrap();
+        std::fs::write(pkg.join("package.json"), r#"{"metadata": {"owner": "UX"}}"#).unwrap();
+
+        let mut tbn: HashMap<String, Team> = HashMap::new();
+        for name in ["Payroll", "UX"] {
+            let t = team_named(name);
+            tbn.insert(t.name.clone(), t);
+        }
+
+        assert_eq!(
+            nearest_package_owners(project_root, Path::new("packs/payroll/app/a.rb"), &config, &tbn),
+            vec![
+                (
+                    "Payroll".to_string(),
+                    Source::Package("packs/payroll/package.yml".to_string(), "packs/payroll/**/**".to_string())
+                ),
+                (
+                    "UX".to_string(),
+                    Source::Package("packs/payroll/package.json".to_string(), "packs/payroll/**/**".to_string())
+                ),
+            ]
+        );
     }
 
     #[test]
