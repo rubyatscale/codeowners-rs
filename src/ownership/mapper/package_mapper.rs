@@ -1,9 +1,10 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use super::escaper::directory_glob;
 use super::{Entry, Source};
 use super::{Mapper, OwnerMatcher};
-use crate::project::{Package, PackageType, Project};
+use crate::project::{Package, PackageType, Project, Team};
 use itertools::Itertools;
 
 pub struct RubyPackageMapper {
@@ -88,52 +89,50 @@ impl PackageMapper {
         entries
     }
 
+    // A matcher leaves out the packages of its type nested in it, so a file gets its nearest package, as in CODEOWNERS and
+    // `for-file`. A package naming an unknown team gets no matcher, so its files fall through to the enclosing package.
     fn owner_matchers(&self, package_type: &PackageType) -> Vec<OwnerMatcher> {
-        let mut owner_matchers: Vec<OwnerMatcher> = Vec::new();
-        let team_by_name = self.project.teams_by_name.clone();
+        let team_by_name = &self.project.teams_by_name;
 
-        let packages = &self.project.packages;
-        let packages: Vec<&Package> = packages.iter().filter(|package| &package.package_type == package_type).collect();
+        // Sorting by root puts the packages nested in a package right after it.
+        let packages: Vec<(&Path, &Package, &Team)> = self
+            .project
+            .packages
+            .iter()
+            .filter(|package| &package.package_type == package_type)
+            .filter_map(|package| Some((package.package_root()?, package, team_by_name.get(&package.owner)?)))
+            .sorted_by_key(|(package_root, _, _)| *package_root)
+            .collect();
 
-        // Nested packs can create a duplicate ownership false positive.
-        // We avoid it by treating nested packs as a single top-level pack for the purposes of validation.
-        let packages = remove_nested_packages(&packages);
-
-        for package in packages {
-            if let Some(package_root) = package.package_root() {
-                let package_root = package_root.to_string_lossy();
-                let team = team_by_name.get(&package.owner);
-
-                if let Some(team) = team {
-                    owner_matchers.push(OwnerMatcher::new_glob(
-                        directory_glob(&package_root),
-                        team.name.to_owned(),
-                        Source::Package(package.path.to_string_lossy().to_string(), directory_glob(&package_root)),
-                    ));
+        packages
+            .iter()
+            .enumerate()
+            .map(|(index, (package_root, package, team))| {
+                let glob = directory_glob(&package_root.to_string_lossy());
+                OwnerMatcher::Glob {
+                    glob: glob.clone(),
+                    subtracted_globs: nested_package_roots(package_root, &packages[index + 1..])
+                        .into_iter()
+                        .map(|nested_root| directory_glob(&nested_root.to_string_lossy()))
+                        .collect(),
+                    team_name: team.name.to_owned(),
+                    source: Source::Package(package.path.to_string_lossy().to_string(), glob),
                 }
-            }
-        }
-
-        owner_matchers
+            })
+            .collect()
     }
 }
 
-fn remove_nested_packages<'a>(packages: &'a [&'a Package]) -> Vec<&'a Package> {
-    let mut top_level_packages: Vec<&Package> = Vec::new();
-
-    for package in packages.iter().sorted_by_key(|package| package.package_root()) {
-        if let Some(last_package) = top_level_packages.last() {
-            if let (Some(current_root), Some(last_root)) = (package.package_root(), last_package.package_root())
-                && !current_root.starts_with(last_root)
-            {
-                top_level_packages.push(package);
-            }
-        } else {
-            top_level_packages.push(package);
+// The roots of the packages directly inside `package_root`, from the packages that sort after it. Leaving out a directly
+// nested package also leaves out the packages inside it.
+fn nested_package_roots<'a>(package_root: &Path, later_packages: &[(&'a Path, &Package, &Team)]) -> Vec<&'a Path> {
+    let mut nested_roots: Vec<&'a Path> = Vec::new();
+    for &(root, _, _) in later_packages.iter().take_while(|(root, _, _)| root.starts_with(package_root)) {
+        if nested_roots.last().is_none_or(|nested_root| !root.starts_with(nested_root)) {
+            nested_roots.push(root);
         }
     }
-
-    top_level_packages
+    nested_roots
 }
 
 #[cfg(test)]
@@ -141,79 +140,14 @@ mod tests {
     use super::*;
     use crate::{
         common_test::tests::{
-            build_ownership_with_all_mappers, build_ownership_with_package_codeowners,
+            build_ownership_with_all_mappers, build_ownership_with_nested_package_codeowners, build_ownership_with_package_codeowners,
             build_ownership_with_package_codeowners_at_the_project_root, build_ownership_with_package_codeowners_with_glob_metacharacters,
             vecs_match,
         },
         ownership::mapper::RubyPackageMapper,
-        project::{Package, PackageType},
+        project::PackageType,
     };
-    use itertools::Itertools;
-    use std::{error::Error, path::Path};
-    #[test]
-    fn test_remove_nested_packages() {
-        let packages = [
-            Package {
-                path: Path::new("packs/a/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_a".to_owned(),
-            },
-            Package {
-                path: Path::new("packs/a/b/e/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_b".to_owned(),
-            },
-            Package {
-                path: Path::new("packs/a/b/c/e/d/f/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_b".to_owned(),
-            },
-            Package {
-                path: Path::new("packs/c/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_a".to_owned(),
-            },
-        ];
-
-        let packages = packages.iter().collect_vec();
-
-        let package_paths = super::remove_nested_packages(&packages)
-            .iter()
-            .map(|package| package.path.to_str().unwrap())
-            .collect_vec();
-
-        assert_eq!(package_paths, vec!["packs/a/package.yml", "packs/c/package.yml"]);
-    }
-
-    #[test]
-    fn test_remove_nested_packages_with_a_package_at_the_project_root() {
-        let packages = [
-            Package {
-                path: Path::new("packs/a/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_a".to_owned(),
-            },
-            Package {
-                path: Path::new("package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_root".to_owned(),
-            },
-            Package {
-                path: Path::new("packs/b/package.yml").to_owned(),
-                package_type: PackageType::Ruby,
-                owner: "owner_b".to_owned(),
-            },
-        ];
-
-        let packages = packages.iter().collect_vec();
-
-        let package_paths = super::remove_nested_packages(&packages)
-            .iter()
-            .map(|package| package.path.to_str().unwrap())
-            .collect_vec();
-
-        assert_eq!(package_paths, vec!["package.yml"]);
-    }
+    use std::error::Error;
 
     #[test]
     fn test_entries() -> Result<(), Box<dyn Error>> {
@@ -325,17 +259,66 @@ mod tests {
 
     #[test]
     fn test_owner_matchers_at_the_project_root() -> Result<(), Box<dyn Error>> {
-        // The root package encloses the other, so only it is matched, as for any nested package.
+        // The root package encloses the other, so it leaves that one out, as for any nested package.
         let ownership = build_ownership_with_package_codeowners_at_the_project_root()?;
         let mapper = PackageMapper::build(ownership.project.clone());
         vecs_match(
             &mapper.owner_matchers(&PackageType::Ruby),
-            &vec![OwnerMatcher::new_glob(
-                "**/**".to_owned(),
-                "Foo".to_owned(),
-                Source::Package("package.yml".to_owned(), "**/**".to_owned()),
-            )],
+            &vec![
+                OwnerMatcher::Glob {
+                    glob: "**/**".to_owned(),
+                    subtracted_globs: vec!["packs/inner/**/**".to_owned()],
+                    team_name: "Foo".to_owned(),
+                    source: Source::Package("package.yml".to_owned(), "**/**".to_owned()),
+                },
+                OwnerMatcher::new_glob(
+                    "packs/inner/**/**".to_owned(),
+                    "Bar".to_owned(),
+                    Source::Package("packs/inner/package.yml".to_owned(), "packs/inner/**/**".to_owned()),
+                ),
+            ],
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_owner_matchers_leave_out_the_packages_nested_in_them() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_nested_package_codeowners()?;
+        let mapper = PackageMapper::build(ownership.project.clone());
+        let matcher = |root: &str, subtracted_roots: &[&str], team: &str| OwnerMatcher::Glob {
+            glob: format!("{root}/**/**"),
+            subtracted_globs: subtracted_roots.iter().map(|root| format!("{root}/**/**")).collect(),
+            team_name: team.to_owned(),
+            source: Source::Package(format!("{root}/package.yml"), format!("{root}/**/**")),
+        };
+        // `packs/foo/unknown` names no team, so it has no matcher and `packs/foo` keeps its files.
+        vecs_match(
+            &mapper.owner_matchers(&PackageType::Ruby),
+            &vec![
+                matcher("packs/foo", &["packs/foo/bam", "packs/foo/bar"], "Foo"),
+                matcher("packs/foo/bam", &[], "Bam"),
+                matcher("packs/foo/bar", &["packs/foo/bar/baz"], "Bar"),
+                matcher("packs/foo/bar/baz", &[], "Baz"),
+                matcher("packs/foobar", &[], "Bar"),
+            ],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_a_file_in_nested_packages_belongs_to_the_nearest_one() -> Result<(), Box<dyn Error>> {
+        let ownership = build_ownership_with_nested_package_codeowners()?;
+        for (file, team) in [
+            ("packs/foo/app/a.rb", "Foo"),
+            ("packs/foo/bar/app/a.rb", "Bar"),
+            ("packs/foo/bar/baz/app/a.rb", "Baz"),
+            ("packs/foo/unknown/app/a.rb", "Foo"),
+            ("packs/foobar/app/a.rb", "Bar"),
+        ] {
+            let owners = ownership.for_file(Path::new(file))?;
+            let teams: Vec<&str> = owners.iter().map(|owner| owner.team.name.as_str()).collect();
+            assert_eq!(teams, vec![team], "{file}");
+        }
         Ok(())
     }
 }
