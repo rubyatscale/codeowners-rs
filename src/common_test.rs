@@ -405,6 +405,36 @@ pub mod tests {
         )
     }
 
+    pub fn build_ownership_with_nested_package_codeowners() -> Result<Ownership, Box<dyn Error>> {
+        ownership!(
+            TestProjectFile {
+                relative_path: "packs/foo/package.yml".to_owned(),
+                content: "owner: Foo\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/bam/package.yml".to_owned(),
+                content: "owner: Bam\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/bar/package.yml".to_owned(),
+                content: "owner: Bar\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/bar/baz/package.yml".to_owned(),
+                content: "owner: Baz\n".to_owned(),
+            },
+            TestProjectFile {
+                relative_path: "packs/foo/unknown/package.yml".to_owned(),
+                content: "owner: NoSuchTeam\n".to_owned(),
+            },
+            // A sibling whose name starts with `foo`, which `packs/foo` doesn't contain.
+            TestProjectFile {
+                relative_path: "packs/foobar/package.yml".to_owned(),
+                content: "owner: Bar\n".to_owned(),
+            }
+        )
+    }
+
     pub fn build_ownership_with_package_codeowners_with_glob_metacharacters() -> Result<Ownership, Box<dyn Error>> {
         ownership!(
             TestProjectFile {
